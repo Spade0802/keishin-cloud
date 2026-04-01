@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Calculator, ArrowRight, BarChart3, Info } from 'lucide-react';
 import { ScenarioPanel } from '@/components/scenario-panel';
+import { FileUpload } from '@/components/file-upload';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -253,8 +254,27 @@ export function SimulatorForm() {
     ]);
   }
 
+  function handleFileParsed(data: Record<string, number | undefined>) {
+    if (data.sales !== undefined) setSales(String(data.sales));
+    if (data.grossProfit !== undefined) setGrossProfit(String(data.grossProfit));
+    if (data.ordinaryProfit !== undefined) setOrdinaryProfit(String(data.ordinaryProfit));
+    if (data.interestExpense !== undefined) setInterestExpense(String(data.interestExpense));
+    if (data.interestDividendIncome !== undefined) setInterestDividendIncome(String(data.interestDividendIncome));
+    if (data.currentLiabilities !== undefined) setCurrentLiabilities(String(data.currentLiabilities));
+    if (data.fixedLiabilities !== undefined) setFixedLiabilities(String(data.fixedLiabilities));
+    if (data.totalCapital !== undefined) setTotalCapital(String(data.totalCapital));
+    if (data.equity !== undefined) setEquity(String(data.equity));
+    if (data.fixedAssets !== undefined) setFixedAssets(String(data.fixedAssets));
+    if (data.retainedEarnings !== undefined) setRetainedEarnings(String(data.retainedEarnings));
+    if (data.corporateTax !== undefined) setCorporateTax(String(data.corporateTax));
+    if (data.depreciation !== undefined) setDepreciation(String(data.depreciation));
+  }
+
   return (
     <div className="space-y-6">
+      {/* File upload */}
+      <FileUpload onDataParsed={handleFileParsed} />
+
       {/* Demo button */}
       <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={loadDemoData}>
