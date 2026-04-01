@@ -22,19 +22,22 @@ export function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm">
+          <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
+            ダッシュボード
+          </Link>
+          <Link href="/trial" className="text-muted-foreground hover:text-foreground transition-colors">
+            新規試算
+          </Link>
           <Link href="/simulator" className="text-muted-foreground hover:text-foreground transition-colors">
-            シミュレーター
+            シミュレーション
+          </Link>
+          <Link href="/reclassification" className="text-muted-foreground hover:text-foreground transition-colors">
+            再分類分析
           </Link>
           <Link href="/guide/keishin" className="text-muted-foreground hover:text-foreground transition-colors">
             経審とは
           </Link>
-          <Link href="/guide/y-score" className="text-muted-foreground hover:text-foreground transition-colors">
-            Y点解説
-          </Link>
-          <Link href="/guide/score-up" className="text-muted-foreground hover:text-foreground transition-colors">
-            P点の上げ方
-          </Link>
-          <Link href="/simulator">
+          <Link href="/trial">
             <Button size="sm">無料で試算する</Button>
           </Link>
         </nav>
@@ -52,19 +55,22 @@ export function Header() {
       {/* Mobile nav */}
       {mobileOpen && (
         <nav className="md:hidden border-t px-4 py-4 flex flex-col gap-3">
+          <Link href="/dashboard" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            ダッシュボード
+          </Link>
+          <Link href="/trial" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            新規試算
+          </Link>
           <Link href="/simulator" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            シミュレーター
+            シミュレーション
+          </Link>
+          <Link href="/reclassification" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            再分類分析
           </Link>
           <Link href="/guide/keishin" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
             経審とは
           </Link>
-          <Link href="/guide/y-score" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            Y点解説
-          </Link>
-          <Link href="/guide/score-up" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            P点の上げ方
-          </Link>
-          <Link href="/simulator" onClick={() => setMobileOpen(false)}>
+          <Link href="/trial" onClick={() => setMobileOpen(false)}>
             <Button className="w-full" size="sm">無料で試算する</Button>
           </Link>
         </nav>
