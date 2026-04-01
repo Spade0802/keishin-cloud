@@ -48,6 +48,7 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
     mappingCount: number;
     warnings: string[];
     mappings: ParseMapping[];
+    ocrUsed?: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,17 +75,12 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
       setIsProcessing(true);
 
       try {
-        if (ext === '.pdf') {
-          setError('PDF読み取りは近日対応予定です。現在はExcel (.xlsx/.xls) をご利用ください。');
-          setIsProcessing(false);
-          return;
-        }
-
-        // Send to API for parsing
+        // Send to appropriate API based on file type
         const formData = new FormData();
         formData.append('file', file);
 
-        const res = await fetch('/api/parse-excel', {
+        const apiUrl = ext === '.pdf' ? '/api/parse-pdf' : '/api/parse-excel';
+        const res = await fetch(apiUrl, {
           method: 'POST',
           body: formData,
         });
@@ -139,6 +135,7 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
           mappingCount: mappings.length,
           warnings,
           mappings,
+          ocrUsed: parsed.ocrUsed || false,
         });
 
         if (mappings.length > 0) {
@@ -232,13 +229,13 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
                   <FileText className="h-3.5 w-3.5" />
                   CSV
                 </span>
-                <span className="flex items-center gap-1 opacity-50">
+                <span className="flex items-center gap-1">
                   <FileText className="h-3.5 w-3.5" />
-                  PDF（準備中）
+                  PDF（OCR対応）
                 </span>
               </div>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                ※ ファイルはサーバーで解析後、保存されません。50MB以下。
+                ※ ファイルはサーバーで解析後、保存されません。スキャンPDFはOCR処理されます。50MB以下。
               </p>
             </>
           )}
@@ -278,6 +275,11 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
                   {result.success
                     ? `${fileName} から ${result.mappingCount}項目を読み取りました`
                     : `${fileName} からデータを認識できませんでした`}
+                  {result.ocrUsed && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                      OCR使用
+                    </span>
+                  )}
                 </p>
                 {result.warnings.map((w, i) => (
                   <p key={i} className="text-xs mt-1 opacity-80">
