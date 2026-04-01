@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Calculator, ArrowRight, BarChart3, Info } from 'lucide-react';
+import { ScenarioPanel } from '@/components/scenario-panel';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -546,6 +547,50 @@ export function SimulatorForm() {
               </div>
             </CardContent>
           </Card>
+
+          {/* What-if Scenario Panel */}
+          <ScenarioPanel
+            yInput={{
+              sales: num(sales),
+              grossProfit: num(grossProfit),
+              ordinaryProfit: num(ordinaryProfit),
+              interestExpense: num(interestExpense),
+              interestDividendIncome: num(interestDividendIncome),
+              currentLiabilities: num(currentLiabilities),
+              fixedLiabilities: num(fixedLiabilities),
+              totalCapital: num(totalCapital),
+              equity: num(equity),
+              fixedAssets: num(fixedAssets),
+              retainedEarnings: num(retainedEarnings),
+              corporateTax: num(corporateTax),
+              depreciation: num(depreciation),
+              allowanceDoubtful: num(allowanceDoubtful),
+              notesAndAccountsReceivable: num(notesAndAccountsReceivable),
+              constructionPayable: num(constructionPayable),
+              inventoryAndMaterials: num(inventoryAndMaterials),
+              advanceReceived: num(advanceReceived),
+              prev: {
+                totalCapital: num(prevTotalCapital),
+                operatingCF: num(prevOperatingCF),
+                allowanceDoubtful: num(prevAllowanceDoubtful),
+                notesAndAccountsReceivable: num(prevNotesAndAccountsReceivable),
+                constructionPayable: num(prevConstructionPayable),
+                inventoryAndMaterials: num(prevInventoryAndMaterials),
+                advanceReceived: num(prevAdvanceReceived),
+              },
+            }}
+            equity={num(equity)}
+            ebitda={num(ebitda)}
+            wTotal={num(wTotal)}
+            industries={industries
+              .filter((ind) => ind.name && num(ind.avgCompletion) > 0)
+              .map((ind) => ({
+                name: ind.name,
+                avgCompletion: num(ind.avgCompletion),
+                avgSubcontract: num(ind.avgSubcontract),
+                techStaffValue: num(ind.techStaffValue),
+              }))}
+          />
         </div>
       )}
     </div>

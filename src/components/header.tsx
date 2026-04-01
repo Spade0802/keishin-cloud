@@ -22,14 +22,17 @@ export function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm">
-          <Link href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
-            機能
+          <Link href="/simulator" className="text-muted-foreground hover:text-foreground transition-colors">
+            シミュレーター
           </Link>
-          <Link href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">
-            使い方
+          <Link href="/guide/keishin" className="text-muted-foreground hover:text-foreground transition-colors">
+            経審とは
           </Link>
-          <Link href="#faq" className="text-muted-foreground hover:text-foreground transition-colors">
-            よくある質問
+          <Link href="/guide/y-score" className="text-muted-foreground hover:text-foreground transition-colors">
+            Y点解説
+          </Link>
+          <Link href="/guide/score-up" className="text-muted-foreground hover:text-foreground transition-colors">
+            P点の上げ方
           </Link>
           <Link href="/simulator">
             <Button size="sm">無料で試算する</Button>
@@ -49,14 +52,17 @@ export function Header() {
       {/* Mobile nav */}
       {mobileOpen && (
         <nav className="md:hidden border-t px-4 py-4 flex flex-col gap-3">
-          <Link href="#features" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            機能
+          <Link href="/simulator" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            シミュレーター
           </Link>
-          <Link href="#how-it-works" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            使い方
+          <Link href="/guide/keishin" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            経審とは
           </Link>
-          <Link href="#faq" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
-            よくある質問
+          <Link href="/guide/y-score" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            Y点解説
+          </Link>
+          <Link href="/guide/score-up" className="text-sm py-2" onClick={() => setMobileOpen(false)}>
+            P点の上げ方
           </Link>
           <Link href="/simulator" onClick={() => setMobileOpen(false)}>
             <Button className="w-full" size="sm">無料で試算する</Button>
