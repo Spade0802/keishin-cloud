@@ -8,6 +8,7 @@ import { db } from './db';
 import { users } from './db/schema';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: DrizzleAdapter(db),
   session: { strategy: 'jwt' },
   providers: [
