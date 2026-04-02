@@ -2,19 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { simulations } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
-/** GET /api/simulations — ログインユーザーのシミュレーション一覧 */
+/** GET /api/simulations — 法人のシミュレーション一覧（法人未設定ならユーザー個人） */
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
 
+  const orgId = session.user.organizationId;
+
+  // 法人IDがあれば法人単位、なければユーザー単位でフィルタ
+  const condition = orgId
+    ? eq(simulations.organizationId, orgId)
+    : and(
+        eq(simulations.userId, session.user.id),
+      );
+
   const results = await db
     .select()
     .from(simulations)
-    .where(eq(simulations.userId, session.user.id))
+    .where(condition)
     .orderBy(desc(simulations.updatedAt))
     .limit(50);
 
@@ -29,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, inputData, resultData } = body;
+  const { name, inputData, resultData, period } = body;
 
   if (!inputData) {
     return NextResponse.json({ error: '入力データが必要です' }, { status: 400 });
@@ -38,8 +47,10 @@ export async function POST(req: NextRequest) {
   const [created] = await db
     .insert(simulations)
     .values({
+      organizationId: session.user.organizationId ?? null,
       userId: session.user.id,
       name: name || '無題のシミュレーション',
+      period: period || null,
       inputData,
       resultData,
     })

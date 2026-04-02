@@ -205,7 +205,7 @@ export default function YScoreGuidePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Link href="/simulator">
+            <Link href="/trial">
               <Button size="lg">
                 <Calculator className="mr-2 h-5 w-5" />
                 Y点を含むP点を無料で試算する

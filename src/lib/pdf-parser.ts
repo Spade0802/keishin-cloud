@@ -164,6 +164,131 @@ async function ocrWithVision(buffer: Buffer): Promise<string> {
   return allText.join('\n');
 }
 
+// ─── Document AI Form Parser ───
+
+interface DocAIField {
+  name: string;
+  value: string;
+  confidence: number;
+}
+
+interface DocAIResult {
+  fullText: string;
+  pageTexts: string[];
+  formFields: DocAIField[];
+}
+
+async function ocrWithDocumentAI(buffer: Buffer): Promise<DocAIResult | null> {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'jww-dxf-converter';
+  const location = 'us';
+  const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID || '660ca751a3b05c46';
+
+  try {
+    const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai');
+    const client = new DocumentProcessorServiceClient();
+
+    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+    const [response] = await client.processDocument({
+      name,
+      rawDocument: {
+        content: buffer.toString('base64'),
+        mimeType: 'application/pdf',
+      },
+    });
+
+    const document = response.document;
+    if (!document?.text) return null;
+
+    const fullText = document.text;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extractText = (textAnchor: any): string => {
+      if (!textAnchor?.textSegments) return '';
+      return (textAnchor.textSegments as Array<{ startIndex?: unknown; endIndex?: unknown }>)
+        .map(seg => {
+          const start = Number(seg.startIndex || 0);
+          const end = Number(seg.endIndex || 0);
+          return fullText.slice(start, end);
+        })
+        .join('')
+        .trim();
+    };
+
+    const allFields: DocAIField[] = [];
+    const pageTexts: string[] = [];
+
+    for (const page of document.pages || []) {
+      // ページテキスト
+      const texts: string[] = [];
+      for (const para of page.paragraphs || []) {
+        const t = extractText(para.layout?.textAnchor);
+        if (t) texts.push(t);
+      }
+      pageTexts.push(texts.join('\n'));
+
+      // フォームフィールド
+      for (const field of page.formFields || []) {
+        const fieldName = extractText(field.fieldName?.textAnchor).replace(/[:\s：]+$/, '').trim();
+        const fieldValue = extractText(field.fieldValue?.textAnchor).trim();
+        const confidence = Number(field.fieldValue?.confidence ?? 0);
+        if (fieldName && fieldValue) {
+          allFields.push({ name: fieldName, value: fieldValue, confidence });
+        }
+      }
+
+      // テーブルからもフィールド抽出
+      for (const table of page.tables || []) {
+        for (const row of table.bodyRows || []) {
+          const cells = row.cells || [];
+          if (cells.length >= 2) {
+            const label = extractText(cells[0].layout?.textAnchor).trim();
+            const value = extractText(cells[1].layout?.textAnchor).trim();
+            if (label && value && /[\d０-９]/.test(value)) {
+              allFields.push({ name: label, value, confidence: 0.8 });
+            }
+          }
+        }
+      }
+    }
+
+    return { fullText, pageTexts, formFields: allFields };
+  } catch (e) {
+    console.error('Document AI error:', e);
+    return null;
+  }
+}
+
+/** Document AI formFields から MAPPING_RULES を使って財務データを埋める */
+function mapDocAIFieldsToData(
+  fields: DocAIField[],
+  data: Partial<RawFinancialData>,
+  mappings: { source: string; target: string; value: number }[],
+): void {
+  const usedTargets = new Set<string>();
+
+  for (const field of fields) {
+    const label = cleanLabelText(
+      field.name
+        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/\u3000/g, ' ')
+    );
+    const numVal = parseJapaneseNumber(field.value);
+    if (!label || numVal === null) continue;
+
+    for (const rule of MAPPING_RULES) {
+      if (usedTargets.has(rule.target)) continue;
+      if (shouldSkip(label, rule.target)) continue;
+
+      if (matchLabel(label, rule.patterns)) {
+        rule.assign(data, numVal);
+        mappings.push({ source: `DocAI:${label}`, target: rule.target, value: numVal });
+        usedTargets.add(rule.target);
+        break;
+      }
+    }
+  }
+}
+
 // ─── テキストから数値抽出 v2 ───
 
 /**
@@ -891,27 +1016,52 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   const data = initEmptyData();
   let ocrUsed = false;
 
-  // Step 1: テキスト抽出を試行
+  // Step 1: テキスト抽出を試行（pdfjs-dist）
   let text = '';
   try {
     text = await extractTextFromPDF(buffer);
-  } catch (e) {
+  } catch {
     warnings.push('テキスト抽出に失敗しました。OCRを試行します。');
   }
 
-  // Step 2: テキストが少なければOCR
   const meaningfulChars = text.replace(/[\s\r\n\-]/g, '').replace(/PAGE BREAK/g, '').length;
   const isScanned = meaningfulChars < 100;
 
-  if (isScanned) {
-    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.GOOGLE_CLOUD_PROJECT) {
-      const hasDefaultCredentials = process.env.GCLOUD_PROJECT || process.env.K_SERVICE;
-      if (!hasDefaultCredentials) {
-        warnings.push(
-          'OCR機能を使用するにはGoogle Cloud Vision APIの認証設定が必要です。'
-        );
-        return { data, warnings, mappings, ocrUsed: false, rawText: text };
+  // Step 2: Document AI Form Parser（テキスト/スキャンどちらでも精度向上）
+  const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    process.env.GOOGLE_CLOUD_PROJECT ||
+    process.env.GCLOUD_PROJECT ||
+    process.env.K_SERVICE;
+
+  let docAIUsed = false;
+
+  if (hasCredentials) {
+    try {
+      const docResult = await ocrWithDocumentAI(buffer);
+      if (docResult) {
+        docAIUsed = true;
+
+        // Document AIのフォームフィールドから直接マッピング
+        mapDocAIFieldsToData(docResult.formFields, data, mappings);
+
+        // Document AIのページテキスト（パラグラフ結合）をメインテキストとして使用
+        const docAIText = docResult.pageTexts.join('\n--- PAGE BREAK ---\n');
+        const docAIChars = docAIText.replace(/[\s\r\n\-]/g, '').replace(/PAGE BREAK/g, '').length;
+        if (docAIChars > meaningfulChars) {
+          text = docAIText;
+          ocrUsed = true;
+        }
       }
+    } catch (e) {
+      console.error('Document AI failed, falling back:', e);
+    }
+  }
+
+  // Step 3: スキャンPDFでDocument AIも使えない場合 → Vision API フォールバック
+  if (isScanned && !docAIUsed) {
+    if (!hasCredentials) {
+      warnings.push('OCR機能を使用するにはGoogle Cloud認証設定が必要です。');
+      return { data, warnings, mappings, ocrUsed: false, rawText: text };
     }
 
     try {
@@ -932,11 +1082,10 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     return { data, warnings, mappings, ocrUsed, rawText: '' };
   }
 
-  // Step 3: テキストから科目マッピング
-  // まず行ベースのマッピングを試行
+  // Step 4: テキストから追加マッピング（Document AIで取れなかった項目を補完）
   mapTextToData(text, data, mappings);
 
-  // OCRテキストの場合、行ベースでマッチしにくいのでコンテキストベース抽出も実行
+  // OCRテキストの場合、コンテキストベース抽出も実行
   if (ocrUsed || mappings.length < 5) {
     extractFromOcrText(text, data, mappings);
   }
@@ -945,11 +1094,18 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     warnings.push(
       'PDFから決算書データを認識できませんでした。Excelでのアップロードを推奨します。'
     );
+  } else if (docAIUsed) {
+    const docAICount = mappings.filter(m => m.source.startsWith('DocAI:')).length;
+    if (docAICount > 0) {
+      warnings.push(
+        `Document AIで${docAICount}項目、テキスト解析で${mappings.length - docAICount}項目を読み取りました。`
+      );
+    }
   } else if (ocrUsed) {
     warnings.push(
       `OCRで${mappings.length}項目を読み取りました。数値を必ずご確認ください。`
     );
   }
 
-  return { data, warnings, mappings, ocrUsed, rawText: text.slice(0, 5000) };
+  return { data, warnings, mappings, ocrUsed: ocrUsed || docAIUsed, rawText: text.slice(0, 5000) };
 }

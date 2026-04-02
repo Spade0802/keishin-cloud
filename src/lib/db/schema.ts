@@ -1,7 +1,7 @@
 /**
  * Drizzle ORM スキーマ定義
  *
- * NextAuth.js のアカウント管理 + 経審シミュレーション保存
+ * NextAuth.js のアカウント管理 + 法人別経審シミュレーション保存
  */
 import {
   pgTable,
@@ -12,8 +12,23 @@ import {
   uuid,
   primaryKey,
   boolean,
+  pgEnum,
 } from 'drizzle-orm/pg-core';
 import type { AdapterAccountType } from 'next-auth/adapters';
+
+// ─── Enums ───
+
+export const userRoleEnum = pgEnum('user_role', ['admin', 'member']);
+
+// ─── 法人テーブル ───
+
+export const organizations = pgTable('organizations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  permitNumber: text('permit_number'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+});
 
 // ─── NextAuth.js テーブル ───
 
@@ -22,7 +37,12 @@ export const users = pgTable('users', {
   name: text('name'),
   email: text('email').unique(),
   emailVerified: timestamp('email_verified', { mode: 'date' }),
+  password: text('password'),
   image: text('image'),
+  organizationId: uuid('organization_id').references(() => organizations.id, {
+    onDelete: 'set null',
+  }),
+  role: userRoleEnum('role').default('admin').notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
@@ -70,8 +90,12 @@ export const verificationTokens = pgTable(
 
 export const simulations = pgTable('simulations', {
   id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
   name: text('name').notNull().default('無題のシミュレーション'),
+  period: text('period'),
   inputData: jsonb('input_data').notNull(),
   resultData: jsonb('result_data'),
   isPublic: boolean('is_public').default(false).notNull(),

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { auth } from '@/lib/auth';
+import { SessionProvider } from '@/lib/session-context';
 import './globals.css';
 
 const geistSans = Geist({
@@ -55,11 +57,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth().catch(() => null);
+
   return (
     <html
       lang="ja"
@@ -69,7 +73,9 @@ export default function RootLayout({
         <link rel="canonical" href="https://keishin.cloud" />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+        <SessionProvider session={session}>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

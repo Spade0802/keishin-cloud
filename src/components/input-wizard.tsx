@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,8 @@ import { ResultView } from '@/components/result-view';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
-import type { YInput, YResult, WDetail } from '@/lib/engine/types';
+import type { YInput, YResult, WDetail, SocialItems } from '@/lib/engine/types';
+import type { KeishinPdfResult } from '@/lib/keishin-pdf-parser';
 
 // ---- Types ----
 
@@ -143,12 +144,23 @@ export function InputWizard() {
   const [wDetail, setWDetail] = useState<WDetail | null>(null);
   const [wTotal, setWTotal] = useState(0);
   const [wScore, setWScore] = useState(0);
+  const [externalWItems, setExternalWItems] = useState<Partial<SocialItems> | undefined>(undefined);
+
+  // 提出書PDF読込状態
+  const [keishinPdfLoaded, setKeishinPdfLoaded] = useState(false);
+  const [keishinPdfProcessing, setKeishinPdfProcessing] = useState(false);
+  const [keishinPdfError, setKeishinPdfError] = useState<string | null>(null);
+  const [keishinPdfMappings, setKeishinPdfMappings] = useState<{ source: string; target: string; value: string | number }[]>([]);
 
   // Step 4: Previous period
   const [prevData, setPrevData] = useState<PrevPeriodData>({
     totalCapital: '', operatingCF: '', allowanceDoubtful: '', notesAndReceivable: '',
     constructionPayable: '', inventoryAndMaterials: '', advanceReceived: '',
   });
+  const [prevFileLoading, setPrevFileLoading] = useState(false);
+  const [prevFileName, setPrevFileName] = useState<string | null>(null);
+  const [prevFileError, setPrevFileError] = useState<string | null>(null);
+  const prevFileRef = useRef<HTMLInputElement>(null);
 
   // Result
   const [result, setResult] = useState<{
@@ -182,6 +194,63 @@ export function InputWizard() {
     setFileLoaded(true);
   }
 
+  // Previous period file upload handler
+  const handlePrevFile = useCallback(async (file: File) => {
+    setPrevFileError(null);
+    setPrevFileName(file.name);
+
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!['.xlsx', '.xls', '.csv', '.pdf'].includes(ext)) {
+      setPrevFileError('対応形式: Excel (.xlsx/.xls), CSV, PDF');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setPrevFileError('ファイルサイズが50MBを超えています。');
+      return;
+    }
+
+    setPrevFileLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const apiUrl = ext === '.pdf' ? '/api/parse-pdf' : '/api/parse-excel';
+      const res = await fetch(apiUrl, { method: 'POST', body: formData });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error || `解析エラー (${res.status})`);
+      }
+      const parsed = await res.json();
+      const { data } = parsed;
+
+      // Map BS data to prevData fields (千円単位)
+      const updated: PrevPeriodData = { ...prevData };
+      if (data.bs?.totals?.totalAssets) updated.totalCapital = String(Math.round(data.bs.totals.totalAssets / 1000));
+      if (data.bs?.currentAssets?.['貸倒引当金'] !== undefined) updated.allowanceDoubtful = String(Math.round(data.bs.currentAssets['貸倒引当金'] / 1000));
+
+      // 受取手形 + 完成工事未収入金
+      const notes = data.bs?.currentAssets?.['受取手形'] || 0;
+      const acctRec = data.bs?.currentAssets?.['完成工事未収入金'] || 0;
+      if (notes || acctRec) updated.notesAndReceivable = String(Math.round((notes + acctRec) / 1000));
+
+      // 工事未払金
+      if (data.bs?.currentLiabilities?.['工事未払金']) updated.constructionPayable = String(Math.round(data.bs.currentLiabilities['工事未払金'] / 1000));
+
+      // 未成工事支出金 + 材料貯蔵品
+      const wip = data.bs?.currentAssets?.['未成工事支出金'] || 0;
+      const mat = data.bs?.currentAssets?.['材料貯蔵品'] || 0;
+      if (wip || mat) updated.inventoryAndMaterials = String(Math.round((wip + mat) / 1000));
+
+      // 未成工事受入金
+      if (data.bs?.currentLiabilities?.['未成工事受入金']) updated.advanceReceived = String(Math.round(data.bs.currentLiabilities['未成工事受入金'] / 1000));
+
+      setPrevData(updated);
+    } catch (e) {
+      setPrevFileError(e instanceof Error ? e.message : '解析に失敗しました。');
+    } finally {
+      setPrevFileLoading(false);
+    }
+  }, [prevData]);
+
   // Load demo data
   function loadDemoData() {
     // Step 1
@@ -209,6 +278,64 @@ export function InputWizard() {
       notesAndReceivable: '223124', constructionPayable: '224090',
       inventoryAndMaterials: '17836', advanceReceived: '1653',
     });
+  }
+
+  // 経審提出書PDFアップロード処理
+  async function handleKeishinPdfUpload(file: File) {
+    setKeishinPdfError(null);
+    setKeishinPdfProcessing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/parse-keishin-pdf', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '解析に失敗しました');
+      }
+      const data: KeishinPdfResult = await res.json();
+
+      // Step 2: 基本情報
+      if (data.basicInfo.companyName) setBasicInfo(prev => ({ ...prev, companyName: data.basicInfo.companyName }));
+      if (data.basicInfo.permitNumber) setBasicInfo(prev => ({ ...prev, permitNumber: data.basicInfo.permitNumber }));
+      if (data.basicInfo.reviewBaseDate) setBasicInfo(prev => ({ ...prev, reviewBaseDate: data.basicInfo.reviewBaseDate }));
+
+      // Step 2: X2データ
+      if (data.ebitda) setEbitda(String(data.ebitda));
+      // 自己資本額（= 純資産合計）→ Step1のequityにも反映
+      if (data.equity && !equity) setEquity(String(data.equity));
+
+      // Step 2: 業種別完成工事高
+      if (data.industries.length > 0) {
+        setIndustries(data.industries.map(ind => ({
+          name: ind.name,
+          permitType: '一般' as const,
+          prevCompletion: String(ind.prevCompletion),
+          currCompletion: String(ind.currCompletion),
+          prevSubcontract: String(ind.prevPrimeContract),
+          currSubcontract: String(ind.currPrimeContract),
+          techStaffValue: '',
+        })));
+      }
+
+      // Step 3: W項目（技術職員数・営業年数もマージ）
+      const wItems: Partial<SocialItems> = { ...data.wItems };
+      if (data.techStaffCount > 0 && !wItems.techStaffCount) {
+        wItems.techStaffCount = data.techStaffCount;
+      }
+      if (data.businessYears > 0 && !wItems.businessYears) {
+        wItems.businessYears = data.businessYears;
+      }
+      if (Object.keys(wItems).length > 0) {
+        setExternalWItems(wItems);
+      }
+
+      setKeishinPdfMappings(data.mappings || []);
+      setKeishinPdfLoaded(true);
+    } catch (e) {
+      setKeishinPdfError(e instanceof Error ? e.message : '提出書PDFの解析に失敗しました');
+    } finally {
+      setKeishinPdfProcessing(false);
+    }
   }
 
   function addIndustry() {
@@ -346,8 +473,71 @@ export function InputWizard() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Step 2: 経審提出書データ</h2>
           <p className="text-sm text-muted-foreground">
-            基本情報、業種別完成工事高、X2用データを入力します。
+            経審提出書PDFをアップロードすると、基本情報・業種別完工高・W項目を自動読取します。手入力も可能です。
           </p>
+
+          {/* 提出書PDFアップロード */}
+          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+            <CardContent className="py-4">
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">経審提出書PDFアップロード</span>
+                  {keishinPdfLoaded && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="mr-1 h-3 w-3" />読取済み
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  経営規模等評価申請書・別紙一（業種別完工高）・別紙三（W項目）を自動で読み取ります
+                </p>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleKeishinPdfUpload(f);
+                      }}
+                      disabled={keishinPdfProcessing}
+                    />
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                      keishinPdfProcessing
+                        ? 'bg-muted text-muted-foreground cursor-wait'
+                        : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                    }`}>
+                      <Upload className="h-4 w-4" />
+                      {keishinPdfProcessing ? '解析中...' : 'PDFを選択'}
+                    </span>
+                  </label>
+                </div>
+                {keishinPdfError && (
+                  <p className="text-xs text-destructive">{keishinPdfError}</p>
+                )}
+                {keishinPdfLoaded && keishinPdfMappings.length > 0 && (
+                  <details className="w-full">
+                    <summary className="text-xs text-muted-foreground cursor-pointer">
+                      読み取り項目の詳細（{keishinPdfMappings.length}件）
+                    </summary>
+                    <div className="mt-2 text-xs bg-muted/50 rounded p-2 max-h-40 overflow-auto">
+                      {keishinPdfMappings.map((m, i) => (
+                        <div key={i} className="py-0.5">
+                          <span className="text-muted-foreground">{m.source}</span>
+                          {' → '}
+                          <span className="font-medium">{m.target}</span>
+                          {' = '}
+                          <span className="text-primary">{typeof m.value === 'number' ? m.value.toLocaleString() : m.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader><CardTitle className="text-base">基本情報</CardTitle></CardHeader>
@@ -430,7 +620,70 @@ export function InputWizard() {
             別紙二（技術職員名簿）と別紙三（社会性等W項目）を入力します。
           </p>
 
-          <WItemsChecklist onWCalculated={handleWCalculated} />
+          {/* 経審提出書PDF: 未読込ならアップロード欄、読込済みなら反映状況を表示 */}
+          {!keishinPdfLoaded ? (
+            <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+              <CardContent className="py-4">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">経審提出書PDFからW項目を自動入力</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Step 2 でアップロード済みなら自動反映されます。ここからもアップロードできます。
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleKeishinPdfUpload(f);
+                        }}
+                        disabled={keishinPdfProcessing}
+                      />
+                      <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                        keishinPdfProcessing
+                          ? 'bg-muted text-muted-foreground cursor-wait'
+                          : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                      }`}>
+                        <Upload className="h-4 w-4" />
+                        {keishinPdfProcessing ? '解析中...' : '提出書PDFを選択'}
+                      </span>
+                    </label>
+                  </div>
+                  {keishinPdfError && (
+                    <p className="text-xs text-destructive">{keishinPdfError}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-green-200 bg-green-50/50">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-700">提出書PDFから別紙三（W項目）を自動反映済み</span>
+                </div>
+                {keishinPdfMappings.filter(m => m.source === '別紙三').length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {keishinPdfMappings.filter(m => m.source === '別紙三').map((m, i) => (
+                      <Badge key={i} variant="outline" className="text-[10px] bg-green-50 border-green-200 text-green-700">
+                        {m.target.replace('W/', '')} = {typeof m.value === 'number' ? m.value.toLocaleString() : m.value}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  読み取れなかった項目は手入力で補完してください
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <WItemsChecklist onWCalculated={handleWCalculated} externalItems={externalWItems} />
 
           {wDetail && (
             <div className="text-center p-4 rounded-lg bg-muted/50">
@@ -447,8 +700,48 @@ export function InputWizard() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Step 4: 前期データ確認</h2>
           <p className="text-sm text-muted-foreground">
-            Y点の営業CF計算に前期の経審用BS千円値が必要です。初回のみ入力してください。
+            Y点の営業CF計算に前期の経審用BS千円値が必要です。ファイルアップロードまたは手入力してください。
           </p>
+
+          {/* Previous period file upload */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">前期決算書をアップロード（任意）</CardTitle></CardHeader>
+            <CardContent>
+              <div
+                onClick={() => prevFileRef.current?.click()}
+                className="cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+              >
+                <input
+                  ref={prevFileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePrevFile(file);
+                    e.target.value = '';
+                  }}
+                />
+                {prevFileLoading ? (
+                  <p className="text-sm text-muted-foreground">解析中...</p>
+                ) : prevFileName && !prevFileError ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-green-700">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>{prevFileName} から前期データを読み込みました</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">前期の決算書（Excel/PDF）をクリックまたはドロップ</p>
+                    <p className="text-xs text-muted-foreground">BS科目から自動マッピングします</p>
+                  </div>
+                )}
+              </div>
+              {prevFileError && (
+                <p className="mt-2 text-xs text-destructive">{prevFileError}</p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader><CardTitle className="text-base">前期（経審用BS千円値）</CardTitle></CardHeader>
@@ -465,7 +758,7 @@ export function InputWizard() {
 
           <Card className="bg-blue-50/50 border-blue-200">
             <CardContent className="py-4 text-sm text-blue-800">
-              <p className="font-medium">💡 2回目以降は自動引継ぎ</p>
+              <p className="font-medium">2回目以降は自動引継ぎ</p>
               <p className="mt-1 text-xs">前回の試算データがDB内にある場合、前期データは自動で引き継がれます。ここでは確認・修正のみ行ってください。</p>
             </CardContent>
           </Card>

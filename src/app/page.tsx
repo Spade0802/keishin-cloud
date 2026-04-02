@@ -38,7 +38,7 @@ export default function LandingPage() {
           <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
               <Badge variant="secondary" className="mb-6">
-                登録不要・無料で即試算
+                無料で即試算
               </Badge>
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
                 経審P点、
@@ -50,15 +50,15 @@ export default function LandingPage() {
                 決算書の数値を入力するだけで、全業種のP点・内訳を瞬時に算出します。
               </p>
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/simulator">
+                <Link href="/login">
                   <Button size="lg" className="text-base px-8 py-6">
                     <Calculator className="mr-2 h-5 w-5" />
-                    無料で試算を始める
+                    登録して始める
                   </Button>
                 </Link>
-                <Link href="#how-it-works">
+                <Link href="/demo">
                   <Button variant="outline" size="lg" className="text-base px-8 py-6">
-                    使い方を見る
+                    デモを見る
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
@@ -164,15 +164,15 @@ export default function LandingPage() {
               {[
                 {
                   step: '1',
-                  title: '決算書データを入力',
+                  title: '決算書をアップロード',
                   description:
-                    'BS・PL・完成工事原価報告書の主要科目を入力、またはExcelをアップロード。',
+                    'Excelまたは決算書PDFをドラッグ＆ドロップ。BS・PL・原価報告書を自動読み取り。',
                 },
                 {
                   step: '2',
-                  title: '業種・技術者情報を入力',
+                  title: '経審提出書で自動入力',
                   description:
-                    '業種別の完成工事高、技術職員の資格情報、社会性等の項目を入力。',
+                    '経審提出書PDFをアップロードすると、業種・技術者・W項目を自動解析。手入力不要。',
                 },
                 {
                   step: '3',
@@ -191,9 +191,9 @@ export default function LandingPage() {
               ))}
             </div>
             <div className="mt-12 text-center">
-              <Link href="/simulator">
+              <Link href="/login">
                 <Button size="lg">
-                  今すぐ試算する
+                  登録して始める
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -312,13 +312,13 @@ export default function LandingPage() {
               経審P点、今すぐ確認しませんか？
             </h2>
             <p className="mt-4 text-muted-foreground">
-              登録不要・無料。決算書の数値を入力するだけで、全業種のP点を即試算。
+              無料で登録して、決算書の数値を入力するだけで全業種のP点を即試算。
             </p>
             <div className="mt-8">
-              <Link href="/simulator">
+              <Link href="/login">
                 <Button size="lg" className="text-base px-8 py-6">
                   <Calculator className="mr-2 h-5 w-5" />
-                  無料で試算を始める
+                  登録して始める
                 </Button>
               </Link>
             </div>

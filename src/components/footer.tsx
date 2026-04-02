@@ -20,8 +20,10 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-sm mb-3">サービス</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/simulator" className="hover:text-foreground transition-colors">P点シミュレーター</Link></li>
-              <li><Link href="#features" className="hover:text-foreground transition-colors">機能一覧</Link></li>
+              <li><Link href="/trial" className="hover:text-foreground transition-colors">新規試算</Link></li>
+              <li><Link href="/verification" className="hover:text-foreground transition-colors">実績突合</Link></li>
+              <li><Link href="/comparison" className="hover:text-foreground transition-colors">前期比較表</Link></li>
+              <li><Link href="/reclassification" className="hover:text-foreground transition-colors">再分類分析</Link></li>
             </ul>
           </div>
           <div>

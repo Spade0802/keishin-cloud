@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
+import { KeishinPLTable } from '@/components/keishin-pl-table';
 import type { YResult, KeishinBS, KeishinPL, WDetail } from '@/lib/engine/types';
 
 interface IndustryResult {
@@ -50,6 +51,8 @@ interface ResultViewProps {
   prevY?: number;
   prevX2?: number;
   prevW?: number;
+  /** デモ/読み取り専用モード: ダウンロードボタンを非表示にする */
+  readOnly?: boolean;
 }
 
 function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
@@ -97,6 +100,7 @@ export function ResultView(props: ResultViewProps) {
     bs,
     pl,
     prevY, prevX2, prevW,
+    readOnly,
   } = props;
 
   const [yDetailOpen, setYDetailOpen] = useState(false);
@@ -113,7 +117,7 @@ export function ResultView(props: ResultViewProps) {
     { rank: 4, name: '借入金の返済', impact: '全業種P +3〜8', detail: '負債回転期間・自己資本比率の改善によるY点上昇', difficulty: '資金による' },
   ], []);
 
-  async function handleDownload() {
+  async function handleDownloadExcel() {
     try {
       const res = await fetch('/api/export-excel', {
         method: 'POST',
@@ -124,6 +128,8 @@ export function ResultView(props: ResultViewProps) {
           industries,
           Y, X2, X21, X22, W, wTotal,
           yResult,
+          bs,
+          pl,
         }),
       });
       if (!res.ok) throw new Error('Download failed');
@@ -137,6 +143,10 @@ export function ResultView(props: ResultViewProps) {
     } catch (err) {
       console.error('Excel download failed:', err);
     }
+  }
+
+  function handleDownloadPDF() {
+    window.print();
   }
 
   return (
@@ -154,10 +164,18 @@ export function ResultView(props: ResultViewProps) {
             試算版
           </Badge>
         </div>
-        <Button onClick={handleDownload} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Excel一括ダウンロード
-        </Button>
+        {!readOnly && (
+          <div className="flex gap-2" data-print-hide>
+            <Button onClick={handleDownloadExcel} variant="outline">
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Excel
+            </Button>
+            <Button onClick={handleDownloadPDF} variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              PDF
+            </Button>
+          </div>
+        )}
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -404,8 +422,11 @@ export function ResultView(props: ResultViewProps) {
 
         {/* BS/PL */}
         <TabsContent value="bs-pl">
-          {bs ? (
-            <KeishinBSTable bs={bs} />
+          {bs || pl ? (
+            <div className="space-y-6">
+              {bs && <KeishinBSTable bs={bs} />}
+              {pl && <KeishinPLTable pl={pl} />}
+            </div>
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">

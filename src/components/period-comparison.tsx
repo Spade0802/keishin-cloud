@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowUpRight, ArrowDownRight, Minus, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Minus, ArrowRight, Upload, CheckCircle } from 'lucide-react';
 
 interface PeriodData {
   label: string;
@@ -38,6 +38,50 @@ function DiffBadge({ prev, curr }: { prev: number; curr: number }) {
   );
 }
 
+function PdfUploadZone({ label, loading, fileName, error, onFile }: {
+  label: string;
+  loading: boolean;
+  fileName: string | null;
+  error: string | null;
+  onFile: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="mb-3">
+      <div
+        onClick={() => inputRef.current?.click()}
+        className="cursor-pointer rounded-lg border-2 border-dashed p-3 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+            e.target.value = '';
+          }}
+        />
+        {loading ? (
+          <p className="text-xs text-muted-foreground">解析中...</p>
+        ) : fileName && !error ? (
+          <div className="flex items-center justify-center gap-1 text-xs text-green-700">
+            <CheckCircle className="h-3 w-3" />
+            <span>{fileName} から読込済</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Upload className="h-3.5 w-3.5" />
+            <span>{label}の結果通知書PDFをアップロード</span>
+          </div>
+        )}
+      </div>
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function PeriodComparison() {
   const [prev, setPrev] = useState<PeriodData>({
     label: '第57期',
@@ -62,6 +106,43 @@ export function PeriodComparison() {
   });
 
   const [showResult, setShowResult] = useState(false);
+
+  // File upload state
+  const [prevFile, setPrevFile] = useState<{ loading: boolean; name: string | null; error: string | null }>({ loading: false, name: null, error: null });
+  const [currFile, setCurrFile] = useState<{ loading: boolean; name: string | null; error: string | null }>({ loading: false, name: null, error: null });
+
+  const handleUpload = useCallback(async (file: File, target: 'prev' | 'curr') => {
+    const setFileState = target === 'prev' ? setPrevFile : setCurrFile;
+    const setData = target === 'prev' ? setPrev : setCurr;
+
+    setFileState({ loading: true, name: file.name, error: null });
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/parse-result-pdf', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error || `解析エラー (${res.status})`);
+      }
+      const { scores } = await res.json();
+
+      setData((d) => {
+        const updated = { ...d };
+        if (scores.label) updated.label = scores.label;
+        if (scores.Y) updated.Y = scores.Y;
+        if (scores.X2) updated.X2 = scores.X2;
+        if (scores.X21) updated.X21 = scores.X21;
+        if (scores.X22) updated.X22 = scores.X22;
+        if (scores.W) updated.W = scores.W;
+        if (scores.industries?.length > 0) updated.industries = scores.industries;
+        return updated;
+      });
+      setFileState({ loading: false, name: file.name, error: null });
+    } catch (e) {
+      setFileState({ loading: false, name: file.name, error: e instanceof Error ? e.message : '解析失敗' });
+    }
+  }, []);
 
   function num(s: string): number {
     const n = parseFloat(s);
@@ -107,6 +188,7 @@ export function PeriodComparison() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <PdfUploadZone label="前期" loading={prevFile.loading} fileName={prevFile.name} error={prevFile.error} onFile={(f) => handleUpload(f, 'prev')} />
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1"><Label className="text-xs">Y</Label><Input value={prev.Y} onChange={(e) => updatePrev('Y', e.target.value)} className="text-right h-7 text-sm" /></div>
               <div className="space-y-1"><Label className="text-xs">X2</Label><Input value={prev.X2} onChange={(e) => updatePrev('X2', e.target.value)} className="text-right h-7 text-sm" /></div>
@@ -135,6 +217,7 @@ export function PeriodComparison() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <PdfUploadZone label="当期" loading={currFile.loading} fileName={currFile.name} error={currFile.error} onFile={(f) => handleUpload(f, 'curr')} />
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1"><Label className="text-xs">Y</Label><Input value={curr.Y} onChange={(e) => updateCurr('Y', e.target.value)} className="text-right h-7 text-sm" /></div>
               <div className="space-y-1"><Label className="text-xs">X2</Label><Input value={curr.X2} onChange={(e) => updateCurr('X2', e.target.value)} className="text-right h-7 text-sm" /></div>

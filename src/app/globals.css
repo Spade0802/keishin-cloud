@@ -128,3 +128,18 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  header, footer, nav,
+  [data-print-hide] {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 10pt;
+  }
+  .print\:break-before-page {
+    break-before: page;
+  }
+}

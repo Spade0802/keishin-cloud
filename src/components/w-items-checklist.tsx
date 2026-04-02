@@ -11,6 +11,8 @@ import type { SocialItems, WDetail } from '@/lib/engine/types';
 
 interface WItemsChecklistProps {
   onWCalculated: (detail: WDetail, total: number, W: number) => void;
+  /** 外部から初期値を設定（提出書PDF読込時） */
+  externalItems?: Partial<SocialItems>;
 }
 
 function defaultSocialItems(): SocialItems {
@@ -170,8 +172,15 @@ function SelectRow({
   );
 }
 
-export function WItemsChecklist({ onWCalculated }: WItemsChecklistProps) {
+export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklistProps) {
   const [items, setItems] = useState<SocialItems>(defaultSocialItems);
+
+  // 外部からの初期値反映
+  useEffect(() => {
+    if (externalItems && Object.keys(externalItems).length > 0) {
+      setItems((prev) => ({ ...prev, ...externalItems }));
+    }
+  }, [externalItems]);
 
   const update = useCallback(<K extends keyof SocialItems>(key: K, value: SocialItems[K]) => {
     setItems((prev) => ({ ...prev, [key]: value }));

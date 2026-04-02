@@ -138,7 +138,7 @@ export default function KeishinGuidePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Link href="/simulator">
+            <Link href="/trial">
               <Button size="lg">
                 <Calculator className="mr-2 h-5 w-5" />
                 P点を無料で試算する
