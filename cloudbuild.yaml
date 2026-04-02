@@ -39,8 +39,10 @@ steps:
       - '0'
       - '--max-instances'
       - '10'
-      - '--set-env-vars'
-      - 'NODE_ENV=production'
+      - '--update-env-vars'
+      - 'NODE_ENV=production,AUTH_TRUST_HOST=true'
+      - '--add-cloudsql-instances'
+      - 'jww-dxf-converter:asia-northeast1:jww-dxf-db'
 
 substitutions:
   _SERVICE_NAME: keishin-cloud
