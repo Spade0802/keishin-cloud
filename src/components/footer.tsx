@@ -1,6 +1,12 @@
+'use client';
+
 import Link from 'next/link';
+import { useSession } from '@/lib/session-context';
 
 export function Footer() {
+  const session = useSession();
+  const isLoggedIn = !!session?.user;
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -14,16 +20,21 @@ export function Footer() {
             </div>
             <p className="text-sm text-muted-foreground">
               建設業の経審P点をブラウザで即試算。
-              登録不要・無料のクラウド型シミュレーター。
+              クラウド型シミュレーター。
             </p>
           </div>
           <div>
             <h3 className="font-semibold text-sm mb-3">サービス</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/trial" className="hover:text-foreground transition-colors">新規試算</Link></li>
-              <li><Link href="/verification" className="hover:text-foreground transition-colors">実績突合</Link></li>
-              <li><Link href="/comparison" className="hover:text-foreground transition-colors">前期比較表</Link></li>
-              <li><Link href="/reclassification" className="hover:text-foreground transition-colors">再分類分析</Link></li>
+              <li><Link href="/demo" className="hover:text-foreground transition-colors">デモ</Link></li>
+              {isLoggedIn && (
+                <>
+                  <li><Link href="/trial" className="hover:text-foreground transition-colors">新規試算</Link></li>
+                  <li><Link href="/verification" className="hover:text-foreground transition-colors">実績突合</Link></li>
+                  <li><Link href="/comparison" className="hover:text-foreground transition-colors">前期比較表</Link></li>
+                  <li><Link href="/reclassification" className="hover:text-foreground transition-colors">再分類分析</Link></li>
+                </>
+              )}
             </ul>
           </div>
           <div>

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Menu, X, ChevronDown } from 'lucide-react';
 import { useSession } from '@/lib/session-context';
 
-const navItems = [
+// ログイン後のみ表示
+const authNavItems = [
   { href: '/trial', label: '新規試算' },
   { href: '/dashboard', label: 'ダッシュボード' },
 ];
@@ -16,6 +17,11 @@ const toolItems = [
   { href: '/verification', label: '実績突合' },
   { href: '/comparison', label: '前期比較表' },
   { href: '/reclassification', label: '再分類分析' },
+];
+
+// 未ログインでも表示
+const publicNavItems = [
+  { href: '/demo', label: 'デモ' },
 ];
 
 const guideItems = [
@@ -48,7 +54,8 @@ export function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-1 text-sm">
-          {navItems.map((item) => (
+          {/* 未ログインでも見えるリンク */}
+          {publicNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -62,44 +69,63 @@ export function Header() {
             </Link>
           ))}
 
-          {/* Tools dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={() => setToolsOpen(true)}
-            onMouseLeave={() => setToolsOpen(false)}
-          >
-            <button
-              className={`flex items-center gap-1 px-3 py-2 rounded-md transition-colors ${
-                toolItems.some(t => isActive(t.href))
-                  ? 'text-foreground bg-muted font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              分析ツール
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            {toolsOpen && (
-              <div className="absolute left-0 top-full pt-1 z-50">
-                <div className="rounded-lg border bg-background shadow-lg py-1 min-w-[180px]">
-                  {toolItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`block px-4 py-2 text-sm transition-colors ${
-                        isActive(item.href)
-                          ? 'text-foreground bg-muted font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* ログイン後のみ表示 */}
+          {isLoggedIn && (
+            <>
+              {authNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`px-3 py-2 rounded-md transition-colors ${
+                    isActive(item.href)
+                      ? 'text-foreground bg-muted font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
 
-          {/* Guides dropdown */}
+              {/* Tools dropdown */}
+              <div
+                className="relative"
+                onMouseEnter={() => setToolsOpen(true)}
+                onMouseLeave={() => setToolsOpen(false)}
+              >
+                <button
+                  className={`flex items-center gap-1 px-3 py-2 rounded-md transition-colors ${
+                    toolItems.some(t => isActive(t.href))
+                      ? 'text-foreground bg-muted font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  分析ツール
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {toolsOpen && (
+                  <div className="absolute left-0 top-full pt-1 z-50">
+                    <div className="rounded-lg border bg-background shadow-lg py-1 min-w-[180px]">
+                      {toolItems.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`block px-4 py-2 text-sm transition-colors ${
+                            isActive(item.href)
+                              ? 'text-foreground bg-muted font-medium'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Guides dropdown - 常に表示 */}
           <div
             className="relative"
             onMouseEnter={() => setGuidesOpen(true)}
@@ -145,8 +171,8 @@ export function Header() {
               <Link href="/login">
                 <Button size="sm" variant="ghost">ログイン</Button>
               </Link>
-              <Link href="/trial">
-                <Button size="sm">無料で試算する</Button>
+              <Link href="/signup">
+                <Button size="sm">登録して始める</Button>
               </Link>
             </div>
           )}
@@ -165,7 +191,8 @@ export function Header() {
       {/* Mobile nav */}
       {mobileOpen && (
         <nav className="lg:hidden border-t px-4 py-4 flex flex-col gap-1 bg-background">
-          {navItems.map((item) => (
+          {/* 未ログインでも見えるリンク */}
+          {publicNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -180,22 +207,42 @@ export function Header() {
             </Link>
           ))}
 
-          <div className="border-t my-1" />
-          <p className="text-xs text-muted-foreground px-3 pt-1">分析ツール</p>
-          {toolItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`text-sm py-2.5 px-3 rounded-md ${
-                isActive(item.href)
-                  ? 'text-foreground bg-muted font-medium'
-                  : 'text-muted-foreground'
-              }`}
-              onClick={() => setMobileOpen(false)}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {/* ログイン後のみ表示 */}
+          {isLoggedIn && (
+            <>
+              {authNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`text-sm py-2.5 px-3 rounded-md ${
+                    isActive(item.href)
+                      ? 'text-foreground bg-muted font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+
+              <div className="border-t my-1" />
+              <p className="text-xs text-muted-foreground px-3 pt-1">分析ツール</p>
+              {toolItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`text-sm py-2.5 px-3 rounded-md ${
+                    isActive(item.href)
+                      ? 'text-foreground bg-muted font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          )}
 
           <div className="border-t my-1" />
           <p className="text-xs text-muted-foreground px-3 pt-1">経審ガイド</p>
@@ -228,8 +275,8 @@ export function Header() {
                   ログイン
                 </Button>
               </Link>
-              <Link href="/trial" onClick={() => setMobileOpen(false)}>
-                <Button className="w-full" size="sm">無料で試算する</Button>
+              <Link href="/signup" onClick={() => setMobileOpen(false)}>
+                <Button className="w-full" size="sm">登録して始める</Button>
               </Link>
             </div>
           )}
