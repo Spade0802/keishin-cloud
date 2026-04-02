@@ -19,6 +19,8 @@ import {
   demoBasicInfo,
   demoFinancialSummary,
   demoIndustrySummary,
+  demoBS,
+  demoPL,
 } from '@/lib/demo-data';
 
 export default function DemoPage() {
@@ -152,8 +154,32 @@ export default function DemoPage() {
                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">加入</Badge>
                       </div>
                       <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">建退共</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">加入</Badge>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">退職一時金制度</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">あり</Badge>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">防災協定</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">あり</Badge>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">ISO9001</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">取得</Badge>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">CCUS</span>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">実施</Badge>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
                         <span className="text-sm text-muted-foreground">営業年数</span>
-                        <span className="text-sm font-mono font-medium">35年以上</span>
+                        <span className="text-sm font-mono font-medium">45年</span>
+                      </div>
+                      <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">監査の受審状況</span>
+                        <span className="text-sm font-mono font-medium">会計参与設置</span>
                       </div>
                       <div className="flex justify-between items-center rounded-lg bg-muted/50 px-3 py-2">
                         <span className="text-sm text-muted-foreground">W素点合計</span>
@@ -184,6 +210,11 @@ export default function DemoPage() {
             wTotal={demoResult.wTotal}
             yResult={demoResult.yResult}
             wDetail={demoResult.wDetail}
+            bs={demoBS}
+            pl={demoPL}
+            prevY={demoResult.prevY}
+            prevX2={demoResult.prevX2}
+            prevW={demoResult.prevW}
             readOnly
           />
 

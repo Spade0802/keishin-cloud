@@ -1,7 +1,7 @@
 /**
- * デモページ用の事前計算済みデータ（第58期 アヅサ電気工業(株)）
+ * デモページ用の事前計算済みデータ（第45期 株式会社 大和建設）
  *
- * input-wizard.tsx の loadDemoData() と同一の入力値から算出。
+ * 完全に架空の会社・架空のデータを使用。
  * デモページはクライアントサイドで計算エンジンを呼ぶのではなく、
  * ここで静的に保持した結果を表示するだけにする。
  */
@@ -9,94 +9,214 @@
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
-import type { YInput, YResult, WDetail, SocialItems } from '@/lib/engine/types';
+import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from '@/lib/engine/types';
 
 // ---- Step 1: 決算書データ (千円) ----
 const financials = {
-  sales: 1668128,
-  grossProfit: 270254,
-  ordinaryProfit: 85784,
-  interestExpense: 6042,
-  interestDividendIncome: 844,
-  currentLiabilities: 185776,
-  fixedLiabilities: 227499,
-  totalCapital: 749286,
-  equity: 336010,
-  fixedAssets: 236308,
-  retainedEarnings: 299650,
-  corporateTax: 29851,
-  depreciation: 5985,
-  allowanceDoubtful: 635,
-  notesAndReceivable: 129271,
-  constructionPayable: 137521,
-  inventoryAndMaterials: 4836,
-  advanceReceived: 682,
+  sales: 2850000,
+  grossProfit: 456000,
+  ordinaryProfit: 128500,
+  interestExpense: 8200,
+  interestDividendIncome: 1350,
+  currentLiabilities: 312000,
+  fixedLiabilities: 185000,
+  totalCapital: 1120000,
+  equity: 623000,
+  fixedAssets: 385000,
+  retainedEarnings: 498000,
+  corporateTax: 42800,
+  depreciation: 18500,
+  allowanceDoubtful: 1250,
+  notesAndReceivable: 285000,
+  constructionPayable: 198000,
+  inventoryAndMaterials: 12500,
+  advanceReceived: 8500,
 };
 
 // ---- Step 2: 基本情報 ----
 export const demoBasicInfo = {
-  companyName: 'アヅサ電気工業(株)',
-  permitNumber: '千葉県知事許可',
-  reviewBaseDate: 'R7.6.30',
-  periodNumber: '第58期',
+  companyName: '株式会社 大和建設',
+  permitNumber: '国土交通大臣許可',
+  reviewBaseDate: 'R7.9.30',
+  periodNumber: '第45期',
 };
 
-const ebitda = 44332;
+const ebitda = 79200;
 
 // ---- Step 2: 業種別データ ----
 const industryInputs = [
-  { name: '電気', permitType: '特定' as const, prevCompletion: 1125920, currCompletion: 1625600, prevSubcontract: 443950, currSubcontract: 933000, techStaffValue: 62 },
-  { name: '管', permitType: '一般' as const, prevCompletion: 3370, currCompletion: 0, prevSubcontract: 0, currSubcontract: 0, techStaffValue: 20 },
-  { name: '電気通信', permitType: '一般' as const, prevCompletion: 27752, currCompletion: 0, prevSubcontract: 27752, currSubcontract: 0, techStaffValue: 0 },
-  { name: '消防施設', permitType: '一般' as const, prevCompletion: 1842, currCompletion: 0, prevSubcontract: 0, currSubcontract: 0, techStaffValue: 0 },
+  { name: '土木一式', permitType: '特定' as const, prevCompletion: 980000, currCompletion: 1150000, prevSubcontract: 620000, currSubcontract: 750000, techStaffValue: 85 },
+  { name: '建築一式', permitType: '特定' as const, prevCompletion: 720000, currCompletion: 860000, prevSubcontract: 380000, currSubcontract: 450000, techStaffValue: 72 },
+  { name: '電気', permitType: '一般' as const, prevCompletion: 185000, currCompletion: 210000, prevSubcontract: 95000, currSubcontract: 110000, techStaffValue: 38 },
+  { name: '管', permitType: '一般' as const, prevCompletion: 142000, currCompletion: 168000, prevSubcontract: 52000, currSubcontract: 65000, techStaffValue: 25 },
 ];
 
 // ---- Step 4: 前期データ ----
 const prevData = {
-  totalCapital: 827777,
-  operatingCF: 78454,
-  allowanceDoubtful: 1200,
-  notesAndAccountsReceivable: 223124,
-  constructionPayable: 224090,
-  inventoryAndMaterials: 17836,
-  advanceReceived: 1653,
+  totalCapital: 1085000,
+  operatingCF: 95200,
+  allowanceDoubtful: 1800,
+  notesAndAccountsReceivable: 310000,
+  constructionPayable: 215000,
+  inventoryAndMaterials: 15800,
+  advanceReceived: 6200,
 };
 
-// ---- W項目（デモ用デフォルト: 社会保険3つ加入 + 営業年数35年以上） ----
+// ---- W項目 ----
 const demoSocialItems: SocialItems = {
   employmentInsurance: true,
   healthInsurance: true,
   pensionInsurance: true,
-  constructionRetirementMutualAid: false,
-  retirementSystem: false,
+  constructionRetirementMutualAid: true,
+  retirementSystem: true,
   nonStatutoryAccidentInsurance: false,
-  youngTechContinuous: false,
+  youngTechContinuous: true,
   youngTechNew: false,
-  techStaffCount: 0,
-  youngTechCount: 0,
+  techStaffCount: 48,
+  youngTechCount: 12,
   newYoungTechCount: 0,
-  cpdTotalUnits: 0,
-  skillLevelUpCount: 0,
-  skilledWorkerCount: 0,
+  cpdTotalUnits: 580,
+  skillLevelUpCount: 5,
+  skilledWorkerCount: 15,
   deductionTargetCount: 0,
   wlbEruboши: 0,
-  wlbKurumin: 0,
+  wlbKurumin: 1,
   wlbYouth: 0,
-  ccusImplementation: 0,
-  businessYears: 35,
+  ccusImplementation: 1,
+  businessYears: 45,
   civilRehabilitation: false,
-  disasterAgreement: false,
+  disasterAgreement: true,
   suspensionOrder: false,
   instructionOrder: false,
-  auditStatus: 0,
+  auditStatus: 1,
   certifiedAccountants: 0,
-  firstClassAccountants: 0,
+  firstClassAccountants: 1,
   secondClassAccountants: 0,
   rdExpense2YearAvg: 0,
-  constructionMachineCount: 0,
-  iso9001: false,
+  constructionMachineCount: 3,
+  iso9001: true,
   iso14001: false,
   ecoAction21: false,
+};
+
+// ---- 前期スコア（比較表示用） ----
+const prevScores = {
+  Y: 785,
+  X2: 710,
+  W: 820,
+  industryP: [832, 768, 645, 612],
+};
+
+// ---- 経審用BS（千円） ----
+export const demoBS: KeishinBS = {
+  // 流動資産
+  cashDeposits: 245000,
+  notesReceivable: 42000,
+  accountsReceivableConstruction: 243000,
+  securities: 15000,
+  wipConstruction: 8500,
+  materialInventory: 4000,
+  shortTermLoans: 5000,
+  prepaidExpenses: 3200,
+  deferredTaxAssetCurrent: 4800,
+  otherCurrent: 6500,
+  allowanceDoubtful: -1250,
+  currentAssetsTotal: 575750,
+
+  // 有形固定資産
+  buildingsStructures: 125000,
+  machineryVehicles: 68000,
+  toolsEquipment: 12500,
+  land: 142000,
+  tangibleFixedTotal: 347500,
+
+  // 無形固定資産
+  patent: 0,
+  otherIntangible: 5200,
+  intangibleFixedTotal: 5200,
+
+  // 投資その他の資産
+  relatedCompanyShares: 8000,
+  longTermLoans: 2000,
+  insuranceReserve: 12500,
+  longTermPrepaid: 1800,
+  deferredTaxAssetFixed: 3250,
+  otherInvestments: 5000,
+  investmentsTotal: 32550,
+
+  fixedAssetsTotal: 385250,
+  deferredAssetsTotal: 0,
+  totalAssets: 961000,
+
+  // 流動負債
+  notesPayable: 28000,
+  constructionPayable: 198000,
+  shortTermBorrowing: 35000,
+  leaseDebt: 4500,
+  accountsPayable: 12000,
+  unpaidExpenses: 8500,
+  unpaidCorporateTax: 15000,
+  deferredTaxLiability: 0,
+  advanceReceivedConstruction: 8500,
+  depositsReceived: 1200,
+  advanceRevenue: 0,
+  provisions: 1300,
+  unpaidConsumptionTax: 0,
+  currentLiabilitiesTotal: 312000,
+
+  // 固定負債
+  longTermBorrowing: 185000,
+  fixedLiabilitiesTotal: 185000,
+  totalLiabilities: 497000,
+
+  // 純資産
+  capitalStock: 80000,
+  legalReserve: 20000,
+  otherRetainedEarnings: 498000,
+  specialReserve: 150000,
+  retainedEarningsCF: 348000,
+  retainedEarningsTotal: 518000,
+  treasuryStock: -12000,
+  shareholdersEquityTotal: 606000,
+  securitiesValuation: -142000,
+  evaluationTotal: -142000,
+  totalEquity: 464000,
+  totalLiabilitiesEquity: 961000,
+};
+
+// ---- 経審用PL（千円） ----
+export const demoPL: KeishinPL = {
+  completedConstructionRevenue: 2850000,
+  sideBusiness: 65000,
+  totalSales: 2915000,
+  completedConstructionCost: 2394000,
+  sideBusinessCost: 52000,
+  grossProfit: 469000,
+  sgaTotal: 325000,
+  operatingProfit: 144000,
+  interestDividendIncome: 1350,
+  otherNonOpIncome: 3200,
+  nonOpIncomeTotal: 4550,
+  interestExpense: 8200,
+  otherNonOpExpense: 11850,
+  nonOpExpenseTotal: 20050,
+  ordinaryProfit: 128500,
+  specialGain: 2500,
+  specialLoss: 8200,
+  preTaxProfit: 122800,
+  corporateTax: 42800,
+  taxAdjustment: -2100,
+  netIncome: 82100,
+  costReport: {
+    materials: 382000,
+    labor: 358000,
+    laborSubcontract: 125000,
+    subcontract: 1285000,
+    expenses: 369000,
+    personnelInExpenses: 82000,
+    totalCost: 2394000,
+  },
+  depreciation: 18500,
 };
 
 // ---- 計算 ----
@@ -117,7 +237,7 @@ function buildDemoResult() {
   const W = wCalc.W;
   const wDetail = wCalc.detail;
 
-  const industries = industryInputs.map((ind) => {
+  const industries = industryInputs.map((ind, idx) => {
     const avgComp = Math.floor((ind.prevCompletion + ind.currCompletion) / 2);
     const avgSub = Math.floor((ind.prevSubcontract + ind.currSubcontract) / 2);
     const X1 = lookupScore(X1_TABLE, avgComp);
@@ -125,7 +245,7 @@ function buildDemoResult() {
     const z2 = lookupScore(Z2_TABLE, avgSub);
     const Z = calculateZ(z1, z2);
     const P = calculateP(X1, x2, yResult.Y, Z, W);
-    return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P };
+    return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P, prevP: prevScores.industryP[idx] };
   });
 
   return {
@@ -141,6 +261,9 @@ function buildDemoResult() {
     yResult,
     wDetail,
     industries,
+    prevY: prevScores.Y,
+    prevX2: prevScores.X2,
+    prevW: prevScores.W,
   };
 }
 
