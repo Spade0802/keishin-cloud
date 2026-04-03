@@ -475,15 +475,6 @@ export function ResultView(props: ResultViewProps) {
           )}
         </TabsContent>
 
-        {/* AI Analysis */}
-        <TabsContent value="ai-analysis">
-          <AiAnalysisView
-            analysisInput={aiAnalysisInput}
-            staticResult={staticAiAnalysis}
-            readOnly={readOnly}
-          />
-        </TabsContent>
-
         {/* Improvement Suggestions */}
         <TabsContent value="improvement" className="space-y-6">
           {/* Simulation Comparison Table */}
@@ -581,6 +572,15 @@ export function ResultView(props: ResultViewProps) {
               ))}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Analysis — must be last to match TabsTrigger order */}
+        <TabsContent value="ai-analysis">
+          <AiAnalysisView
+            analysisInput={aiAnalysisInput}
+            staticResult={staticAiAnalysis}
+            readOnly={readOnly}
+          />
         </TabsContent>
       </Tabs>
     </div>
