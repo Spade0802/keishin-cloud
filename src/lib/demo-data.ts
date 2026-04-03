@@ -1,5 +1,5 @@
 /**
- * デモページ用の事前計算済みデータ（第45期 株式会社 大和建設）
+ * デモページ用の事前計算済みデータ（第45期 株式会社 〇×建設）
  *
  * 完全に架空の会社・架空のデータを使用。
  * デモページはクライアントサイドで計算エンジンを呼ぶのではなく、
@@ -35,7 +35,7 @@ const financials = {
 
 // ---- Step 2: 基本情報 ----
 export const demoBasicInfo = {
-  companyName: '株式会社 大和建設',
+  companyName: '株式会社 〇×建設',
   permitNumber: '国土交通大臣許可',
   reviewBaseDate: 'R7.9.30',
   periodNumber: '第45期',
