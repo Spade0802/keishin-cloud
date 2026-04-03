@@ -3,7 +3,8 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { eq } from 'drizzle-orm';
-import { compare } from 'bcryptjs';
+// bcryptjs is dynamically imported inside authorize() to avoid
+// bundling Node.js 'crypto' into the Edge runtime (middleware).
 import { db } from './db';
 import { users, accounts, sessions, verificationTokens } from './db/schema';
 
@@ -39,6 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.password) return null;
 
+        const { compare } = await import('bcryptjs');
         const isValid = await compare(password, user.password);
         if (!isValid) return null;
 
@@ -55,9 +57,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: '/login',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
+      }
+      // 初回サインインまたはトークン更新時に法人情報を付与
+      if (user || trigger === 'update' || !token.organizationId) {
+        const dbUser = await db
+          .select({ organizationId: users.organizationId, role: users.role })
+          .from(users)
+          .where(eq(users.id, token.id as string))
+          .then((rows) => rows[0]);
+        if (dbUser) {
+          token.organizationId = dbUser.organizationId;
+          token.role = dbUser.role;
+        }
       }
       return token;
     },
