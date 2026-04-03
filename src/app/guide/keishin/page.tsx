@@ -138,10 +138,10 @@ export default function KeishinGuidePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Link href="/trial">
+            <Link href="/login">
               <Button size="lg">
                 <Calculator className="mr-2 h-5 w-5" />
-                P点を無料で試算する
+                登録して始める
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

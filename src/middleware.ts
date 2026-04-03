@@ -4,9 +4,7 @@ import { NextResponse } from 'next/server';
 /**
  * 認証必須ページのミドルウェア
  *
- * - /dashboard, /verification, /comparison, /reclassification は認証必須
- * - /trial は未ログインでも使えるため、ミドルウェアで保護しない
- *   （保存APIのみ認証チェックする）
+ * - /dashboard, /verification, /comparison, /reclassification, /trial は認証必須
  * - /onboarding はログイン済みだが法人未設定のユーザー用
  */
 export default auth((req) => {
@@ -14,6 +12,7 @@ export default auth((req) => {
 
   const protectedPaths = [
     '/dashboard',
+    '/trial',
     '/verification',
     '/comparison',
     '/reclassification',
@@ -40,6 +39,7 @@ export default auth((req) => {
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/trial/:path*',
     '/verification/:path*',
     '/comparison/:path*',
     '/reclassification/:path*',
