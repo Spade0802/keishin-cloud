@@ -1,25 +1,27 @@
 import NextAuth from 'next-auth';
-import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { eq } from 'drizzle-orm';
-// bcryptjs is dynamically imported inside authorize() to avoid
-// bundling Node.js 'crypto' into the Edge runtime (middleware).
 import { db } from './db';
 import { users, accounts, sessions, verificationTokens } from './db/schema';
+import { authConfig } from './auth.config';
 
+/**
+ * フル Auth 設定（Node.js Runtime 専用）
+ *
+ * DrizzleAdapter, Credentials, bcryptjs など Node.js 依存を含む。
+ * middleware からは使わないこと（auth.config.ts を使う）。
+ */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  secret: process.env.AUTH_SECRET,
+  ...authConfig,
   adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  session: { strategy: 'jwt' },
   providers: [
-    Google,
+    ...authConfig.providers,
     Credentials({
       name: 'メールアドレス',
       credentials: {
@@ -53,10 +55,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  pages: {
-    signIn: '/login',
-  },
   callbacks: {
+    ...authConfig.callbacks,
     async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
@@ -79,22 +79,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.id) {
         session.user.id = token.id as string;
       }
-
-      // ユーザーの法人情報をセッションに付与
-      const dbUser = await db
-        .select({
-          organizationId: users.organizationId,
-          role: users.role,
-        })
-        .from(users)
-        .where(eq(users.id, session.user.id))
-        .then((rows) => rows[0]);
-
-      if (dbUser) {
-        session.user.organizationId = dbUser.organizationId;
-        session.user.role = dbUser.role;
+      if (token.organizationId) {
+        session.user.organizationId = token.organizationId as string;
       }
-
+      if (token.role) {
+        session.user.role = token.role as string;
+      }
       return session;
     },
   },
