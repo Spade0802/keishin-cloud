@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   Calculator,
+  Settings,
   ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ const navItems = [
   { href: '/admin/organizations', label: '法人一覧', icon: Building2 },
   { href: '/admin/users', label: 'ユーザー一覧', icon: Users },
   { href: '/admin/simulations', label: '試算履歴', icon: Calculator },
+  { href: '/admin/settings', label: 'システム設定', icon: Settings },
 ];
 
 export function AdminSidebar() {

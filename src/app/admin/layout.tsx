@@ -9,14 +9,12 @@ export const metadata: Metadata = {
 
 /**
  * 管理者ロールの判定
- * 現在はデモ用に全認証済みユーザーを許可。
- * 本番では session.user.role === 'service_admin' 等で判定する。
+ * session.user.role === 'admin' で判定する。
  */
 async function isServiceAdmin(): Promise<boolean> {
   const session = await auth();
-  // デモ: 認証済みなら許可。未認証なら拒否。
-  // 本番実装時は管理者フラグで判定に変更する。
-  return !!session?.user;
+  if (!session?.user) return false;
+  return session.user.role === 'admin';
 }
 
 export default async function AdminLayout({

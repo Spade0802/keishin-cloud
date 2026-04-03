@@ -1,5 +1,8 @@
 /**
- * 経営審査提出書PDFパーサー
+ * 経営審査提出書PDFパーサー v2
+ *
+ * 一次抽出: Gemini Vision API（PDF直接入力）
+ * フォールバック: Document AI / Vision API / pdfjs-dist テキスト解析
  *
  * 提出書PDF（編集用表形式 or スキャン）から以下を抽出:
  * - 基本情報（会社名、許可番号、審査基準日）
@@ -10,6 +13,7 @@
  */
 
 import type { SocialItems } from './engine/types';
+import { extractKeishinDataWithGemini, isGeminiAvailable } from './gemini-extractor';
 
 // ─── 結果型 ───
 
@@ -908,11 +912,63 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
     mappings: [],
   };
 
-  // テキスト抽出
+  // ─── Step 0: Gemini Vision API で一次抽出を試行 ───
+  if (isGeminiAvailable()) {
+    try {
+      const geminiResult = await extractKeishinDataWithGemini(buffer);
+      if (geminiResult) {
+        const gd = geminiResult.data;
+        // 基本情報
+        if (gd.basicInfo) {
+          if (gd.basicInfo.companyName) result.basicInfo.companyName = gd.basicInfo.companyName;
+          if (gd.basicInfo.permitNumber) result.basicInfo.permitNumber = gd.basicInfo.permitNumber;
+          if (gd.basicInfo.reviewBaseDate) result.basicInfo.reviewBaseDate = gd.basicInfo.reviewBaseDate;
+          if (gd.basicInfo.periodNumber) result.basicInfo.periodNumber = gd.basicInfo.periodNumber;
+        }
+        // 数値
+        if (gd.equity) result.equity = gd.equity;
+        if (gd.ebitda) result.ebitda = gd.ebitda;
+        if (gd.techStaffCount) result.techStaffCount = gd.techStaffCount;
+        if (gd.businessYears) result.businessYears = gd.businessYears;
+        // 業種
+        if (gd.industries && gd.industries.length > 0) {
+          result.industries = gd.industries;
+        }
+        // W項目
+        if (gd.wItems) {
+          result.wItems = gd.wItems;
+        }
+
+        // マッピング記録
+        const addMapping = (src: string, tgt: string, val: string | number) => {
+          result.mappings.push({ source: `Gemini:${src}`, target: tgt, value: val });
+        };
+        if (result.basicInfo.companyName) addMapping('会社名', 'basicInfo.companyName', result.basicInfo.companyName);
+        if (result.basicInfo.permitNumber) addMapping('許可番号', 'basicInfo.permitNumber', result.basicInfo.permitNumber);
+        if (result.equity) addMapping('自己資本額', 'equity', result.equity);
+        if (result.ebitda) addMapping('利益額', 'ebitda', result.ebitda);
+        if (result.techStaffCount) addMapping('技術職員数', 'techStaffCount', result.techStaffCount);
+        if (result.businessYears) addMapping('営業年数', 'businessYears', result.businessYears);
+        for (const ind of result.industries) {
+          addMapping(`業種:${ind.name}`, `industries`, ind.currCompletion);
+        }
+
+        result.warnings.push(
+          `Gemini AIで読み取りました（${result.mappings.length}項目）。数値を確認してください。`
+        );
+        result.rawText = '[Gemini Vision API で抽出]';
+        return result;
+      }
+    } catch (e) {
+      console.error('Gemini keishin extraction failed, falling back:', e);
+      result.warnings.push('Gemini AI抽出に失敗しました。従来の方法で解析します。');
+    }
+  }
+
+  // ─── Step 1: テキスト抽出（pdfjs-dist） ───
   let text = '';
   let docAIResult: DocumentAIResult | null = null;
 
-  // 1. まずpdf.jsでテキスト抽出を試行
   try {
     text = await extractTextFromPDF(buffer);
   } catch {
@@ -922,7 +978,7 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
   const meaningfulChars = text.replace(/[\s\r\n\-]/g, '').replace(/PAGE BREAK/g, '').length;
   const isScanned = meaningfulChars < 100;
 
-  // 2. Document AI Form Parser（スキャンPDF or テキストPDFどちらでも精度向上のため使用）
+  // ─── Step 2: Document AI Form Parser（フォールバック1） ───
   const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     process.env.GOOGLE_CLOUD_PROJECT ||
     process.env.GCLOUD_PROJECT ||
@@ -932,13 +988,10 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
     try {
       docAIResult = await ocrWithDocumentAI(buffer);
       if (docAIResult) {
-        // Document AIのフルテキスト（ページ区切り付き）をメインテキストとして使用
         const docAIPages = docAIResult.pages.map(p => p.text).join('\n--- PAGE BREAK ---\n');
         if (docAIPages.replace(/[\s\r\n\-]/g, '').replace(/PAGE BREAK/g, '').length > meaningfulChars) {
           text = docAIPages;
         }
-
-        // フォームフィールドから直接抽出できる項目を先に設定
         parseFormFields(docAIResult.formFields, result);
       }
     } catch (e) {
@@ -946,7 +999,7 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
     }
   }
 
-  // 3. スキャンPDFでDocument AIも使えない場合 → Vision API にフォールバック
+  // ─── Step 3: Vision API フォールバック ───
   if (isScanned && !docAIResult) {
     if (!hasCredentials) {
       result.warnings.push('OCR機能を使用するにはGoogle Cloud認証設定が必要です。');

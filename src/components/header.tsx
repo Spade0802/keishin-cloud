@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, X, ChevronDown, Shield } from 'lucide-react';
 import { useSession } from '@/lib/session-context';
 
 // ログイン後のみ表示
@@ -39,6 +39,7 @@ export function Header() {
 
   const isActive = (href: string) => pathname === href;
   const isLoggedIn = !!session?.user;
+  const isAdmin = session?.user?.role === 'admin';
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
@@ -162,6 +163,20 @@ export function Header() {
             )}
           </div>
 
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={`flex items-center gap-1 px-3 py-2 rounded-md transition-colors ${
+                pathname.startsWith('/admin')
+                  ? 'text-foreground bg-muted font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              <Shield className="h-3.5 w-3.5" />
+              管理
+            </Link>
+          )}
+
           {isLoggedIn ? (
             <Link href="/dashboard" className="ml-2">
               <Button size="sm" variant="outline">ダッシュボード</Button>
@@ -224,6 +239,24 @@ export function Header() {
                   {item.label}
                 </Link>
               ))}
+
+              {isAdmin && (
+                <>
+                  <div className="border-t my-1" />
+                  <Link
+                    href="/admin"
+                    className={`flex items-center gap-2 text-sm py-2.5 px-3 rounded-md ${
+                      pathname.startsWith('/admin')
+                        ? 'text-foreground bg-muted font-medium'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                    管理画面
+                  </Link>
+                </>
+              )}
 
               <div className="border-t my-1" />
               <p className="text-xs text-muted-foreground px-3 pt-1">分析ツール</p>

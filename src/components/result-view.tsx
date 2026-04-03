@@ -17,11 +17,14 @@ import {
   BarChart3,
   FileSpreadsheet,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
 import { KeishinPLTable } from '@/components/keishin-pl-table';
+import { AiAnalysisView } from '@/components/ai-analysis-view';
 import type { YResult, KeishinBS, KeishinPL, WDetail } from '@/lib/engine/types';
+import type { AnalysisInput, AnalysisResult } from '@/lib/ai-analysis-types';
 
 interface IndustryResult {
   name: string;
@@ -53,6 +56,8 @@ interface ResultViewProps {
   prevW?: number;
   /** デモ/読み取り専用モード: ダウンロードボタンを非表示にする */
   readOnly?: boolean;
+  /** AI分析の事前生成済み結果（デモ用） */
+  staticAiAnalysis?: AnalysisResult;
 }
 
 function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
@@ -101,10 +106,39 @@ export function ResultView(props: ResultViewProps) {
     pl,
     prevY, prevX2, prevW,
     readOnly,
+    staticAiAnalysis,
   } = props;
 
   const [yDetailOpen, setYDetailOpen] = useState(false);
   const [improvementOpen, setImprovementOpen] = useState(false);
+
+  // AI分析用の入力データを構築
+  const aiAnalysisInput: AnalysisInput | undefined = useMemo(() => {
+    if (readOnly && !staticAiAnalysis) return undefined;
+    return {
+      companyName: companyName ?? '',
+      period: period ?? '',
+      industries: industries.map((ind) => ({
+        name: ind.name,
+        X1: ind.X1,
+        Z: ind.Z,
+        Z1: ind.Z1,
+        Z2: ind.Z2,
+        P: ind.P,
+      })),
+      Y, X2, X21, X22, W, wTotal,
+      yResult: {
+        indicators: yResult.indicators,
+        indicatorsRaw: yResult.indicatorsRaw,
+        A: yResult.A,
+        Y: yResult.Y,
+        operatingCF: yResult.operatingCF,
+      },
+      wDetail,
+      bs: bs as unknown as Record<string, number>,
+      pl: pl as unknown as Record<string, number>,
+    };
+  }, [companyName, period, industries, Y, X2, X21, X22, W, wTotal, yResult, wDetail, bs, pl, readOnly, staticAiAnalysis]);
 
   // Calculate P formula breakdown for first industry
   const primaryInd = industries[0];
@@ -243,12 +277,16 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="industry">⑤業種別</TabsTrigger>
           <TabsTrigger value="y-detail">③Y詳細</TabsTrigger>
           <TabsTrigger value="scores">評点詳細</TabsTrigger>
           <TabsTrigger value="bs-pl">②BS/PL</TabsTrigger>
           <TabsTrigger value="improvement">改善提案</TabsTrigger>
+          <TabsTrigger value="ai-analysis" className="flex items-center gap-1">
+            <Sparkles className="h-3 w-3" />
+            AI分析
+          </TabsTrigger>
         </TabsList>
 
         {/* Industry Table */}
@@ -435,6 +473,15 @@ export function ResultView(props: ResultViewProps) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* AI Analysis */}
+        <TabsContent value="ai-analysis">
+          <AiAnalysisView
+            analysisInput={aiAnalysisInput}
+            staticResult={staticAiAnalysis}
+            readOnly={readOnly}
+          />
         </TabsContent>
 
         {/* Improvement Suggestions */}

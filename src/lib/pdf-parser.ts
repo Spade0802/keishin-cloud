@@ -1,17 +1,18 @@
 /**
- * PDF決算書パーサー v2
+ * PDF決算書パーサー v3
  *
- * テキストPDF → pdfjs-dist で座標ベースのテキスト抽出（行再構成）
- * スキャンPDF → Google Cloud Vision API でOCR
- * 抽出テキスト → 財務データへマッピング
+ * 一次抽出: Gemini Vision API（PDF直接入力）
+ * フォールバック1: Document AI Form Parser
+ * フォールバック2: Google Cloud Vision API OCR
+ * フォールバック3: pdfjs-dist テキスト抽出 + 正規表現マッピング
  *
- * v2 改善点:
- * - 座標ベースで同一行のテキストアイテムを再構成（Y座標グルーピング）
- * - 正規表現を緩くし、表形式PDFの多様なパターンに対応
- * - デバッグ用のrawTextを返却
+ * v3 改善点:
+ * - Gemini 2.5 Flash による高精度な構造化データ抽出を一次手段として使用
+ * - 従来の Document AI / Vision API / テキスト解析はフォールバックとして維持
  */
 
 import type { RawFinancialData } from './engine/types';
+import { extractFinancialDataWithGemini, isGeminiAvailable } from './gemini-extractor';
 
 interface ParseResult {
   data: Partial<RawFinancialData>;
@@ -1016,7 +1017,28 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   const data = initEmptyData();
   let ocrUsed = false;
 
-  // Step 1: テキスト抽出を試行（pdfjs-dist）
+  // ─── Step 0: Gemini Vision API で一次抽出を試行 ───
+  if (isGeminiAvailable()) {
+    try {
+      const geminiResult = await extractFinancialDataWithGemini(buffer);
+      if (geminiResult) {
+        // Gemini の結果を data にマージ
+        mergeGeminiFinancialData(geminiResult.data, data, mappings);
+        const geminiCount = mappings.filter(m => m.source.startsWith('Gemini:')).length;
+        if (geminiCount > 0) {
+          warnings.push(
+            `Gemini AIで${geminiCount}項目を読み取りました。数値を確認してください。`
+          );
+          return { data, warnings, mappings, ocrUsed: true, rawText: '[Gemini Vision API で抽出]' };
+        }
+      }
+    } catch (e) {
+      console.error('Gemini extraction failed, falling back to legacy methods:', e);
+      warnings.push('Gemini AI抽出に失敗しました。従来の方法で解析します。');
+    }
+  }
+
+  // ─── Step 1: テキスト抽出を試行（pdfjs-dist） ───
   let text = '';
   try {
     text = await extractTextFromPDF(buffer);
@@ -1027,7 +1049,7 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   const meaningfulChars = text.replace(/[\s\r\n\-]/g, '').replace(/PAGE BREAK/g, '').length;
   const isScanned = meaningfulChars < 100;
 
-  // Step 2: Document AI Form Parser（テキスト/スキャンどちらでも精度向上）
+  // ─── Step 2: Document AI Form Parser（フォールバック1） ───
   const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     process.env.GOOGLE_CLOUD_PROJECT ||
     process.env.GCLOUD_PROJECT ||
@@ -1057,7 +1079,7 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     }
   }
 
-  // Step 3: スキャンPDFでDocument AIも使えない場合 → Vision API フォールバック
+  // ─── Step 3: スキャンPDFでDocument AIも使えない場合 → Vision API フォールバック ───
   if (isScanned && !docAIUsed) {
     if (!hasCredentials) {
       warnings.push('OCR機能を使用するにはGoogle Cloud認証設定が必要です。');
@@ -1082,7 +1104,7 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     return { data, warnings, mappings, ocrUsed, rawText: '' };
   }
 
-  // Step 4: テキストから追加マッピング（Document AIで取れなかった項目を補完）
+  // ─── Step 4: テキストから追加マッピング（フォールバック2） ───
   mapTextToData(text, data, mappings);
 
   // OCRテキストの場合、コンテキストベース抽出も実行
@@ -1108,4 +1130,123 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   }
 
   return { data, warnings, mappings, ocrUsed: ocrUsed || docAIUsed, rawText: text.slice(0, 5000) };
+}
+
+// ─── Gemini データマージ ───
+
+/**
+ * Gemini から取得した RawFinancialData を既存の data 構造にマージする
+ */
+function mergeGeminiFinancialData(
+  gemini: Partial<RawFinancialData>,
+  data: Partial<RawFinancialData>,
+  mappings: { source: string; target: string; value: number }[],
+): void {
+  // BS
+  if (gemini.bs) {
+    if (gemini.bs.currentAssets && Object.keys(gemini.bs.currentAssets).length > 0) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.currentAssets)) {
+        data.bs.currentAssets[key] = val;
+        mappings.push({ source: `Gemini:BS流動資産:${key}`, target: `bs.currentAssets.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.tangibleFixed) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.tangibleFixed)) {
+        data.bs.tangibleFixed[key] = val;
+        mappings.push({ source: `Gemini:BS有形固定:${key}`, target: `bs.tangibleFixed.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.intangibleFixed) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.intangibleFixed)) {
+        data.bs.intangibleFixed[key] = val;
+        mappings.push({ source: `Gemini:BS無形固定:${key}`, target: `bs.intangibleFixed.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.investments) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.investments)) {
+        data.bs.investments[key] = val;
+        mappings.push({ source: `Gemini:BS投資:${key}`, target: `bs.investments.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.currentLiabilities) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.currentLiabilities)) {
+        data.bs.currentLiabilities[key] = val;
+        mappings.push({ source: `Gemini:BS流動負債:${key}`, target: `bs.currentLiabilities.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.fixedLiabilities) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.fixedLiabilities)) {
+        data.bs.fixedLiabilities[key] = val;
+        mappings.push({ source: `Gemini:BS固定負債:${key}`, target: `bs.fixedLiabilities.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.equity) {
+      if (!data.bs) data.bs = { currentAssets: {}, tangibleFixed: {}, intangibleFixed: {}, investments: {}, currentLiabilities: {}, fixedLiabilities: {}, equity: {}, totals: { currentAssets: 0, tangibleFixed: 0, intangibleFixed: 0, investments: 0, fixedAssets: 0, totalAssets: 0, currentLiabilities: 0, fixedLiabilities: 0, totalLiabilities: 0, totalEquity: 0 } };
+      for (const [key, val] of Object.entries(gemini.bs.equity)) {
+        data.bs.equity[key] = val;
+        mappings.push({ source: `Gemini:BS純資産:${key}`, target: `bs.equity.${key}`, value: val });
+      }
+    }
+    if (gemini.bs.totals && data.bs) {
+      Object.assign(data.bs.totals, gemini.bs.totals);
+      for (const [key, val] of Object.entries(gemini.bs.totals)) {
+        if (val !== 0) {
+          mappings.push({ source: `Gemini:BS合計:${key}`, target: `bs.totals.${key}`, value: val });
+        }
+      }
+    }
+  }
+
+  // PL
+  if (gemini.pl) {
+    if (!data.pl) data.pl = { completedConstruction: 0, progressConstruction: 0, totalSales: 0, costOfSales: 0, grossProfit: 0, sgaItems: {}, sgaTotal: 0, operatingProfit: 0, interestIncome: 0, dividendIncome: 0, miscIncome: 0, interestExpense: 0, miscExpense: 0, ordinaryProfit: 0, specialGain: 0, specialLoss: 0, preTaxProfit: 0, corporateTax: 0, netIncome: 0 };
+    const plKeys: (keyof RawFinancialData['pl'])[] = [
+      'completedConstruction', 'progressConstruction', 'totalSales', 'costOfSales',
+      'grossProfit', 'sgaTotal', 'operatingProfit', 'interestIncome', 'dividendIncome',
+      'miscIncome', 'interestExpense', 'miscExpense', 'ordinaryProfit', 'specialGain',
+      'specialLoss', 'preTaxProfit', 'corporateTax', 'netIncome',
+    ];
+    for (const key of plKeys) {
+      const val = gemini.pl[key];
+      if (typeof val === 'number' && val !== 0) {
+        (data.pl as Record<string, unknown>)[key] = val;
+        mappings.push({ source: `Gemini:PL:${key}`, target: `pl.${key}`, value: val });
+      }
+    }
+    if (gemini.pl.sgaItems && Object.keys(gemini.pl.sgaItems).length > 0) {
+      for (const [key, val] of Object.entries(gemini.pl.sgaItems)) {
+        data.pl.sgaItems[key] = val;
+        mappings.push({ source: `Gemini:PL販管費:${key}`, target: `pl.sgaItems.${key}`, value: val });
+      }
+    }
+  }
+
+  // Manufacturing
+  if (gemini.manufacturing) {
+    if (!data.manufacturing) data.manufacturing = { materials: 0, labor: 0, expenses: 0, subcontract: 0, mfgDepreciation: 0, wipBeginning: 0, wipEnding: 0, totalCost: 0 };
+    const mfgKeys: (keyof RawFinancialData['manufacturing'])[] = [
+      'materials', 'labor', 'expenses', 'subcontract', 'mfgDepreciation',
+      'wipBeginning', 'wipEnding', 'totalCost',
+    ];
+    for (const key of mfgKeys) {
+      const val = gemini.manufacturing[key];
+      if (typeof val === 'number' && val !== 0) {
+        data.manufacturing[key] = val;
+        mappings.push({ source: `Gemini:製造:${key}`, target: `manufacturing.${key}`, value: val });
+      }
+    }
+  }
+
+  // SGA depreciation
+  if (gemini.sga?.sgaDepreciation) {
+    if (!data.sga) data.sga = { sgaDepreciation: 0 };
+    data.sga.sgaDepreciation = gemini.sga.sgaDepreciation;
+    mappings.push({ source: 'Gemini:販管費減価償却', target: 'sga.sgaDepreciation', value: gemini.sga.sgaDepreciation });
+  }
 }

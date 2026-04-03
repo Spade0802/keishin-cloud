@@ -103,6 +103,16 @@ export const simulations = pgTable('simulations', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
+// ─── システム設定テーブル ───
+
+export const systemSettings = pgTable('system_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  description: text('description'),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow(),
+  updatedBy: text('updated_by').references(() => users.id),
+});
+
 export const scenarios = pgTable('scenarios', {
   id: uuid('id').defaultRandom().primaryKey(),
   simulationId: uuid('simulation_id')

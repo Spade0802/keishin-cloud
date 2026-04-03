@@ -12,7 +12,7 @@ import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from 
 import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from '@/lib/engine/types';
 
 // ---- Step 1: 決算書データ (千円) ----
-const financials = {
+export const financials = {
   sales: 2850000,
   grossProfit: 456000,
   ordinaryProfit: 128500,
@@ -41,10 +41,10 @@ export const demoBasicInfo = {
   periodNumber: '第45期',
 };
 
-const ebitda = 79200;
+export const ebitda = 79200;
 
 // ---- Step 2: 業種別データ ----
-const industryInputs = [
+export const industryInputs = [
   { name: '土木一式', permitType: '特定' as const, prevCompletion: 980000, currCompletion: 1150000, prevSubcontract: 620000, currSubcontract: 750000, techStaffValue: 85 },
   { name: '建築一式', permitType: '特定' as const, prevCompletion: 720000, currCompletion: 860000, prevSubcontract: 380000, currSubcontract: 450000, techStaffValue: 72 },
   { name: '電気', permitType: '一般' as const, prevCompletion: 185000, currCompletion: 210000, prevSubcontract: 95000, currSubcontract: 110000, techStaffValue: 38 },
@@ -52,7 +52,7 @@ const industryInputs = [
 ];
 
 // ---- Step 4: 前期データ ----
-const prevData = {
+export const prevData = {
   totalCapital: 1085000,
   operatingCF: 95200,
   allowanceDoubtful: 1800,

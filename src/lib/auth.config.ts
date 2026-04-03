@@ -27,6 +27,7 @@ export const authConfig: NextAuthConfig = {
         '/verification',
         '/comparison',
         '/reclassification',
+        '/admin',
       ];
 
       const isProtected = protectedPaths.some(

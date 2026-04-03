@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { ResultView } from '@/components/result-view';
+import { DemoReclassificationSimulator } from '@/components/demo-reclassification-simulator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -13,7 +14,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Calculator, ArrowRight, FileSpreadsheet, Building2, Users } from 'lucide-react';
+import { Calculator, ArrowRight, FileSpreadsheet, Building2, Users, Shuffle } from 'lucide-react';
 import {
   demoResult,
   demoBasicInfo,
@@ -22,6 +23,7 @@ import {
   demoBS,
   demoPL,
 } from '@/lib/demo-data';
+import { demoAnalysisResult } from '@/lib/demo-ai-analysis';
 
 export default function DemoPage() {
   return (
@@ -216,7 +218,25 @@ export default function DemoPage() {
             prevX2={demoResult.prevX2}
             prevW={demoResult.prevW}
             readOnly
+            staticAiAnalysis={demoAnalysisResult}
           />
+
+          {/* Reclassification Simulator */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shuffle className="h-5 w-5" />
+                再分類シミュレーション
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                決算確定前に、異なる会計処理パターンがP点に与える影響を比較できます。
+                項目を選択して「3パターン比較を実行」を押してみてください。
+              </p>
+            </CardHeader>
+            <CardContent>
+              <DemoReclassificationSimulator />
+            </CardContent>
+          </Card>
 
           {/* CTA */}
           <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-8 text-center">
