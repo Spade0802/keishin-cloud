@@ -33,12 +33,12 @@ export default function DemoPage() {
           <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-sm text-amber-800 text-center sm:text-left">
-                これはデモ表示です。実際にデータを入力して試算するには「無料で試算する」をクリックしてください。
+                これはデモ表示です。実際にデータを入力して試算するには登録してください。
               </p>
-              <Link href="/trial" className="shrink-0">
+              <Link href="/login" className="shrink-0">
                 <Button size="sm" className="whitespace-nowrap">
                   <Calculator className="mr-2 h-4 w-4" />
-                  無料で試算する
+                  登録して始める
                 </Button>
               </Link>
             </div>
@@ -224,12 +224,12 @@ export default function DemoPage() {
               あなたの会社のP点を試算してみませんか？
             </h2>
             <p className="text-muted-foreground mb-6">
-              登録不要・無料で、決算書の数値を入力するだけでP点を即算出できます。
+              無料で登録して、決算書の数値を入力するだけでP点を即算出できます。
             </p>
-            <Link href="/trial">
+            <Link href="/login">
               <Button size="lg" className="text-base px-8 py-6">
                 <Calculator className="mr-2 h-5 w-5" />
-                無料で試算を始める
+                登録して始める
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
