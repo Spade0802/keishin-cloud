@@ -6,16 +6,20 @@ function createPool() {
   const databaseUrl = process.env.DATABASE_URL || '';
 
   // Cloud SQL Proxy uses Unix socket via ?host=/cloudsql/...
-  // pg module needs the host in the connection config, not as a URL param
+  // Format: postgresql://user:pass@/dbname?host=/cloudsql/instance
+  // new URL() cannot parse this (no hostname), so we extract manually
   if (databaseUrl.includes('/cloudsql/')) {
-    const url = new URL(databaseUrl);
-    const socketPath = url.searchParams.get('host');
-    return new Pool({
-      user: url.username,
-      password: decodeURIComponent(url.password),
-      database: url.pathname.slice(1),
-      host: socketPath || undefined,
-    });
+    const match = databaseUrl.match(
+      /^postgresql:\/\/([^:]+):([^@]+)@\/([^?]+)\?host=(.+)$/
+    );
+    if (match) {
+      return new Pool({
+        user: match[1],
+        password: decodeURIComponent(match[2]),
+        database: match[3],
+        host: match[4],
+      });
+    }
   }
 
   return new Pool({ connectionString: databaseUrl });
