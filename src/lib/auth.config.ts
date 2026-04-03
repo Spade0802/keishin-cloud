@@ -16,7 +16,12 @@ export const authConfig: NextAuthConfig = {
   pages: {
     signIn: '/login',
   },
-  providers: [Google],
+  providers: [
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
+  ],
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const { pathname } = nextUrl;
