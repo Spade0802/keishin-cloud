@@ -13,10 +13,10 @@
 
 import type { RawFinancialData, SocialItems } from './engine/types';
 import type { KeishinPdfResult } from './keishin-pdf-parser';
+import { getAIConfig } from './settings';
 
 // ─── 設定 ───
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'asia-northeast1';
 
 // ─── Vertex AI クライアント ───
@@ -28,13 +28,22 @@ async function getGenerativeModel() {
     process.env.GCLOUD_PROJECT ||
     'jww-dxf-converter';
 
+  // DB設定 > 環境変数 > デフォルト の優先順位でモデルを決定
+  let modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  try {
+    const aiConfig = await getAIConfig();
+    if (aiConfig.model) modelName = aiConfig.model;
+  } catch {
+    // DB未接続時はフォールバック
+  }
+
   const vertexAI = new VertexAI({
     project: projectId,
     location: VERTEX_LOCATION,
   });
 
   return vertexAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: modelName,
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0,

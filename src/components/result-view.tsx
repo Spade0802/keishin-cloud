@@ -277,11 +277,11 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="industry">⑤業種別</TabsTrigger>
-          <TabsTrigger value="y-detail">③Y詳細</TabsTrigger>
-          <TabsTrigger value="scores">評点詳細</TabsTrigger>
-          <TabsTrigger value="bs-pl">②BS/PL</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-6 overflow-x-auto text-xs sm:text-sm">
+          <TabsTrigger value="industry">業種別P点</TabsTrigger>
+          <TabsTrigger value="y-detail">Y点詳細</TabsTrigger>
+          <TabsTrigger value="scores">評点内訳</TabsTrigger>
+          <TabsTrigger value="bs-pl">決算書</TabsTrigger>
           <TabsTrigger value="improvement">改善提案</TabsTrigger>
           <TabsTrigger value="ai-analysis" className="flex items-center gap-1">
             <Sparkles className="h-3 w-3" />

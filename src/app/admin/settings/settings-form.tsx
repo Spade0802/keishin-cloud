@@ -198,16 +198,24 @@ export function SettingsForm() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="gemini_model">モデル名</Label>
-                  <select
+                  <Input
                     id="gemini_model"
+                    list="gemini-models"
                     value={settings.gemini_model}
                     onChange={(e) => update('gemini_model', e.target.value)}
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                  </select>
+                    placeholder="gemini-2.5-flash"
+                    className="h-8"
+                  />
+                  <datalist id="gemini-models">
+                    <option value="gemini-2.5-flash" />
+                    <option value="gemini-2.5-pro" />
+                    <option value="gemini-2.5-flash-preview-04-17" />
+                    <option value="gemini-2.0-flash" />
+                    <option value="gemini-2.0-flash-lite" />
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">
+                    候補から選択するか、任意のモデル名を直接入力できます
+                  </p>
                 </div>
 
                 {settings.ai_provider === 'gemini-paid' && (
@@ -249,17 +257,27 @@ export function SettingsForm() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="openai_model">モデル名</Label>
-                  <select
+                  <Input
                     id="openai_model"
+                    list="openai-models"
                     value={settings.openai_model}
                     onChange={(e) => update('openai_model', e.target.value)}
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="gpt-4o">gpt-4o</option>
-                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                    <option value="gpt-4.1">gpt-4.1</option>
-                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                  </select>
+                    placeholder="gpt-4o"
+                    className="h-8"
+                  />
+                  <datalist id="openai-models">
+                    <option value="gpt-4.1" />
+                    <option value="gpt-4.1-mini" />
+                    <option value="gpt-4.1-nano" />
+                    <option value="gpt-4o" />
+                    <option value="gpt-4o-mini" />
+                    <option value="o3" />
+                    <option value="o3-mini" />
+                    <option value="o4-mini" />
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">
+                    候補から選択するか、任意のモデル名を直接入力できます
+                  </p>
                 </div>
 
                 <div className="space-y-2">

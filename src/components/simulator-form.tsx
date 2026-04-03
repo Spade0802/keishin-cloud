@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Calculator, ArrowRight, BarChart3, Info } from 'lucide-react';
 import { ScenarioPanel } from '@/components/scenario-panel';
 import { FileUpload } from '@/components/file-upload';
+import type { ParsedFinancialFields } from '@/components/file-upload';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -254,7 +255,7 @@ export function SimulatorForm() {
     ]);
   }
 
-  function handleFileParsed(data: Record<string, number | undefined>) {
+  function handleFileParsed(data: ParsedFinancialFields) {
     if (data.sales !== undefined) setSales(String(data.sales));
     if (data.grossProfit !== undefined) setGrossProfit(String(data.grossProfit));
     if (data.ordinaryProfit !== undefined) setOrdinaryProfit(String(data.ordinaryProfit));

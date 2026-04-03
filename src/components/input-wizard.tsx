@@ -17,16 +17,20 @@ import {
   Users,
   Calculator,
   ClipboardCheck,
+  ChevronDown,
 } from 'lucide-react';
 import { FileUpload } from '@/components/file-upload';
+import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/components/file-upload';
+import { FinancialPreview } from '@/components/financial-preview';
 import { WItemsChecklist } from '@/components/w-items-checklist';
 import { TechStaffPanel } from '@/components/tech-staff-panel';
 import { ResultView } from '@/components/result-view';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
-import type { YInput, YResult, WDetail, SocialItems } from '@/lib/engine/types';
+import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from '@/lib/engine/types';
 import type { KeishinPdfResult } from '@/lib/keishin-pdf-parser';
+import { buildKeishinBSFromParsed, buildKeishinPLFromParsed } from '@/lib/engine/parsed-to-keishin';
 
 // ---- Types ----
 
@@ -92,10 +96,24 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-function numField(label: string, value: string, onChange: (v: string) => void, unit: string = '千円', help?: string) {
+function numField(
+  label: string,
+  value: string,
+  onChange: (v: string) => void,
+  unit: string = '千円',
+  help?: string,
+  status?: 'auto-filled' | 'needs-input'
+) {
   return (
-    <div className="space-y-1">
-      <Label className="text-xs font-medium">{label}</Label>
+    <div className={`space-y-1 rounded-md p-1.5 transition-colors ${
+      status === 'auto-filled' ? 'bg-green-50 dark:bg-green-950/20 ring-1 ring-green-200 dark:ring-green-800' :
+      status === 'needs-input' ? 'bg-amber-50 dark:bg-amber-950/20 ring-1 ring-amber-200 dark:ring-amber-800' : ''
+    }`}>
+      <Label className="text-xs font-medium flex items-center gap-1">
+        {label}
+        {status === 'auto-filled' && <span className="text-[9px] text-green-600 font-normal">自動</span>}
+        {status === 'needs-input' && <span className="text-[9px] text-amber-600 font-normal">要入力</span>}
+      </Label>
       <div className="flex items-center gap-1">
         <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-8" />
         <span className="text-xs text-muted-foreground whitespace-nowrap w-8">{unit}</span>
@@ -130,6 +148,9 @@ export function InputWizard() {
   const [inventoryAndMaterials, setInventoryAndMaterials] = useState('');
   const [advanceReceived, setAdvanceReceived] = useState('');
   const [fileLoaded, setFileLoaded] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  const [previewBS, setPreviewBS] = useState<ParsedRawBS | null>(null);
+  const [previewPL, setPreviewPL] = useState<ParsedRawPL | null>(null);
 
   // Step 2: Basic info + industries + X2 data
   const [basicInfo, setBasicInfo] = useState<BasicInfo>({
@@ -167,9 +188,36 @@ export function InputWizard() {
     Y: number; X2: number; X21: number; X22: number; W: number; wTotal: number;
     yResult: YResult; wDetail: WDetail;
     industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number }>;
+    bs?: KeishinBS; pl?: KeishinPL;
   } | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
+
+  // Clear step validation error when user types in the sales field
+  function handleSalesChange(v: string) {
+    setSales(v);
+    if (stepError) setStepError(null);
+  }
+
+  function validateStep(current: number): boolean {
+    if (current === 1) {
+      const salesNum = parseFloat(sales);
+      if (!sales || isNaN(salesNum) || salesNum <= 0) {
+        setStepError('完成工事高（売上高）は必須です。0より大きい値を入力してください。');
+        return false;
+      }
+      setStepError(null);
+      return true;
+    }
+    return true;
+  }
+
+  function handleNextStep() {
+    if (validateStep(step)) {
+      setStep(step + 1);
+    }
+  }
 
   function num(s: string): number {
     const n = parseFloat(s);
@@ -177,21 +225,55 @@ export function InputWizard() {
   }
 
   // File parsed handler
-  function handleFileParsed(data: Record<string, number | undefined>) {
-    if (data.sales !== undefined) setSales(String(data.sales));
-    if (data.grossProfit !== undefined) setGrossProfit(String(data.grossProfit));
-    if (data.ordinaryProfit !== undefined) setOrdinaryProfit(String(data.ordinaryProfit));
-    if (data.interestExpense !== undefined) setInterestExpense(String(data.interestExpense));
-    if (data.interestDividendIncome !== undefined) setInterestDividendIncome(String(data.interestDividendIncome));
-    if (data.currentLiabilities !== undefined) setCurrentLiabilities(String(data.currentLiabilities));
-    if (data.fixedLiabilities !== undefined) setFixedLiabilities(String(data.fixedLiabilities));
-    if (data.totalCapital !== undefined) setTotalCapital(String(data.totalCapital));
-    if (data.equity !== undefined) setEquity(String(data.equity));
-    if (data.fixedAssets !== undefined) setFixedAssets(String(data.fixedAssets));
-    if (data.retainedEarnings !== undefined) setRetainedEarnings(String(data.retainedEarnings));
-    if (data.corporateTax !== undefined) setCorporateTax(String(data.corporateTax));
-    if (data.depreciation !== undefined) setDepreciation(String(data.depreciation));
+  function handleFileParsed(
+    data: ParsedFinancialFields,
+    rawBS?: ParsedRawBS,
+    rawPL?: ParsedRawPL
+  ) {
+    const filled = new Set<string>();
+    const fieldSetters: Record<string, (v: string) => void> = {
+      sales: setSales,
+      grossProfit: setGrossProfit,
+      ordinaryProfit: setOrdinaryProfit,
+      interestExpense: setInterestExpense,
+      interestDividendIncome: setInterestDividendIncome,
+      currentLiabilities: setCurrentLiabilities,
+      fixedLiabilities: setFixedLiabilities,
+      totalCapital: setTotalCapital,
+      equity: setEquity,
+      fixedAssets: setFixedAssets,
+      retainedEarnings: setRetainedEarnings,
+      corporateTax: setCorporateTax,
+      depreciation: setDepreciation,
+      allowanceDoubtful: setAllowanceDoubtful,
+      notesAndReceivable: setNotesAndReceivable,
+      constructionPayable: setConstructionPayable,
+      inventoryAndMaterials: setInventoryAndMaterials,
+      advanceReceived: setAdvanceReceived,
+    };
+
+    for (const [key, setter] of Object.entries(fieldSetters)) {
+      const val = data[key as keyof ParsedFinancialFields];
+      if (val !== undefined) {
+        setter(String(val));
+        filled.add(key);
+      }
+    }
+
+    setAutoFilledFields(filled);
     setFileLoaded(true);
+
+    // BS/PLプレビュー用データを保存
+    setPreviewBS(rawBS ?? null);
+    setPreviewPL(rawPL ?? null);
+  }
+
+  // FileUploadクリア時のリセット
+  function handleFileClear() {
+    setAutoFilledFields(new Set());
+    setPreviewBS(null);
+    setPreviewPL(null);
+    setFileLoaded(false);
   }
 
   // Previous period file upload handler
@@ -400,7 +482,9 @@ export function InputWizard() {
           return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P };
         });
 
-      setResult({ Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults });
+      const bs = previewBS ? buildKeishinBSFromParsed(previewBS) : undefined;
+      const pl = previewPL ? buildKeishinPLFromParsed(previewPL) : undefined;
+      setResult({ Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl });
       setStep(5); // Go to result
     } catch (e) {
       setError(e instanceof Error ? e.message : '計算中にエラーが発生しました。');
@@ -432,7 +516,7 @@ export function InputWizard() {
             決算書Excelをアップロードすると、BS/PLの数値を自動読取します。手入力も可能です。
           </p>
 
-          <FileUpload onDataParsed={handleFileParsed} />
+          <FileUpload onDataParsed={handleFileParsed} onClear={handleFileClear} />
 
           {fileLoaded && (
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -440,31 +524,81 @@ export function InputWizard() {
             </Badge>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">当期財務データ（千円）</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {numField('完成工事高（売上高）', sales, setSales)}
-              {numField('売上総利益', grossProfit, setGrossProfit)}
-              {numField('経常利益', ordinaryProfit, setOrdinaryProfit)}
-              {numField('支払利息', interestExpense, setInterestExpense)}
-              {numField('受取利息配当金', interestDividendIncome, setInterestDividendIncome)}
-              {numField('流動負債合計', currentLiabilities, setCurrentLiabilities)}
-              {numField('固定負債合計', fixedLiabilities, setFixedLiabilities)}
-              {numField('総資本（総資産）', totalCapital, setTotalCapital)}
-              {numField('純資産合計', equity, setEquity)}
-              {numField('固定資産合計', fixedAssets, setFixedAssets)}
-              {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings)}
-              {numField('法人税等', corporateTax, setCorporateTax)}
-              {numField('減価償却実施額', depreciation, setDepreciation)}
-              {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful)}
-              {numField('受取手形+完成工事未収入金', notesAndReceivable, setNotesAndReceivable)}
-              {numField('工事未払金', constructionPayable, setConstructionPayable, '千円', '未払経費を含めない')}
-              {numField('未成工事支出金+材料貯蔵品', inventoryAndMaterials, setInventoryAndMaterials)}
-              {numField('未成工事受入金', advanceReceived, setAdvanceReceived)}
-            </CardContent>
-          </Card>
+          {/* BS/PLプレビュー */}
+          {(previewBS || previewPL) && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-primary hover:underline flex items-center gap-1.5">
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                自動生成された貸借対照表・損益計算書を確認
+              </summary>
+              <div className="mt-3">
+                <FinancialPreview bs={previewBS ?? undefined} pl={previewPL ?? undefined} />
+              </div>
+            </details>
+          )}
+
+          {fileLoaded && autoFilledFields.size > 0 && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                自動入力済み（{autoFilledFields.size}項目）
+              </span>
+              {autoFilledFields.size < 18 && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                  要手入力（{18 - autoFilledFields.size}項目）
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Group 1: P&L */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">当期財務データ（千円）</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="rounded-lg border border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">損益計算書（P&L）</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', undefined, fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('売上総利益', grossProfit, setGrossProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('grossProfit') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('経常利益', ordinaryProfit, setOrdinaryProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('ordinaryProfit') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('支払利息', interestExpense, setInterestExpense, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestExpense') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('受取利息配当金', interestDividendIncome, setInterestDividendIncome, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestDividendIncome') ? 'auto-filled' : 'needs-input') : undefined)}
+                  </div>
+                </div>
+
+                {/* Group 2: B/S */}
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">貸借対照表（B/S）</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('総資本（総資産）', totalCapital, setTotalCapital, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('純資産合計', equity, setEquity, '千円', undefined, fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful, '千円', undefined, fileLoaded ? (autoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('受取手形+完成工事未収入金', notesAndReceivable, setNotesAndReceivable, '千円', undefined, fileLoaded ? (autoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('未成工事受入金', advanceReceived, setAdvanceReceived, '千円', undefined, fileLoaded ? (autoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined)}
+                  </div>
+                </div>
+
+                {/* Group 3: Other */}
+                <div className="rounded-lg border border-orange-200 bg-orange-50/30 dark:border-orange-800 dark:bg-orange-950/20 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300">その他（原価報告書等）</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {numField('法人税等', corporateTax, setCorporateTax, '千円', undefined, fileLoaded ? (autoFilledFields.has('corporateTax') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('減価償却実施額', depreciation, setDepreciation, '千円', undefined, fileLoaded ? (autoFilledFields.has('depreciation') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('工事未払金', constructionPayable, setConstructionPayable, '千円', '未払経費を含めない', fileLoaded ? (autoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('未成工事支出金+材料貯蔵品', inventoryAndMaterials, setInventoryAndMaterials, '千円', undefined, fileLoaded ? (autoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -780,6 +914,8 @@ export function InputWizard() {
           wTotal={result.wTotal}
           yResult={result.yResult}
           wDetail={result.wDetail}
+          bs={result.bs}
+          pl={result.pl}
         />
       )}
 
@@ -790,10 +926,17 @@ export function InputWizard() {
         </div>
       )}
 
+      {/* Step Validation Error */}
+      {stepError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {stepError}
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         {step > 1 && step <= 4 && (
-          <Button variant="outline" onClick={() => setStep(step - 1)}>
+          <Button variant="outline" onClick={() => { setStepError(null); setStep(step - 1); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />戻る
           </Button>
         )}
@@ -804,7 +947,7 @@ export function InputWizard() {
         )}
         <div className="ml-auto">
           {step < 4 && (
-            <Button onClick={() => setStep(step + 1)}>
+            <Button onClick={handleNextStep}>
               次へ<ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}

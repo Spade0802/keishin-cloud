@@ -11,23 +11,66 @@ interface ParseMapping {
   value: number;
 }
 
+export interface ParsedFinancialFields {
+  // Y input fields (千円)
+  sales?: number;
+  grossProfit?: number;
+  ordinaryProfit?: number;
+  interestExpense?: number;
+  interestDividendIncome?: number;
+  currentLiabilities?: number;
+  fixedLiabilities?: number;
+  totalCapital?: number;
+  equity?: number;
+  fixedAssets?: number;
+  retainedEarnings?: number;
+  corporateTax?: number;
+  depreciation?: number;
+  // BS-derived fields (千円)
+  allowanceDoubtful?: number;
+  notesAndReceivable?: number;
+  constructionPayable?: number;
+  inventoryAndMaterials?: number;
+  advanceReceived?: number;
+}
+
+// BS/PLの構造化生データ（千円）
+export interface ParsedRawBS {
+  currentAssets: Record<string, number>;
+  tangibleFixed: Record<string, number>;
+  intangibleFixed: Record<string, number>;
+  investments: Record<string, number>;
+  currentLiabilities: Record<string, number>;
+  fixedLiabilities: Record<string, number>;
+  equity: Record<string, number>;
+  totals: Record<string, number>;
+}
+
+export interface ParsedRawPL {
+  completedConstruction: number;
+  totalSales: number;
+  costOfSales: number;
+  grossProfit: number;
+  sgaTotal: number;
+  operatingProfit: number;
+  interestIncome: number;
+  dividendIncome: number;
+  interestExpense: number;
+  ordinaryProfit: number;
+  specialGain: number;
+  specialLoss: number;
+  preTaxProfit: number;
+  corporateTax: number;
+  netIncome: number;
+}
+
 interface FileUploadProps {
-  onDataParsed: (data: {
-    // Y input fields
-    sales?: number;
-    grossProfit?: number;
-    ordinaryProfit?: number;
-    interestExpense?: number;
-    interestDividendIncome?: number;
-    currentLiabilities?: number;
-    fixedLiabilities?: number;
-    totalCapital?: number;
-    equity?: number;
-    fixedAssets?: number;
-    retainedEarnings?: number;
-    corporateTax?: number;
-    depreciation?: number;
-  }) => void;
+  onDataParsed: (
+    data: ParsedFinancialFields,
+    rawBS?: ParsedRawBS,
+    rawPL?: ParsedRawPL
+  ) => void;
+  onClear?: () => void;
 }
 
 const ACCEPTED_TYPES = [
@@ -39,7 +82,7 @@ const ACCEPTED_TYPES = [
 
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv', '.pdf'];
 
-export function FileUpload({ onDataParsed }: FileUploadProps) {
+export function FileUpload({ onDataParsed, onClear }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -130,6 +173,61 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
           if (dep) formValues.depreciation = dep;
         }
 
+        // BS個別科目から5項目を自動導出（千円）
+        if (data.bs) {
+          // 貸倒引当金（絶対値）
+          const abd = data.bs.currentAssets?.['貸倒引当金'];
+          if (abd !== undefined) formValues.allowanceDoubtful = Math.abs(abd);
+
+          // 受取手形 + 完成工事未収入金
+          const notes = data.bs.currentAssets?.['受取手形'] || 0;
+          const acctRec = data.bs.currentAssets?.['完成工事未収入金'] || 0;
+          if (notes || acctRec) formValues.notesAndReceivable = notes + acctRec;
+
+          // 工事未払金（未払経費は含めない）
+          const cp = data.bs.currentLiabilities?.['工事未払金'] || 0;
+          if (cp) formValues.constructionPayable = cp;
+
+          // 未成工事支出金 + 材料貯蔵品
+          const wip = data.bs.currentAssets?.['未成工事支出金'] || 0;
+          const mat = data.bs.currentAssets?.['材料貯蔵品'] || 0;
+          if (wip || mat) formValues.inventoryAndMaterials = wip + mat;
+
+          // 未成工事受入金
+          const adv = data.bs.currentLiabilities?.['未成工事受入金'] || 0;
+          if (adv) formValues.advanceReceived = adv;
+        }
+
+        // 構造化BS/PLデータを構築
+        const rawBS: ParsedRawBS | undefined = data.bs ? {
+          currentAssets: data.bs.currentAssets || {},
+          tangibleFixed: data.bs.tangibleFixed || {},
+          intangibleFixed: data.bs.intangibleFixed || {},
+          investments: data.bs.investments || {},
+          currentLiabilities: data.bs.currentLiabilities || {},
+          fixedLiabilities: data.bs.fixedLiabilities || {},
+          equity: data.bs.equity || {},
+          totals: data.bs.totals || {},
+        } : undefined;
+
+        const rawPL: ParsedRawPL | undefined = data.pl ? {
+          completedConstruction: data.pl.completedConstruction || 0,
+          totalSales: data.pl.totalSales || 0,
+          costOfSales: data.pl.costOfSales || 0,
+          grossProfit: data.pl.grossProfit || 0,
+          sgaTotal: data.pl.sgaTotal || 0,
+          operatingProfit: data.pl.operatingProfit || 0,
+          interestIncome: data.pl.interestIncome || 0,
+          dividendIncome: data.pl.dividendIncome || 0,
+          interestExpense: data.pl.interestExpense || 0,
+          ordinaryProfit: data.pl.ordinaryProfit || 0,
+          specialGain: data.pl.specialGain || 0,
+          specialLoss: data.pl.specialLoss || 0,
+          preTaxProfit: data.pl.preTaxProfit || 0,
+          corporateTax: data.pl.corporateTax || 0,
+          netIncome: data.pl.netIncome || 0,
+        } : undefined;
+
         setResult({
           success: mappings.length > 0,
           mappingCount: mappings.length,
@@ -139,7 +237,7 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
         });
 
         if (mappings.length > 0) {
-          onDataParsed(formValues);
+          onDataParsed(formValues, rawBS, rawPL);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'ファイルの解析に失敗しました。');
@@ -184,6 +282,7 @@ export function FileUpload({ onDataParsed }: FileUploadProps) {
     setFileName(null);
     setResult(null);
     setError(null);
+    onClear?.();
   }
 
   return (

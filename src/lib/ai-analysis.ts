@@ -6,18 +6,22 @@
  */
 import { VertexAI } from '@google-cloud/vertexai';
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
+import { getAIConfig } from './settings';
 
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'jww-dxf-converter';
 const LOCATION = 'asia-northeast1';
-const MODEL = 'gemini-2.5-flash';
 
 /** Gemini にリクエストを送り、4セクションの分析レポートを取得する */
 export async function generatePPointAnalysis(
   input: AnalysisInput,
 ): Promise<AnalysisResult> {
+  // DB設定からモデル名を取得（管理画面で変更可能）
+  const aiConfig = await getAIConfig();
+  const modelName = aiConfig.model || 'gemini-2.5-flash';
+
   const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
   const model = vertexAI.getGenerativeModel({
-    model: MODEL,
+    model: modelName,
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 8192,
