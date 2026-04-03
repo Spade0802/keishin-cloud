@@ -438,7 +438,77 @@ export function ResultView(props: ResultViewProps) {
         </TabsContent>
 
         {/* Improvement Suggestions */}
-        <TabsContent value="improvement">
+        <TabsContent value="improvement" className="space-y-6">
+          {/* Simulation Comparison Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                改善シミュレーション比較
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <th className="py-2 text-left">評点</th>
+                      <th className="py-2 text-center">
+                        <span className="block font-semibold text-foreground">現状</span>
+                      </th>
+                      <th className="py-2 text-center">
+                        <span className="block font-semibold text-blue-600">短期改善</span>
+                        <span className="block text-[10px]">社会性項目の充実</span>
+                      </th>
+                      <th className="py-2 text-center">
+                        <span className="block font-semibold text-green-600">中長期改善</span>
+                        <span className="block text-[10px]">財務+技術力向上</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: 'Y（経営状況）', curr: Y, short: Y + 15, long: Y + 42 },
+                      { label: 'X2（自己資本等）', curr: X2, short: X2 + 5, long: X2 + 18 },
+                      { label: 'W（社会性等）', curr: W, short: W + 62, long: W + 85 },
+                    ].map((row) => (
+                      <tr key={row.label} className="border-b">
+                        <td className="py-3 font-medium">{row.label}</td>
+                        <td className="py-3 text-center font-mono">{row.curr}</td>
+                        <td className="py-3 text-center font-mono text-blue-600">
+                          {row.short}
+                          <span className="text-xs ml-1 text-blue-500">(+{row.short - row.curr})</span>
+                        </td>
+                        <td className="py-3 text-center font-mono text-green-600">
+                          {row.long}
+                          <span className="text-xs ml-1 text-green-500">(+{row.long - row.curr})</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {industries.slice(0, 3).map((ind) => (
+                      <tr key={ind.name} className="border-b bg-muted/30">
+                        <td className="py-3 font-medium">P点（{ind.name}）</td>
+                        <td className="py-3 text-center font-mono font-bold">{ind.P}</td>
+                        <td className="py-3 text-center font-mono font-bold text-blue-600">
+                          {ind.P + 12}
+                          <span className="text-xs ml-1 text-blue-500">(+12)</span>
+                        </td>
+                        <td className="py-3 text-center font-mono font-bold text-green-600">
+                          {ind.P + 35}
+                          <span className="text-xs ml-1 text-green-500">(+35)</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                ※ 改善値は主要施策を実施した場合の推定値です。実際の結果は状況により異なります。
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Impact Ranking */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
