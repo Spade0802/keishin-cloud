@@ -42,7 +42,7 @@ export const users = pgTable('users', {
   organizationId: uuid('organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
-  role: userRoleEnum('role').default('admin').notNull(),
+  role: userRoleEnum('role').default('member').notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
