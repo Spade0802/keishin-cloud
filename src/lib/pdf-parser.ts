@@ -12,7 +12,7 @@
  */
 
 import type { RawFinancialData } from './engine/types';
-import { extractFinancialDataWithGemini, isGeminiAvailable } from './gemini-extractor';
+import { extractFinancialDataWithGemini, isGeminiAvailable, autoCorrectUnit } from './gemini-extractor';
 
 interface ParseResult {
   data: Partial<RawFinancialData>;
@@ -1020,8 +1020,10 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   // ─── Step 0: Gemini Vision API で一次抽出を試行 ───
   if (isGeminiAvailable()) {
     try {
+      console.log(`Gemini extraction starting for PDF (${(buffer.length / 1024 / 1024).toFixed(1)}MB)`);
       const geminiResult = await extractFinancialDataWithGemini(buffer);
       if (geminiResult) {
+        console.log('Gemini extraction succeeded, merging data...');
         // Gemini の結果を data にマージ
         mergeGeminiFinancialData(geminiResult.data, data, mappings);
         const geminiCount = mappings.filter(m => m.source.startsWith('Gemini:')).length;
@@ -1030,12 +1032,19 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
             `Gemini AIで${geminiCount}項目を読み取りました。数値を確認してください。`
           );
           return { data, warnings, mappings, ocrUsed: true, rawText: '[Gemini Vision API で抽出]' };
+        } else {
+          console.warn('Gemini returned data but 0 mappings were created');
         }
+      } else {
+        console.warn('Gemini returned null — empty response or parse failure');
+        warnings.push('Gemini AI抽出で結果が得られませんでした。従来の方法で解析します。');
       }
     } catch (e) {
       console.error('Gemini extraction failed, falling back to legacy methods:', e);
       warnings.push('Gemini AI抽出に失敗しました。従来の方法で解析します。');
     }
+  } else {
+    console.warn('Gemini not available (no credentials/project env vars)');
   }
 
   // ─── Step 1: テキスト抽出を試行（pdfjs-dist） ───
@@ -1128,6 +1137,11 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
       `OCRで${mappings.length}項目を読み取りました。数値を必ずご確認ください。`
     );
   }
+
+  // ─── Step 5: 単位自動補正（全抽出パス共通） ───
+  // Gemini / Document AI / テキスト解析 いずれのパスでも
+  // 円単位で返されていれば千円に補正する
+  autoCorrectUnit(data);
 
   return { data, warnings, mappings, ocrUsed: ocrUsed || docAIUsed, rawText: text.slice(0, 5000) };
 }

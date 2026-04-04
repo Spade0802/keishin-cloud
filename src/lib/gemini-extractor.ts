@@ -206,7 +206,7 @@ export async function extractFinancialDataWithGemini(
  * 中小建設業ではありえないため、円で返されたと判断して全数値を1000で割る。
  * 目安: 中小建設業の総資産は通常 数千万～数十億円 = 千円で数万～数百万。
  */
-function autoCorrectUnit(data: Partial<RawFinancialData>): void {
+export function autoCorrectUnit(data: Partial<RawFinancialData>): void {
   const totalAssets = data.bs?.totals?.totalAssets ?? 0;
 
   // 10,000,000千円 = 100億円を閾値とする
