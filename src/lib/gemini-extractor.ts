@@ -57,9 +57,14 @@ const FINANCIAL_PROMPT = `あなたは日本の建設業の決算書（貸借対
 
 このPDFは建設業の決算書です。以下の項目をすべて読み取り、JSON形式で返してください。
 
-## ルール
-- 金額の単位は「千円」で統一してください。PDF上の金額が「円」単位の場合は1000で割って千円に変換してください。
-- PDF上の金額が既に「千円」単位の場合はそのまま使用してください。単位の記載がある場合はそれに従ってください。
+## ★最重要: 金額の単位
+- **すべての金額を「千円」単位で返してください。**
+- PDFの金額が「円」単位（例: 1,668,128,000円）の場合は、**必ず1000で割って**千円に変換してください（例: 1,668,128）。
+- PDFの金額が「千円」単位（例: 1,668,128千円）の場合は、そのまま返してください。
+- **判断基準**: PDFのヘッダーや欄外に「単位：円」「（円）」と書かれていれば円単位です。「単位：千円」「（千円）」なら千円単位です。
+- **典型例**: 中小建設業の売上高は千円単位で数十万〜数百万程度です。1億以上の数値は円単位の可能性が高いです。
+
+## その他ルール
 - 数値が読み取れない場合は 0 としてください。
 - マイナスの金額は負の数（例: -1234）で返してください。△表記もマイナスです。
 - 勘定科目の表記揺れ（例:「売上高」と「完成工事高」）は以下のフィールド名に統一してください。
@@ -182,10 +187,98 @@ export async function extractFinancialDataWithGemini(
     const parsed = parseJsonResponse<Partial<RawFinancialData>>(text);
     if (!parsed) return null;
 
+    // 単位補正: Geminiが円で返した場合に自動で千円に変換
+    autoCorrectUnit(parsed);
+
     return { data: parsed, method: 'Gemini' };
   } catch (e) {
     console.error('Gemini financial extraction failed:', e);
     return null;
+  }
+}
+
+// ─── 単位自動補正 ───
+
+/**
+ * Geminiが「円」で返した場合に自動で「千円」に補正する。
+ *
+ * 判定ロジック: totalAssets（総資産）が 10,000,000 千円（= 100億円）を超える場合、
+ * 中小建設業ではありえないため、円で返されたと判断して全数値を1000で割る。
+ * 目安: 中小建設業の総資産は通常 数千万～数十億円 = 千円で数万～数百万。
+ */
+function autoCorrectUnit(data: Partial<RawFinancialData>): void {
+  const totalAssets = data.bs?.totals?.totalAssets ?? 0;
+
+  // 10,000,000千円 = 100億円を閾値とする
+  if (totalAssets < 10_000_000) return;
+
+  console.warn(
+    `Auto-correcting unit: totalAssets=${totalAssets} looks like yen, dividing all by 1000`
+  );
+
+  const divK = (n: number) => Math.floor(n / 1000);
+
+  // BS個別科目
+  if (data.bs) {
+    for (const section of [
+      'currentAssets', 'tangibleFixed', 'intangibleFixed',
+      'investments', 'currentLiabilities', 'fixedLiabilities', 'equity',
+    ] as const) {
+      const rec = data.bs[section];
+      if (rec && typeof rec === 'object') {
+        for (const key of Object.keys(rec)) {
+          (rec as Record<string, number>)[key] = divK((rec as Record<string, number>)[key] ?? 0);
+        }
+      }
+    }
+    // BS合計
+    if (data.bs.totals) {
+      for (const key of Object.keys(data.bs.totals)) {
+        (data.bs.totals as Record<string, number>)[key] = divK(
+          (data.bs.totals as Record<string, number>)[key] ?? 0
+        );
+      }
+    }
+  }
+
+  // PL
+  if (data.pl) {
+    const pl = data.pl;
+    const numKeys: Array<keyof typeof pl> = [
+      'completedConstruction', 'progressConstruction', 'totalSales',
+      'costOfSales', 'grossProfit', 'sgaTotal', 'operatingProfit',
+      'interestIncome', 'dividendIncome', 'miscIncome',
+      'interestExpense', 'miscExpense', 'ordinaryProfit',
+      'specialGain', 'specialLoss', 'preTaxProfit',
+      'corporateTax', 'netIncome',
+    ];
+    for (const key of numKeys) {
+      const val = pl[key];
+      if (typeof val === 'number') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pl as any)[key] = divK(val);
+      }
+    }
+    // 販管費内訳
+    if (pl.sgaItems && typeof pl.sgaItems === 'object') {
+      for (const k of Object.keys(pl.sgaItems)) {
+        pl.sgaItems[k] = divK(pl.sgaItems[k] ?? 0);
+      }
+    }
+  }
+
+  // 製造原価
+  if (data.manufacturing) {
+    for (const key of Object.keys(data.manufacturing)) {
+      (data.manufacturing as Record<string, number>)[key] = divK(
+        (data.manufacturing as Record<string, number>)[key] ?? 0
+      );
+    }
+  }
+
+  // 販管費減価償却
+  if (data.sga) {
+    data.sga.sgaDepreciation = divK(data.sga.sgaDepreciation ?? 0);
   }
 }
 
