@@ -333,34 +333,6 @@ export function InputWizard() {
     }
   }, [prevData]);
 
-  // Load demo data
-  function loadDemoData() {
-    // Step 1
-    setSales('1668128'); setGrossProfit('270254'); setOrdinaryProfit('85784');
-    setInterestExpense('6042'); setInterestDividendIncome('844');
-    setCurrentLiabilities('185776'); setFixedLiabilities('227499');
-    setTotalCapital('749286'); setEquity('336010'); setFixedAssets('236308');
-    setRetainedEarnings('299650'); setCorporateTax('29851'); setDepreciation('5985');
-    setAllowanceDoubtful('635'); setNotesAndReceivable('129271');
-    setConstructionPayable('137521'); setInventoryAndMaterials('4836');
-    setAdvanceReceived('682');
-    setFileLoaded(true);
-    // Step 2
-    setBasicInfo({ companyName: 'アヅサ電気工業(株)', permitNumber: '千葉県知事許可', reviewBaseDate: 'R7.6.30', periodNumber: '第58期' });
-    setEbitda('44332');
-    setIndustries([
-      { name: '電気', permitType: '特定', prevCompletion: '1125920', currCompletion: '1625600', prevSubcontract: '443950', currSubcontract: '933000', techStaffValue: '62' },
-      { name: '管', permitType: '一般', prevCompletion: '3370', currCompletion: '0', prevSubcontract: '0', currSubcontract: '0', techStaffValue: '20' },
-      { name: '電気通信', permitType: '一般', prevCompletion: '27752', currCompletion: '0', prevSubcontract: '27752', currSubcontract: '0', techStaffValue: '0' },
-      { name: '消防施設', permitType: '一般', prevCompletion: '1842', currCompletion: '0', prevSubcontract: '0', currSubcontract: '0', techStaffValue: '0' },
-    ]);
-    // Step 4
-    setPrevData({
-      totalCapital: '827777', operatingCF: '78454', allowanceDoubtful: '1200',
-      notesAndReceivable: '223124', constructionPayable: '224090',
-      inventoryAndMaterials: '17836', advanceReceived: '1653',
-    });
-  }
 
   // 経審提出書PDFアップロード処理
   async function handleKeishinPdfUpload(file: File) {
@@ -500,13 +472,6 @@ export function InputWizard() {
   return (
     <div className="space-y-6">
       {step <= 4 && <StepIndicator current={step} />}
-
-      {/* Demo Data Button */}
-      {step <= 4 && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={loadDemoData}>デモデータを読み込む（58期）</Button>
-        </div>
-      )}
 
       {/* Step 1: Upload + Financial */}
       {step === 1 && (
