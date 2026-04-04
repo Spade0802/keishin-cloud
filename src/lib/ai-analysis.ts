@@ -24,26 +24,50 @@ export async function generatePPointAnalysis(
     model: modelName,
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 65536,
       responseMimeType: 'application/json',
     },
   });
 
   const prompt = buildPrompt(input);
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-  });
+  // リトライ付き生成（空レスポンス対策）
+  let text = '';
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
 
-  const response = result.response;
-  const text =
-    response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const response = result.response;
+    text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
-  if (!text) {
-    throw new Error('Gemini からの応答が空でした');
+    if (text) break;
+
+    const finishReason = response.candidates?.[0]?.finishReason;
+    console.warn(
+      `[ai-analysis] Attempt ${attempt}: empty response, finishReason=${finishReason}`
+    );
+
+    if (attempt === 2) {
+      throw new Error(
+        `Gemini からの応答が空でした (finishReason=${finishReason})`
+      );
+    }
   }
 
-  const parsed = JSON.parse(text) as AnalysisResult;
+  // JSON パース（マークダウンコードブロック対応）
+  let jsonText = text;
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) jsonText = codeBlockMatch[1];
+  else {
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = text.slice(firstBrace, lastBrace + 1);
+    }
+  }
+
+  const parsed = JSON.parse(jsonText) as AnalysisResult;
 
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
