@@ -9,19 +9,15 @@ import { useSession } from '@/lib/session-context';
 
 // ログイン後のみ表示
 const authNavItems = [
+  { href: '/dashboard', label: '使い方' },
   { href: '/trial', label: '新規試算' },
-  { href: '/dashboard', label: 'ダッシュボード' },
+  { href: '/dashboard/history', label: 'ダッシュボード' },
 ];
 
 const toolItems = [
   { href: '/verification', label: '実績突合' },
   { href: '/comparison', label: '前期比較表' },
   { href: '/reclassification', label: '再分類分析' },
-];
-
-// 未ログインでも表示
-const publicNavItems = [
-  { href: '/demo', label: 'デモ' },
 ];
 
 const guideItems = [
@@ -55,21 +51,6 @@ export function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-1 text-sm">
-          {/* 未ログインでも見えるリンク */}
-          {publicNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`px-3 py-2 rounded-md transition-colors ${
-                isActive(item.href)
-                  ? 'text-foreground bg-muted font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-
           {/* ログイン後のみ表示 */}
           {isLoggedIn && (
             <>
@@ -178,7 +159,7 @@ export function Header() {
           )}
 
           {isLoggedIn ? (
-            <Link href="/dashboard" className="ml-2">
+            <Link href="/dashboard/history" className="ml-2">
               <Button size="sm" variant="outline">ダッシュボード</Button>
             </Link>
           ) : (
@@ -206,22 +187,6 @@ export function Header() {
       {/* Mobile nav */}
       {mobileOpen && (
         <nav className="lg:hidden border-t px-4 py-4 flex flex-col gap-1 bg-background">
-          {/* 未ログインでも見えるリンク */}
-          {publicNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`text-sm py-2.5 px-3 rounded-md ${
-                isActive(item.href)
-                  ? 'text-foreground bg-muted font-medium'
-                  : 'text-muted-foreground'
-              }`}
-              onClick={() => setMobileOpen(false)}
-            >
-              {item.label}
-            </Link>
-          ))}
-
           {/* ログイン後のみ表示 */}
           {isLoggedIn && (
             <>
@@ -296,7 +261,7 @@ export function Header() {
 
           <div className="border-t my-2" />
           {isLoggedIn ? (
-            <Link href="/dashboard" onClick={() => setMobileOpen(false)}>
+            <Link href="/dashboard/history" onClick={() => setMobileOpen(false)}>
               <Button className="w-full" size="sm" variant="outline">
                 ダッシュボード
               </Button>
