@@ -304,26 +304,28 @@ export function InputWizard() {
       const parsed = await res.json();
       const { data } = parsed;
 
-      // Map BS data to prevData fields (千円単位)
+      // Map BS data to prevData fields
+      // ※ parse-pdf API はすでに千円単位で返す（autoCorrectUnit適用済み）
+      //   のでここで /1000 してはいけない
       const updated: PrevPeriodData = { ...prevData };
-      if (data.bs?.totals?.totalAssets) updated.totalCapital = String(Math.round(data.bs.totals.totalAssets / 1000));
-      if (data.bs?.currentAssets?.['貸倒引当金'] !== undefined) updated.allowanceDoubtful = String(Math.round(data.bs.currentAssets['貸倒引当金'] / 1000));
+      if (data.bs?.totals?.totalAssets) updated.totalCapital = String(data.bs.totals.totalAssets);
+      if (data.bs?.currentAssets?.['貸倒引当金'] !== undefined) updated.allowanceDoubtful = String(Math.abs(data.bs.currentAssets['貸倒引当金']));
 
       // 受取手形 + 完成工事未収入金
       const notes = data.bs?.currentAssets?.['受取手形'] || 0;
       const acctRec = data.bs?.currentAssets?.['完成工事未収入金'] || 0;
-      if (notes || acctRec) updated.notesAndReceivable = String(Math.round((notes + acctRec) / 1000));
+      if (notes || acctRec) updated.notesAndReceivable = String(notes + acctRec);
 
       // 工事未払金
-      if (data.bs?.currentLiabilities?.['工事未払金']) updated.constructionPayable = String(Math.round(data.bs.currentLiabilities['工事未払金'] / 1000));
+      if (data.bs?.currentLiabilities?.['工事未払金']) updated.constructionPayable = String(data.bs.currentLiabilities['工事未払金']);
 
       // 未成工事支出金 + 材料貯蔵品
       const wip = data.bs?.currentAssets?.['未成工事支出金'] || 0;
       const mat = data.bs?.currentAssets?.['材料貯蔵品'] || 0;
-      if (wip || mat) updated.inventoryAndMaterials = String(Math.round((wip + mat) / 1000));
+      if (wip || mat) updated.inventoryAndMaterials = String(wip + mat);
 
       // 未成工事受入金
-      if (data.bs?.currentLiabilities?.['未成工事受入金']) updated.advanceReceived = String(Math.round(data.bs.currentLiabilities['未成工事受入金'] / 1000));
+      if (data.bs?.currentLiabilities?.['未成工事受入金']) updated.advanceReceived = String(data.bs.currentLiabilities['未成工事受入金']);
 
       setPrevData(updated);
     } catch (e) {
