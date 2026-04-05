@@ -13,6 +13,7 @@ import {
   primaryKey,
   boolean,
   pgEnum,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import type { AdapterAccountType } from 'next-auth/adapters';
@@ -64,7 +65,9 @@ export const users = pgTable('users', {
   }),
   role: userRoleEnum('role').default('member').notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('users_organization_id_idx').on(table.organizationId),
+]);
 
 export const accounts = pgTable(
   'accounts',
@@ -121,7 +124,10 @@ export const simulations = pgTable('simulations', {
   isPublic: boolean('is_public').default(false).notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('simulations_organization_id_idx').on(table.organizationId),
+  index('simulations_user_id_idx').on(table.userId),
+]);
 
 // ─── システム設定テーブル ───
 
@@ -157,7 +163,9 @@ export const companies = pgTable('companies', {
   targetIndustries: jsonb('target_industries').$type<string[]>().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('companies_organization_id_idx').on(table.organizationId),
+]);
 
 // ─── 決算期テーブル ───
 
@@ -181,7 +189,9 @@ export const fiscalPeriods = pgTable('fiscal_periods', {
   prevPeriodSnapshot: jsonb('prev_period_snapshot'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('fiscal_periods_company_id_idx').on(table.companyId),
+]);
 
 // ─── 監査ログテーブル ───
 
@@ -195,7 +205,12 @@ export const auditLogs = pgTable('audit_logs', {
   details: jsonb('details'),
   ipAddress: text('ip_address'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('audit_logs_organization_id_idx').on(table.organizationId),
+  index('audit_logs_user_id_idx').on(table.userId),
+  index('audit_logs_action_idx').on(table.action),
+  index('audit_logs_created_at_idx').on(table.createdAt),
+]);
 
 // ─── リレーション ───
 

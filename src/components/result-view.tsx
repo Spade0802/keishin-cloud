@@ -353,7 +353,7 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 text-xs sm:text-sm">
+        <TabsList className="flex w-full overflow-x-auto text-xs sm:text-sm sm:grid sm:grid-cols-5">
           <TabsTrigger value="industry">業種別P点</TabsTrigger>
           <TabsTrigger value="scores">評点詳細</TabsTrigger>
           <TabsTrigger value="bs-pl">決算書</TabsTrigger>

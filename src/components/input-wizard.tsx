@@ -1164,6 +1164,59 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </CardContent>
           </Card>
 
+          {/* 抽出結果サマリー */}
+          {keishinPdfLoaded && (
+            <Card className="border-green-200 bg-green-50/50">
+              <CardContent className="py-4">
+                <p className="text-sm font-medium text-green-800 mb-2">PDF読取結果サマリー</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  {/* 基本情報 */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">基本情報</p>
+                    <div className="flex items-center gap-1">
+                      <span className={basicInfo.companyName ? 'text-green-600' : 'text-amber-500'}>{basicInfo.companyName ? '✓' : '△'}</span>
+                      <span className="text-xs">会社名</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={basicInfo.permitNumber ? 'text-green-600' : 'text-amber-500'}>{basicInfo.permitNumber ? '✓' : '△'}</span>
+                      <span className="text-xs">許可番号</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={basicInfo.reviewBaseDate ? 'text-green-600' : 'text-amber-500'}>{basicInfo.reviewBaseDate ? '✓' : '△'}</span>
+                      <span className="text-xs">審査基準日</span>
+                    </div>
+                  </div>
+                  {/* 業種・W項目 */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">業種・W項目</p>
+                    <div className="flex items-center gap-1">
+                      <span className={industries.filter(ind => ind.name).length > 0 ? 'text-green-600' : 'text-amber-500'}>
+                        {industries.filter(ind => ind.name).length > 0 ? '✓' : '△'}
+                      </span>
+                      <span className="text-xs">{industries.filter(ind => ind.name).length}業種抽出</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={externalWItems && Object.keys(externalWItems).length > 0 ? 'text-green-600' : 'text-amber-500'}>
+                        {externalWItems && Object.keys(externalWItems).length > 0 ? '✓' : '△'}
+                      </span>
+                      <span className="text-xs">{externalWItems ? Object.keys(externalWItems).length : 0}/31項目抽出</span>
+                    </div>
+                  </div>
+                  {/* 技術職員 */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">技術職員</p>
+                    <div className="flex items-center gap-1">
+                      <span className={extractedStaff && extractedStaff.length > 0 ? 'text-green-600' : 'text-amber-500'}>
+                        {extractedStaff && extractedStaff.length > 0 ? '✓' : '△'}
+                      </span>
+                      <span className="text-xs">{extractedStaff ? extractedStaff.length : 0}名抽出</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Step 2 バリデーション警告（基本情報・業種・財務） */}
           {extractionWarnings.filter(w => w.severity === 'warning' || w.severity === 'error').filter(
             w => w.field.startsWith('basicInfo') || w.field.startsWith('industry') || w.field === 'equity' || w.field === 'ebitda' || w.field === 'industries'

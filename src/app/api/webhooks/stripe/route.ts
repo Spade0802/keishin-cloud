@@ -125,8 +125,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
         return;
       }
     }
-    console.error('[Stripe Webhook] Cannot find org for subscription', subscription.id);
-    return;
+    throw new Error(`[Stripe Webhook] Cannot find org for subscription ${subscription.id}`);
   }
 
   await updateOrgSubscription(organizationId, subscription);
@@ -175,7 +174,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       ? subscription.customer
       : subscription.customer?.id;
 
-  if (!customerId) return;
+  if (!customerId) {
+    throw new Error(`[Stripe Webhook] No customer ID on deleted subscription ${subscription.id}`);
+  }
 
   const org = await db
     .select({ id: organizations.id })
@@ -183,7 +184,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     .where(eq(organizations.stripeCustomerId, customerId))
     .then((r) => r[0]);
 
-  if (!org) return;
+  if (!org) {
+    throw new Error(`[Stripe Webhook] Cannot find org for customer ${customerId} on subscription deletion`);
+  }
 
   await db
     .update(organizations)

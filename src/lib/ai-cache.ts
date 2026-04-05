@@ -30,9 +30,26 @@ export interface CacheStats {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 時間
+const MAX_ENTRIES = 100;
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 分
 
 let cache = new Map<string, CacheEntry>();
 let stats = { hits: 0, misses: 0 };
+
+// 定期的に期限切れエントリを掃除する
+const cleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (now - entry.createdAt > entry.ttlMs) {
+      cache.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
+
+// Node.js プロセスの終了をブロックしない
+if (typeof cleanupTimer === 'object' && 'unref' in cleanupTimer) {
+  cleanupTimer.unref();
+}
 
 // ---------------------------------------------------------------------------
 // ハッシュ生成
@@ -100,6 +117,14 @@ export function setCachedAnalysis(
   result: AnalysisResult,
   ttlMs: number = DEFAULT_TTL_MS,
 ): void {
+  // MAX_ENTRIES を超える場合、最も古いエントリ（Map の挿入順先頭）を削除
+  if (cache.size >= MAX_ENTRIES && !cache.has(inputHash)) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      cache.delete(oldestKey);
+      console.log(`[ai-cache] EVICTED oldest entry hash=${oldestKey.slice(0, 12)}... (size was ${cache.size + 1})`);
+    }
+  }
   cache.set(inputHash, {
     result,
     createdAt: Date.now(),
