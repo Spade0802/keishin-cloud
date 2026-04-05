@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   ChevronDown,
   Save,
+  Sparkles,
 } from 'lucide-react';
 import { FileUpload } from '@/components/file-upload';
 import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/components/file-upload';
@@ -154,6 +155,104 @@ const INDUSTRY_CODES = [
   { code: '28', name: '清掃施設工事' },
   { code: '29', name: '解体工事' },
 ] as const;
+
+// ---- Industry-based W-item smart defaults ----
+// Maps industry name patterns to commonly associated W items
+const INDUSTRY_W_DEFAULTS: Record<string, Partial<SocialItems>> = {
+  '土木一式工事': {
+    disasterAgreement: true,
+    constructionMachineCount: 1,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+    constructionRetirementMutualAid: true,
+  },
+  '建築一式工事': {
+    iso9001: true,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+    constructionRetirementMutualAid: true,
+  },
+  '電気工事': {
+    nonStatutoryAccidentInsurance: true,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+  },
+  '管工事': {
+    nonStatutoryAccidentInsurance: true,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+  },
+  '舗装工事': {
+    disasterAgreement: true,
+    constructionMachineCount: 1,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+  },
+  '鋼構造物工事': {
+    iso9001: true,
+    nonStatutoryAccidentInsurance: true,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+  },
+  '解体工事': {
+    nonStatutoryAccidentInsurance: true,
+    employmentInsurance: true,
+    healthInsurance: true,
+    pensionInsurance: true,
+  },
+};
+
+function getIndustryWDefaults(industryNames: string[]): Partial<SocialItems> {
+  const merged: Partial<SocialItems> = {};
+  for (const name of industryNames) {
+    const defaults = INDUSTRY_W_DEFAULTS[name];
+    if (defaults) {
+      for (const [key, value] of Object.entries(defaults)) {
+        const k = key as keyof SocialItems;
+        const existing = merged[k];
+        if (typeof value === 'boolean') {
+          // For booleans, true wins (union of recommendations)
+          if (value || !existing) (merged as Record<string, unknown>)[k] = value;
+        } else if (typeof value === 'number') {
+          // For numbers, take the max
+          (merged as Record<string, unknown>)[k] = Math.max(value, (existing as number) || 0);
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+// ---- Validation helpers for financial inputs ----
+type FieldWarning = { message: string; level: 'warning' | 'info' };
+
+const LARGE_VALUE_THRESHOLD = 10_000_000; // 100億 = 10,000,000千円
+
+function getFinancialFieldWarning(
+  label: string,
+  value: string,
+  opts?: { allowNegative?: boolean; mustBePositive?: boolean }
+): FieldWarning | null {
+  const n = parseFloat(value);
+  if (!value || isNaN(n)) return null;
+
+  if (opts?.mustBePositive && n < 0) {
+    return { message: 'この項目は正の値である必要があります', level: 'warning' };
+  }
+  if (!opts?.allowNegative && n < 0) {
+    return { message: '負の値が入力されています。正しいか確認してください', level: 'warning' };
+  }
+  if (Math.abs(n) > LARGE_VALUE_THRESHOLD) {
+    return { message: '単位確認: 100億円超の値です。千円単位で入力してください', level: 'warning' };
+  }
+  return null;
+}
 
 function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -355,7 +454,8 @@ function numField(
   onChange: (v: string) => void,
   unit: string = '千円',
   help?: string,
-  status?: 'auto-filled' | 'needs-input'
+  status?: 'auto-filled' | 'needs-input',
+  warning?: FieldWarning | null
 ) {
   const fieldId = `numfield-${label.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, '-')}`;
   return (
@@ -369,9 +469,14 @@ function numField(
         {status === 'needs-input' && <span className="text-[9px] text-amber-600 font-normal">要入力</span>}
       </Label>
       <div className="flex items-center gap-1">
-        <Input id={fieldId} type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-10 sm:h-8" />
+        <Input id={fieldId} type="number" value={value} onChange={(e) => onChange(e.target.value)} className={`text-right text-sm h-10 sm:h-8 ${warning ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`} />
         <span className="text-xs text-muted-foreground whitespace-nowrap w-8">{unit}</span>
       </div>
+      {warning && (
+        <p className={`text-[10px] ${warning.level === 'warning' ? 'text-amber-600' : 'text-blue-600'}`}>
+          {warning.message}
+        </p>
+      )}
       {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
     </div>
   );
@@ -905,6 +1010,17 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setIndustries([...industries, { name: '', permitType: '一般', prevCompletion: '', currCompletion: '', prevPrevCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }]);
   }
 
+  // Duplicate industry check when selecting a name
+  function updateIndustryWithDuplicateCheck(index: number, field: keyof IndustryInput, value: string) {
+    if (field === 'name' && value) {
+      const isDuplicate = industries.some((ind, i) => i !== index && ind.name === value);
+      if (isDuplicate) {
+        showToast(`「${value}」は既に追加されています。同じ業種を複数登録すると正しく計算されない場合があります。`, 'warning');
+      }
+    }
+    updateIndustry(index, field, value);
+  }
+
   function removeIndustry(i: number) {
     setIndustries(industries.filter((_, idx) => idx !== i));
   }
@@ -1253,13 +1369,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">損益計算書（P&L）</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div>
-                      {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', '経審様式第25号の14 別紙一', fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
+                      {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', '経審様式第25号の14 別紙一', fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('完成工事高', sales, { mustBePositive: true }))}
                       {stepErrorField === 'sales' && <p className="text-xs text-destructive mt-1">{stepError}</p>}
                     </div>
-                    {numField('売上総利益', grossProfit, setGrossProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('grossProfit') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('経常利益', ordinaryProfit, setOrdinaryProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('ordinaryProfit') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('支払利息', interestExpense, setInterestExpense, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestExpense') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('受取利息配当金', interestDividendIncome, setInterestDividendIncome, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestDividendIncome') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('売上総利益', grossProfit, setGrossProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('grossProfit') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('売上総利益', grossProfit))}
+                    {numField('経常利益', ordinaryProfit, setOrdinaryProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('ordinaryProfit') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('経常利益', ordinaryProfit, { allowNegative: true }))}
+                    {numField('支払利息', interestExpense, setInterestExpense, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestExpense') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('支払利息', interestExpense))}
+                    {numField('受取利息配当金', interestDividendIncome, setInterestDividendIncome, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestDividendIncome') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('受取利息配当金', interestDividendIncome))}
                   </div>
                 </div>
 
@@ -1267,18 +1383,18 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20 p-4 space-y-3">
                   <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">貸借対照表（B/S）</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('流動負債合計', currentLiabilities))}
+                    {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('固定負債合計', fixedLiabilities))}
                     <div>
-                      {numField('総資本（総資産）', totalCapital, (v) => { setTotalCapital(v); if (stepErrorField === 'totalCapital') { setStepError(null); setStepErrorField(null); } }, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+                      {numField('総資本（総資産）', totalCapital, (v) => { setTotalCapital(v); if (stepErrorField === 'totalCapital') { setStepError(null); setStepErrorField(null); } }, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('総資本', totalCapital, { mustBePositive: true }))}
                       {stepErrorField === 'totalCapital' && <p className="text-xs text-destructive mt-1">{stepError}</p>}
                     </div>
-                    {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', '財務諸表 貸借対照表の純資産の部', fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful, '千円', undefined, fileLoaded ? (autoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('受取手形+完成工事未収入金', notesAndReceivable, setNotesAndReceivable, '千円', undefined, fileLoaded ? (autoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('未成工事受入金', advanceReceived, setAdvanceReceived, '千円', undefined, fileLoaded ? (autoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', '財務諸表 貸借対照表の純資産の部', fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('純資産合計', equity, { allowNegative: true }))}
+                    {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('固定資産合計', fixedAssets))}
+                    {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('利益剰余金合計', retainedEarnings, { allowNegative: true }))}
+                    {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful, '千円', undefined, fileLoaded ? (autoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('貸倒引当金', allowanceDoubtful))}
+                    {numField('受取手形+完成工事未収入金', notesAndReceivable, setNotesAndReceivable, '千円', undefined, fileLoaded ? (autoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('受取手形+完成工事未収入金', notesAndReceivable))}
+                    {numField('未成工事受入金', advanceReceived, setAdvanceReceived, '千円', undefined, fileLoaded ? (autoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('未成工事受入金', advanceReceived))}
                   </div>
                 </div>
 
@@ -1286,10 +1402,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 <div className="rounded-lg border border-orange-200 bg-orange-50/30 dark:border-orange-800 dark:bg-orange-950/20 p-4 space-y-3">
                   <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300">その他（原価報告書等）</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {numField('法人税等', corporateTax, setCorporateTax, '千円', undefined, fileLoaded ? (autoFilledFields.has('corporateTax') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('減価償却実施額', depreciation, setDepreciation, '千円', undefined, fileLoaded ? (autoFilledFields.has('depreciation') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('工事未払金', constructionPayable, setConstructionPayable, '千円', '未払経費を含めない', fileLoaded ? (autoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('未成工事支出金+材料貯蔵品', inventoryAndMaterials, setInventoryAndMaterials, '千円', undefined, fileLoaded ? (autoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('法人税等', corporateTax, setCorporateTax, '千円', undefined, fileLoaded ? (autoFilledFields.has('corporateTax') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('法人税等', corporateTax))}
+                    {numField('減価償却実施額', depreciation, setDepreciation, '千円', undefined, fileLoaded ? (autoFilledFields.has('depreciation') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('減価償却実施額', depreciation))}
+                    {numField('工事未払金', constructionPayable, setConstructionPayable, '千円', '未払経費を含めない', fileLoaded ? (autoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('工事未払金', constructionPayable))}
+                    {numField('未成工事支出金+材料貯蔵品', inventoryAndMaterials, setInventoryAndMaterials, '千円', undefined, fileLoaded ? (autoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined, getFinancialFieldWarning('未成工事支出金+材料貯蔵品', inventoryAndMaterials))}
                   </div>
                 </div>
               </CardContent>
@@ -1473,7 +1589,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           <Card>
             <CardHeader><CardTitle className="text-base">続紙：X2用データ（千円）</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
-              {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '営業利益＋減価償却費（提出書の続紙に記載）')}
+              {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '営業利益＋減価償却費（提出書の続紙に記載）', undefined, getFinancialFieldWarning('EBITDA', ebitda, { allowNegative: true }))}
               <div className="space-y-1 self-end pb-2">
                 {previewPL && num(depreciation) > 0 && (
                   <Button
@@ -1513,7 +1629,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="space-y-1 w-full sm:w-48">
                       <Label className="text-xs">業種名</Label>
-                      <IndustryCodeSelect value={ind.name} onChange={(v) => updateIndustry(i, 'name', v)} />
+                      <IndustryCodeSelect value={ind.name} onChange={(v) => updateIndustryWithDuplicateCheck(i, 'name', v)} />
                     </div>
                     <div className="space-y-1 w-20">
                       <Label className="text-xs">許可</Label>
@@ -1527,13 +1643,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {numField('前期完成工事高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v))}
-                    {numField('当期完成工事高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v))}
-                    {numField('前年度元請完成工事高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
-                    {numField('当年度元請完成工事高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
+                    {numField('前期完成工事高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('前期完成工事高', ind.prevCompletion, { mustBePositive: true }))}
+                    {numField('当期完成工事高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('当期完成工事高', ind.currCompletion, { mustBePositive: true }))}
+                    {numField('前年度元請完成工事高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v), '千円', undefined, undefined, getFinancialFieldWarning('前年度元請完成工事高', ind.prevSubcontract, { mustBePositive: true }))}
+                    {numField('当年度元請完成工事高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v), '千円', undefined, undefined, getFinancialFieldWarning('当年度元請完成工事高', ind.currSubcontract, { mustBePositive: true }))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {numField('前々期完成工事高（激変緩和用）', ind.prevPrevCompletion, (v) => updateIndustry(i, 'prevPrevCompletion', v))}
+                    {numField('前々期完成工事高（激変緩和用）', ind.prevPrevCompletion, (v) => updateIndustry(i, 'prevPrevCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('前々期完成工事高', ind.prevPrevCompletion, { mustBePositive: true }))}
                   </div>
                   {/* 下請完成工事高（自動計算）: 完成工事高 - 元請完成工事高 */}
                   {(num(ind.prevCompletion) > 0 || num(ind.currCompletion) > 0) && (
@@ -1742,6 +1858,60 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 ))}
               </div>
             </details>
+          )}
+
+          {/* 業種推奨W項目設定ボタン */}
+          {industries.filter(ind => ind.name).length > 0 && (
+            (() => {
+              const activeNames = industries.filter(ind => ind.name).map(ind => ind.name);
+              const hasDefaults = activeNames.some(name => INDUSTRY_W_DEFAULTS[name]);
+              if (!hasDefaults) return null;
+              return (
+                <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+                  <CardContent className="py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200 flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4" />
+                          業種推奨設定
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-300">
+                          {activeNames.filter(name => INDUSTRY_W_DEFAULTS[name]).map(name => {
+                            const defaults = INDUSTRY_W_DEFAULTS[name];
+                            if (!defaults) return null;
+                            const items: string[] = [];
+                            if (defaults.disasterAgreement) items.push('防災協定');
+                            if (defaults.constructionMachineCount) items.push('建設機械');
+                            if (defaults.iso9001) items.push('ISO9001');
+                            if (defaults.nonStatutoryAccidentInsurance) items.push('法定外労災');
+                            if (defaults.employmentInsurance) items.push('雇用保険');
+                            if (defaults.healthInsurance) items.push('健康保険');
+                            if (defaults.pensionInsurance) items.push('厚生年金');
+                            if (defaults.constructionRetirementMutualAid) items.push('建退共');
+                            return `${name}: ${items.join('・')}`;
+                          }).filter(Boolean).join(' / ')}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100"
+                        onClick={() => {
+                          const defaults = getIndustryWDefaults(activeNames);
+                          setExternalWItems(prev => ({ ...prev, ...defaults }));
+                          const count = Object.keys(defaults).length;
+                          showToast(`業種推奨設定を${count}項目適用しました`, 'success');
+                        }}
+                      >
+                        <Sparkles className="mr-1 h-3 w-3" />
+                        業種推奨設定を適用
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()
           )}
 
           <WItemsChecklist onWCalculated={handleWCalculated} externalItems={externalWItems} />
