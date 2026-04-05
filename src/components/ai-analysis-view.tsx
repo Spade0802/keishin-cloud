@@ -21,6 +21,7 @@ import {
   Trophy,
   ChevronRight,
   Calculator,
+  ArrowRightLeft,
 } from 'lucide-react';
 import {
   BarChart,
@@ -43,6 +44,7 @@ import type {
   RiskPoint,
   ImpactRankingItem,
   ChecklistItem,
+  AccountMappingSuggestion,
 } from '@/lib/ai-analysis-types';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ } from '@/lib/engine/p-calculator';
@@ -1093,6 +1095,126 @@ function ReclassificationSimulation({ items, analysisInput }: ReclassSimProps) {
   );
 }
 
+// ─── セクション: 勘定科目マッピング提案 ───
+
+function riskBadgeColor(risk: AccountMappingSuggestion['risk']) {
+  switch (risk) {
+    case 'low':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    case 'medium':
+      return 'bg-amber-100 text-amber-800 border-amber-300';
+    case 'high':
+      return 'bg-red-100 text-red-800 border-red-300';
+  }
+}
+
+function riskLabel(risk: AccountMappingSuggestion['risk']) {
+  switch (risk) {
+    case 'low':
+      return '低リスク';
+    case 'medium':
+      return '中リスク';
+    case 'high':
+      return '高リスク';
+  }
+}
+
+function AccountMappingSuggestionsSection({ items }: { items: AccountMappingSuggestion[] }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ArrowRightLeft className="h-5 w-5 text-indigo-500" />
+          勘定科目マッピング提案
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          経審用BSの科目分類を変更することでP点改善が見込める提案です。
+          あくまで参考情報であり、実施にあたっては専門家にご確認ください。
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 参考情報の注記 */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <p className="text-xs text-blue-700">
+            以下の提案は会計基準上認められる可能性のある代替分類です。
+            実際の適用可否は取引の実態・契約内容に基づいて税理士・行政書士にご確認ください。
+          </p>
+        </div>
+
+        {items.map((item, i) => (
+          <div
+            key={i}
+            className="rounded-lg border hover:shadow-sm transition-shadow"
+          >
+            {/* ヘッダー行 */}
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30 rounded-t-lg">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{item.accountName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={riskBadgeColor(item.risk)}>
+                  {riskLabel(item.risk)}
+                </Badge>
+                <Badge variant="outline" className={assessmentColor(item.assessment)}>
+                  {item.assessment}
+                </Badge>
+              </div>
+            </div>
+
+            {/* 本体 */}
+            <div className="p-3 space-y-3">
+              {/* 現在 → 提案 */}
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    現在の区分
+                  </div>
+                  <div className="text-sm bg-gray-50 rounded p-2">
+                    {item.currentMapping}
+                  </div>
+                </div>
+                <div className="hidden md:flex items-center justify-center">
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-indigo-600 mb-1">
+                    提案する区分
+                  </div>
+                  <div className="text-sm bg-indigo-50 rounded p-2">
+                    {item.suggestedMapping}
+                  </div>
+                </div>
+              </div>
+
+              {/* 根拠 */}
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">
+                  根拠
+                </div>
+                <div className="text-xs text-muted-foreground">{item.rationale}</div>
+              </div>
+
+              {/* 影響バッジ */}
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-mono bg-primary/10 text-primary font-bold">
+                  <span className="font-medium">P影響</span>
+                  <span>{item.pImpact || '—'}</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-mono bg-muted">
+                  <span className="font-medium">Y影響</span>
+                  <span>{item.yImpact || '—'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── メインコンポーネント ───
 
 export function AiAnalysisView({
@@ -1260,6 +1382,11 @@ export function AiAnalysisView({
           items={result.reclassificationReview}
           analysisInput={analysisInput}
         />
+      )}
+
+      {/* 勘定科目マッピング提案 */}
+      {result.accountMappingSuggestions && result.accountMappingSuggestions.length > 0 && (
+        <AccountMappingSuggestionsSection items={result.accountMappingSuggestions} />
       )}
 
       {/* 再分析ボタン */}

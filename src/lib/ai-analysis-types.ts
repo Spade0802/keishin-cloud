@@ -69,6 +69,18 @@ export interface ChecklistItem {
   target: string; // 確認先（経理・税理士・行政書士等）
 }
 
+/** 勘定科目マッピング提案 */
+export interface AccountMappingSuggestion {
+  accountName: string;        // 科目名 (e.g., "有価証券")
+  currentMapping: string;     // 現在の区分 (e.g., "流動資産・有価証券")
+  suggestedMapping: string;   // 提案する区分 (e.g., "投資その他の資産・投資有価証券")
+  rationale: string;          // 根拠 (e.g., "1年超保有のため固定資産が適切")
+  pImpact: string;           // P点影響 (e.g., "全業種P+2〜3")
+  yImpact: string;           // Y点影響 (e.g., "x5自己資本対固定資産比率が改善")
+  risk: 'low' | 'medium' | 'high';  // リスク
+  assessment: '採用余地あり' | '要確認' | '非推奨';
+}
+
 /** AI分析結果全体 */
 export interface AnalysisResult {
   reclassificationReview: ReclassificationItem[];
@@ -77,6 +89,7 @@ export interface AnalysisResult {
   riskPoints: RiskPoint[];
   impactRanking: ImpactRankingItem[];
   checklistItems: ChecklistItem[];
+  accountMappingSuggestions?: AccountMappingSuggestion[];
   summary: string;
   disclaimer: string;
 }
@@ -149,6 +162,8 @@ export interface AnalysisInput {
       advanceReceived: number;
     };
   };
+  /** 経審用BS変換前の生データ（勘定科目マッピング提案用） */
+  rawBsData?: Record<string, Record<string, number>>;
   /** EBITDA（X22計算用） */
   ebitda?: number;
   /** 業種別の完工高・元請高（再計算用） */

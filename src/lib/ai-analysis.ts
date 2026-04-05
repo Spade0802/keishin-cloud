@@ -112,6 +112,7 @@ export async function generatePPointAnalysis(
   // 新フィールドのデフォルト値（旧モデル出力との互換性）
   if (!parsed.impactRanking) parsed.impactRanking = [];
   if (!parsed.checklistItems) parsed.checklistItems = [];
+  if (!parsed.accountMappingSuggestions) parsed.accountMappingSuggestions = [];
 
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
@@ -171,9 +172,11 @@ ${input.bs ? `【経審用BS（千円）】\n${JSON.stringify(input.bs, null, 2)
 
 ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)}` : ''}
 
+${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify(input.rawBsData, null, 2)}` : ''}
+
 ## 分析内容
 
-以下の6セクションをJSON形式で出力してください。
+以下の7セクションをJSON形式で出力してください。
 業種名は必ず次の名前を使用してください: ${JSON.stringify(industryNames)}
 
 ### 1. 再分類レビュー（reclassificationReview）
@@ -209,6 +212,29 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
 
 ### 6. 確認すべき事項チェックリスト（checklistItems）
 経理担当・税理士・行政書士へ確認すべき具体的な事項の一覧。
+
+### 7. 勘定科目マッピング提案（accountMappingSuggestions）
+決算書の勘定科目の経審用分類について、P点を改善できる可能性のある代替マッピングを提案してください。
+
+以下の観点で分析:
+- 有価証券の流動/固定区分変更の影響
+- 長期前払費用の内容による区分変更
+- 建物付属設備の区分
+- 繰延税金資産の処理
+- その他、会計基準上認められる範囲での再分類
+
+各提案について:
+- accountName: 対象科目名
+- currentMapping: 現在の区分
+- suggestedMapping: 提案する区分
+- rationale: 会計上の根拠
+- pImpact: P点への影響（具体的な点数変動）
+- yImpact: Y点指標への影響
+- risk: リスクレベル (low/medium/high)
+- assessment: 評価 (採用余地あり/要確認/非推奨)
+
+※ BS生データがある場合はそれを参照して具体的な科目・金額に基づく提案を行ってください。
+※ 提案は会計基準上認められる範囲に限定し、虚偽記載に該当するものは含めないでください。
 
 ## 出力JSON形式
 {
@@ -285,6 +311,18 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
     {
       "item": "確認事項の具体的内容",
       "target": "確認先（経理・税理士・行政書士等）"
+    }
+  ],
+  "accountMappingSuggestions": [
+    {
+      "accountName": "科目名",
+      "currentMapping": "現在の区分",
+      "suggestedMapping": "提案する区分",
+      "rationale": "会計上の根拠",
+      "pImpact": "P点への影響",
+      "yImpact": "Y点指標への影響",
+      "risk": "low|medium|high",
+      "assessment": "採用余地あり|要確認|非推奨"
     }
   ],
   "summary": "入力データに基づく全体の分析サマリー（200文字程度）"
