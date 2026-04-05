@@ -91,7 +91,7 @@ const TrendInsightsSchema = z.object({
   riskFromTrend: z.string(),
 }).passthrough();
 
-const AnalysisResultSchema = z.object({
+export const AnalysisResultSchema = z.object({
   reclassificationReview: z.array(ReclassificationItemSchema).catch([]),
   simulationComparison: z.array(SimulationCaseSchema).catch([]),
   itemAssessments: z.array(ItemAssessmentSchema).catch([]),
