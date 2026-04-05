@@ -23,7 +23,9 @@ import {
   ArrowLeft,
   Clock,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { showToast } from '@/components/ui/toast';
+import { logger } from '@/lib/logger';
 import { useSession } from '@/lib/session-context';
 
 interface UserProfile {
@@ -67,7 +69,7 @@ function getStoredNotificationPrefs(): NotificationPrefs {
   if (typeof window === 'undefined') return { emailNotifications: true, trialExpiryReminders: true };
   const stored = localStorage.getItem('notification-preferences');
   if (stored) {
-    try { return JSON.parse(stored); } catch { /* ignore */ }
+    try { return JSON.parse(stored); } catch (e) { logger.warn('通知設定のパースに失敗', e); }
   }
   return { emailNotifications: true, trialExpiryReminders: true };
 }
@@ -115,6 +117,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemePreference>('system');
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
     emailNotifications: true,
@@ -129,24 +133,35 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/user/profile')
       .then((r) => {
-        if (!r.ok) throw new Error('fetch failed');
+        if (!r.ok) throw new Error(`プロフィール取得失敗: ${r.status}`);
         return r.json();
       })
       .then((data: UserProfile) => {
         setProfile(data);
         setDisplayName(data.name || '');
       })
-      .catch(() => {
-        /* handled by null check */
+      .catch((err) => {
+        logger.error('プロフィール取得エラー', err);
+        setFetchError('プロフィールの読み込みに失敗しました');
       })
       .finally(() => setLoading(false));
   }, []);
 
+  const validateName = useCallback((value: string): string | null => {
+    if (!value.trim()) return '表示名を入力してください';
+    if (value.trim().length < 2) return '表示名は2文字以上で入力してください';
+    if (value.trim().length > 100) return '表示名は100文字以内で入力してください';
+    return null;
+  }, []);
+
   const handleSaveName = useCallback(async () => {
-    if (!displayName.trim()) {
-      showToast('表示名を入力してください', 'error');
+    const error = validateName(displayName);
+    if (error) {
+      setNameError(error);
+      showToast(error, 'error');
       return;
     }
+    setNameError(null);
     setSaving(true);
     try {
       const res = await fetch('/api/user/profile', {
@@ -156,16 +171,20 @@ export default function SettingsPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        showToast(data.error || '保存に失敗しました', 'error');
+        const msg = data.error || '保存に失敗しました';
+        logger.error('プロフィール保存失敗', { status: res.status, error: data.error });
+        showToast(msg, 'error');
         return;
       }
+      setProfile((prev) => prev ? { ...prev, name: displayName.trim() } : prev);
       showToast('表示名を更新しました', 'success');
-    } catch {
-      showToast('エラーが発生しました', 'error');
+    } catch (err) {
+      logger.error('プロフィール保存エラー', err);
+      showToast('ネットワークエラーが発生しました', 'error');
     } finally {
       setSaving(false);
     }
-  }, [displayName]);
+  }, [displayName, validateName]);
 
   function handleThemeChange(newTheme: ThemePreference) {
     setTheme(newTheme);
@@ -195,7 +214,8 @@ export default function SettingsPage() {
       form.appendChild(csrfInput);
       document.body.appendChild(form);
       form.submit();
-    } catch {
+    } catch (err) {
+      logger.error('ログアウト処理エラー', err);
       showToast('ログアウトに失敗しました', 'error');
     }
   }
@@ -213,8 +233,38 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center text-muted-foreground">
-        読み込み中...
+      <div className="max-w-2xl mx-auto px-4 py-10">
+        <div className="flex items-center gap-3 mb-6">
+          <Skeleton className="h-8 w-8 rounded" />
+          <Skeleton className="h-8 w-48" />
+        </div>
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="mb-6">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+              <Skeleton className="h-4 w-56 mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
+        <p className="text-muted-foreground mb-4">{fetchError}</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          再読み込み
+        </Button>
       </div>
     );
   }
@@ -255,9 +305,14 @@ export default function SettingsPage() {
               <Input
                 id="display-name"
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  if (nameError) setNameError(null);
+                }}
                 placeholder="表示名を入力"
                 maxLength={100}
+                aria-invalid={!!nameError}
+                className={nameError ? 'border-red-500 focus-visible:ring-red-500' : ''}
               />
               <Button
                 onClick={handleSaveName}
@@ -269,6 +324,9 @@ export default function SettingsPage() {
                 {saving ? '保存中...' : '保存'}
               </Button>
             </div>
+            {nameError && (
+              <p className="text-xs text-red-500 mt-1">{nameError}</p>
+            )}
           </div>
 
           <div className="space-y-2">
