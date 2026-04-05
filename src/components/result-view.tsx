@@ -18,12 +18,14 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Sparkles,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
 import { KeishinPLTable } from '@/components/keishin-pl-table';
 import { AiAnalysisView } from '@/components/ai-analysis-view';
-import type { YResult, YInput, KeishinBS, KeishinPL, WDetail } from '@/lib/engine/types';
+import { SimulationPanel } from '@/components/simulation-panel';
+import type { YResult, YInput, KeishinBS, KeishinPL, WDetail, SocialItems } from '@/lib/engine/types';
 import type { AnalysisInput, AnalysisResult } from '@/lib/ai-analysis-types';
 
 interface IndustryResult {
@@ -65,10 +67,13 @@ interface ResultViewProps {
   /** 業種別計算データ */
   industryCalcData?: Array<{
     name: string;
+    code?: string;
     avgCompletion: number;
     avgSubcontract: number;
     techStaffValue: number;
   }>;
+  /** 社会性項目（シミュレーション用） */
+  socialItems?: SocialItems;
 }
 
 function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
@@ -121,6 +126,7 @@ export function ResultView(props: ResultViewProps) {
     yInput,
     ebitda,
     industryCalcData,
+    socialItems,
   } = props;
 
   const [yDetailOpen, setYDetailOpen] = useState(false);
@@ -294,12 +300,16 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 overflow-x-auto text-xs sm:text-sm">
+        <TabsList className="grid w-full grid-cols-7 overflow-x-auto text-xs sm:text-sm">
           <TabsTrigger value="industry">業種別P点</TabsTrigger>
           <TabsTrigger value="y-detail">Y点詳細</TabsTrigger>
           <TabsTrigger value="scores">評点内訳</TabsTrigger>
           <TabsTrigger value="bs-pl">決算書</TabsTrigger>
           <TabsTrigger value="improvement">改善提案</TabsTrigger>
+          <TabsTrigger value="simulation" className="flex items-center gap-1">
+            <SlidersHorizontal className="h-3 w-3" />
+            シミュレーション
+          </TabsTrigger>
           <TabsTrigger value="ai-analysis" className="flex items-center gap-1">
             <Sparkles className="h-3 w-3" />
             AI分析
@@ -589,6 +599,32 @@ export function ResultView(props: ResultViewProps) {
               ))}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Simulation Panel */}
+        <TabsContent value="simulation">
+          {yInput && socialItems && industryCalcData ? (
+            <SimulationPanel
+              yInput={yInput}
+              equity={yInput.equity}
+              ebitda={ebitda ?? 0}
+              socialItems={socialItems}
+              industries={industryCalcData.map((ind, i) => ({
+                name: ind.name,
+                code: ind.code ?? String(i).padStart(2, '0'),
+                avgCompletion: ind.avgCompletion,
+                avgSubcontract: ind.avgSubcontract,
+                techStaffValue: ind.techStaffValue,
+              }))}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <SlidersHorizontal className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                <p>シミュレーションには詳細データの入力が必要です。</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* AI Analysis — must be last to match TabsTrigger order */}

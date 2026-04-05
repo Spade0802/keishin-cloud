@@ -10,7 +10,7 @@ import { calculateW } from '@/lib/engine/p-calculator';
 import type { SocialItems, WDetail } from '@/lib/engine/types';
 
 interface WItemsChecklistProps {
-  onWCalculated: (detail: WDetail, total: number, W: number) => void;
+  onWCalculated: (detail: WDetail, total: number, W: number, items?: SocialItems) => void;
   /** 外部から初期値を設定（提出書PDF読込時） */
   externalItems?: Partial<SocialItems>;
 }
@@ -188,7 +188,7 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
 
   useEffect(() => {
     const result = calculateW(items);
-    onWCalculated(result.detail, result.total, result.W);
+    onWCalculated(result.detail, result.total, result.W, items);
   }, [items, onWCalculated]);
 
   const result = calculateW(items);

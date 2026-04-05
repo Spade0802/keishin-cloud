@@ -318,6 +318,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [wTotal, setWTotal] = useState(0);
   const [wScore, setWScore] = useState(0);
   const [externalWItems, setExternalWItems] = useState<Partial<SocialItems> | undefined>(undefined);
+  const [currentSocialItems, setCurrentSocialItems] = useState<SocialItems | undefined>(undefined);
 
   // Step 3: Tech staff auto-calculation
   const [autoTechValues, setAutoTechValues] = useState<Record<string, number>>({});
@@ -725,10 +726,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     }
   }
 
-  const handleWCalculated = useCallback((detail: WDetail, total: number, w: number) => {
+  const handleWCalculated = useCallback((detail: WDetail, total: number, w: number, items?: SocialItems) => {
     setWDetail(detail);
     setWTotal(total);
     setWScore(w);
+    if (items) setCurrentSocialItems(items);
   }, []);
 
   // Callback from TechStaffPanel: auto-fill techStaffValue per industry
@@ -1294,12 +1296,14 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             },
           }}
           ebitda={num(ebitda)}
-          industryCalcData={industries.filter(ind => ind.name).map(ind => ({
+          industryCalcData={industries.filter(ind => ind.name).map((ind, i) => ({
             name: ind.name,
+            code: String(i + 1).padStart(2, '0'),
             avgCompletion: Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2),
             avgSubcontract: Math.floor((num(ind.prevSubcontract) + num(ind.currSubcontract)) / 2),
             techStaffValue: num(ind.techStaffValue),
           }))}
+          socialItems={currentSocialItems}
         />
       )}
 
