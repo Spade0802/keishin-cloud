@@ -22,6 +22,7 @@ import {
   Loader2,
   Printer,
   Info,
+  ClipboardCopy,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -247,6 +248,34 @@ export function ResultView(props: ResultViewProps) {
     }
   }
 
+  async function handleCopyToClipboard() {
+    const lines: string[] = [];
+    lines.push('=== 経審シミュレーション結果 ===');
+    if (companyName) lines.push(`会社名: ${companyName}`);
+    if (period) lines.push(`期間: ${period}`);
+    if (reviewBaseDate) lines.push(`審査基準日: ${reviewBaseDate}`);
+    lines.push('');
+    lines.push(`Y点（経営状況）: ${Y}`);
+    lines.push(`X2（自己資本額等）: ${X2}  (X21=${X21}, X22=${X22})`);
+    lines.push(`W点（社会性等）: ${W}  (素点=${wTotal})`);
+    lines.push('');
+    lines.push('--- 業種別P点 ---');
+    for (const ind of industries) {
+      const diffStr = ind.prevP !== undefined ? ` (前期比: ${ind.P - ind.prevP >= 0 ? '+' : ''}${ind.P - ind.prevP})` : '';
+      lines.push(`${ind.name}: P=${ind.P}  X1=${ind.X1}  Z=${ind.Z}${diffStr}`);
+    }
+    lines.push('');
+    lines.push('P = 0.25*X1 + 0.15*X2 + 0.20*Y + 0.25*Z + 0.15*W');
+    lines.push('※ 本試算は参考値であり、公式の経営事項審査結果通知書ではありません。');
+
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      showToast('結果をクリップボードにコピーしました', 'success');
+    } catch {
+      showToast('クリップボードへのコピーに失敗しました', 'error');
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -283,6 +312,10 @@ export function ResultView(props: ResultViewProps) {
               </Button>
             </>
           )}
+          <Button onClick={handleCopyToClipboard} variant="outline">
+            <ClipboardCopy className="mr-2 h-4 w-4" />
+            クリップボードにコピー
+          </Button>
           <Button onClick={() => window.print()} variant="outline">
             <Printer className="mr-2 h-4 w-4" />
             印刷

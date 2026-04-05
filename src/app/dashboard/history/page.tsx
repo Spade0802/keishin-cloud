@@ -19,6 +19,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { SignOutButton } from '../sign-out-button';
+import { SimulationComparison } from './simulation-comparison';
 
 export const metadata: Metadata = {
   title: 'ダッシュボード - 試算履歴',
@@ -127,6 +128,18 @@ export default async function DashboardHistoryPage() {
                 </Button>
               </Link>
             </div>
+
+            <SimulationComparison
+              simulations={recentSimulations
+                .filter((s) => s.resultData !== null)
+                .map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  period: s.period,
+                  updatedAt: s.updatedAt.toISOString(),
+                  resultData: s.resultData as Record<string, unknown> | null,
+                }))}
+            />
 
             {recentSimulations.length === 0 ? (
               <Card>

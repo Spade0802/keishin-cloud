@@ -3,11 +3,14 @@
  *
  * Generates a PDF report of keishin simulation results using pdf-lib.
  *
- * NOTE: pdf-lib does not support Japanese text rendering without embedding
- * a custom Japanese font (e.g., Noto Sans JP). For v1, we use romanized
- * labels and English text for all PDF content. Numbers are rendered directly.
- * TODO: Embed a Japanese font (e.g., NotoSansJP-Regular.otf) for full
- * Japanese text support in a future version.
+ * pdf-lib's standard fonts (Helvetica) do not include Japanese glyphs.
+ * We use romanized / English labels for structure and render numeric values
+ * directly (which are ASCII-safe). Industry names that contain non-ASCII
+ * characters are transliterated to a placeholder. A footer note informs
+ * the reader about this limitation.
+ *
+ * To enable full Japanese rendering, embed a CJK font such as
+ * NotoSansJP-Regular.otf via `doc.embedFont(fontBytes)`.
  */
 
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from 'pdf-lib';
@@ -456,9 +459,14 @@ class PdfReportBuilder {
     );
     this.cursorY -= 14;
 
-    // TODO: Remove this note once Japanese font embedding is implemented
     this.text(
-      'Note: Japanese text may not render correctly. Full Japanese support requires custom font embedding.',
+      'Note: Japanese characters (industry names, etc.) may display as placeholders.',
+      MARGIN_LEFT,
+      { size: 8, color: COLOR_MUTED }
+    );
+    this.cursorY -= 12;
+    this.text(
+      'For full Japanese text support, a CJK font must be embedded in a future version.',
       MARGIN_LEFT,
       { size: 8, color: COLOR_MUTED }
     );
