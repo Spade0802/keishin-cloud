@@ -15,6 +15,7 @@ import type { RawFinancialData, SocialItems } from './engine/types';
 import type { KeishinPdfResult } from './keishin-pdf-parser';
 import { getAIConfig } from './settings';
 import { splitPdfPages, getPdfPageCount } from './pdf-page-splitter';
+import { calculateTechStaffValues, type ExtractedStaffMember } from './engine/tech-staff-calculator';
 
 // ─── 設定 ───
 
@@ -1448,6 +1449,15 @@ const PROMPT_WITEMS = `あなたは日本の建設業の経営事項審査（経
 - CCUS活用 → ccusImplementation (0=なし, 1=民間工事, 2=全工事)
 
 ### 営業年数・法令遵守
+
+#### ★★★ 営業年数の読み取り（最重要） ★★★
+- 営業年数は通常2桁（10〜60年程度）です。1桁（1〜9年）は極めて稀です。
+- 固定帳票では各桁が別のマス目に入っています。
+- 必ず全てのマス目を左から右へ読んで連結してください。
+- 例: [5][7] → 57年、[3][5] → 35年
+- 1桁に見える場合は、隣のマスが空でないか再確認してください。
+- 初回許可年月日から審査基準日までの年数と大きくずれていないか確認してください。
+
 - 営業年数 → businessYears (数値)
 - 民事再生法又は会社更生法 → civilRehabilitation (true=適用あり / false=適用なし)
 - 防災活動への貢献 → disasterAgreement (true=防災協定あり / false=なし)
@@ -1516,141 +1526,95 @@ const PROMPT_WITEMS = `あなたは日本の建設業の経営事項審査（経
 // ── Pass 6: 技術職員名簿（別紙二）── フォーマット非依存 ──
 const PROMPT_TECH_STAFF = `あなたは日本の建設業の経営事項審査（経審）の技術職員名簿を読み取る専門家です。
 
-このPDFの中から**技術職員名簿（別紙二）**または**技術職員に関する情報**を読み取ってください。
+このPDFの中から**技術職員名簿（別紙二）**の生データを正確に読み取ってください。
 フォーマットは問いません（PDF、Excel出力、手書きスキャン等どれでも対応してください）。
 
-## ★技術職員数値の計算ルール（経審Z1評点の基礎）
+## ★重要：あなたの仕事は「データ抽出のみ」です
+- 点数の計算はしないでください
+- 業種の推定はしないでください（PDFに書かれている値をそのまま読む）
+- 有資格区分コードの値をPDFから正確に読み取ることが最重要です
 
-各技術職員には、その保有資格のレベルに応じて以下の点数が与えられます:
+## 読み取り対象（各行の列）
 
-| 区分 | 点数 | 条件 |
-|------|------|------|
-| 1級技術者（監理技術者講習受講+監理技術者資格者証あり）| **6点** | 1級施工管理技士等で、かつ監理技術者講習を受講済み、かつ監理技術者資格者証の交付を受けている |
-| 1級技術者 | **5点** | 1級施工管理技士、技術士、1級建築士等 |
-| 基幹技能者 | **3点** | 登録基幹技能者 |
-| 2級技術者 | **2点** | 2級施工管理技士、第一種電気工事士、1級技能士等 |
-| その他の技術者 | **1点** | 第二種電気工事士、2級技能士、実務経験者等 |
+名簿の各行から以下の情報を読み取ってください:
 
-## ★業種の決定方法（最重要）
+1. **氏名** (name): 技術職員の氏名
+2. **業種コード1** (industryCode1): 1つ目の業種コード（2桁の数字。例: "08"）
+3. **有資格区分コード1** (qualificationCode1): 1つ目の有資格区分コード（3桁の数字。例: 127）
+4. **講習受講フラグ1** (lectureFlag1): 監理技術者講習の受講状態。1=受講済、2=未受講、空欄の場合は0
+5. **業種コード2** (industryCode2): 2つ目の業種コード（任意、なければ省略）
+6. **有資格区分コード2** (qualificationCode2): 2つ目の有資格区分コード（任意、なければ省略）
+7. **講習受講フラグ2** (lectureFlag2): 2つ目の講習受講フラグ（任意）
+8. **監理技術者資格者証番号** (supervisorCertNumber): 監理技術者資格者証の交付番号（あれば文字列、なければ省略）
 
-業種は**資格の名称から自動的に決まります**。表の「業種コード」列を読むのではなく、
-**資格名そのものから該当業種を判断してください**。
+## 有資格区分コードの読み方のヒント
 
-### 方法1: 資格名で判定（名前が読める場合）
-- 「1級○○施工管理技士」→ その業種で5点（1級）
-- 「2級○○施工管理技士」→ その業種で2点（2級）
-- 「第一種電気工事士」→ 電気(08)で2点（2級相当）
-- 「第二種電気工事士」→ 電気(08)で1点（その他）
-- 「技術士」→ 対応業種で5点（1級相当）
-- 「登録○○基幹技能者」→ 対応業種で3点
+PDFの名簿には「有資格区分」列があり、3桁の数字が記載されています。
+例: 127 = 1級電気工事施工管理技士, 128 = 2級電気工事施工管理技士
+これらの数字をそのまま読み取ってください。**コードの意味を解釈する必要はありません。**
 
-### 方法2: 有資格区分コード（数字）で判定（コードが読める場合）
-以下は経審の標準的な有資格区分コードです:
+よく出てくるコード（読み取りの参考）:
+101=1級建設機械, 102=2級建設機械, 103=1級土木, 104=2級土木,
+107=1級建築, 108=2級建築(建築), 109=2級建築(躯体), 110=2級建築(仕上),
+127=1級電気工事, 128=2級電気工事, 129=1級管工事, 130=2級管工事,
+131=1級電気通信, 132=2級電気通信, 133=1級造園, 134=2級造園,
+152=第一種電気工事士, 153=第二種電気工事士, 155=甲種消防設備士, 156=乙種消防設備士
 
-**1級（5点）:**
-101=1級建設機械, 103=1級土木, 105=1級建築, 107=1級電気工事→08,
-109=1級管工事→09, 111=1級造園→23, 113=1級電気通信→22,
-201=技術士
-
-**2級（2点）:**
-151=2級建設機械, 153=2級土木, 155=2級建築→02, 155=2級電気工事→08,
-157=2級管工事→09, 228=第一種電気工事士→08, 230=2級管工事→09,
-231=2級造園→23, 233=2級電気通信→22
-
-**その他（1点）:**
-256=第一種電気工事士→08（※2点）, 284=第二種電気工事士→08
-
-**★重要な補正:**
-- コード127 = 1級電気工事施工管理技士 → 電気(08), 5点
-- コード155 = 2級電気工事施工管理技士 → 電気(08), 2点
-- コード109 = 1級管工事施工管理技士 → 管(09), 5点
-- コード129 = 監理技術者資格者証 → これ自体は業種を持たない、1級の付加要素
-- コード256 = 第一種電気工事士 → 電気(08), 2点
-- コード284 = 第二種電気工事士 → 電気(08), 1点
-- コード230 = 登録基幹技能者 → 対応業種で3点
-
-### 監理技術者（6点になる条件）:
-- 1級施工管理技士であること AND
-- 監理技術者資格者証を持っていること（交付番号が記載されている）AND
-- 監理技術者講習を受講していること（講習受講欄に「1」等の記載）
-- 3条件全て満たせば5点→6点にアップ
-
-### 登録基幹技能者（3点）:
-- 「登録基幹技能者」と明記されている場合は3点
-
-### 1人が2業種に計上される場合:
-- 書類の「業種1」「業種2」列に2つの業種が記載されている場合があります
-- その場合、**両方の業種にその人の点数を計上**します
-- 2つ目の業種も資格名や表の記載から判断してください
-
-業種コード一覧:
+## 業種コード一覧（読み取りの参考）
 01=土木, 02=建築, 03=大工, 04=左官, 05=とび, 06=石, 07=屋根,
 08=電気, 09=管, 10=タイル, 11=鋼構造物, 12=鉄筋, 13=舗装,
 14=しゅんせつ, 15=板金, 16=ガラス, 17=塗装, 18=防水,
 19=内装仕上, 20=機械器具, 21=熱絶縁, 22=電気通信, 23=造園,
 24=さく井, 25=建具, 26=水道施設, 27=消防施設, 28=清掃施設, 29=解体
 
-## ★読み取り方法
-
-1. 名簿の各行から、技術職員の氏名・資格レベル・対応業種を読み取る
-2. 資格のレベルを上記の区分（1級/基幹/2級/その他）に分類する
-3. 監理技術者講習受講・監理技術者資格者証の有無を確認する
-4. 各業種ごとに、所属する技術職員の点数を合計する
-
 ## ★重要な注意事項
 - 名簿が見つからない場合は、staffListを空配列で返してください
-- 書類のフォーマットが異なっても、上記のルールに基づいて計算してください
-- 1人が2つの業種に計上される場合、両方の業種に同じ点数を加算します
-- 同一人物の同一業種で複数の資格がある場合、**最も高い点数のもの1つだけ**を計上します
+- 数字が読みにくい場合でも、最善の推測で読み取ってください
+- 点数や合計値の計算は一切不要です。生データだけ返してください
+- 業種コード欄に記載がない場合は、空文字列ではなく省略してください
 
 ## 出力JSON
 
 {
   "staffList": [
     {
-      "name": "氏名",
+      "name": "山田太郎",
       "industryCode1": "08",
-      "grade1": "1級",
-      "points1": 5,
+      "qualificationCode1": 127,
+      "lectureFlag1": 1,
       "industryCode2": "09",
-      "grade2": "2級",
-      "points2": 2,
-      "hasSupervisorCert": true,
-      "hasLecture": false
+      "qualificationCode2": 129,
+      "lectureFlag2": 0,
+      "supervisorCertNumber": "第12345号"
+    },
+    {
+      "name": "鈴木花子",
+      "industryCode1": "08",
+      "qualificationCode1": 152,
+      "lectureFlag1": 0
     }
   ],
-  "industryTotals": {
-    "08": 45,
-    "09": 12,
-    "27": 8
-  },
   "totalStaffCount": 20
-}
+}`;
 
-### grade の値:
-- "1級+監理" = 6点（1級＋監理技術者講習受講＋監理技術者資格者証）
-- "1級" = 5点
-- "基幹技能者" = 3点
-- "2級" = 2点
-- "その他" = 1点
-
-### industryTotals:
-- 各業種コードをキーに、その業種に計上される技術職員数値（点数合計）を値として返す
-- 技術職員が0人の業種は含めない`;
-
-/** Pass 6 の結果型 */
-interface PassTechStaffResult {
+/** Geminiから返される生データ型（抽出のみ、計算なし） */
+interface GeminiTechStaffRawResult {
   staffList: Array<{
     name: string;
-    industryCode1: string;
-    grade1: string;
-    points1: number;
+    industryCode1?: string;
+    qualificationCode1?: number;
+    lectureFlag1?: number;
     industryCode2?: string;
-    grade2?: string;
-    points2?: number;
-    hasSupervisorCert?: boolean;
-    hasLecture?: boolean;
+    qualificationCode2?: number;
+    lectureFlag2?: number;
+    supervisorCertNumber?: string;
   }>;
+  totalStaffCount: number;
+}
+
+/** Pass 6 の結果型（計算エンジン通過後） */
+interface PassTechStaffResult {
+  staffList: ExtractedStaffMember[];
   industryTotals: Record<string, number>;
   totalStaffCount: number;
 }
@@ -1677,6 +1641,8 @@ export interface KeishinGeminiResult {
   }>;
   wItems: Partial<SocialItems>;
   businessYears: number;
+  /** 技術職員名簿から抽出した個別職員リスト */
+  staffList?: ExtractedStaffMember[];
 }
 
 /**
@@ -1779,7 +1745,10 @@ async function extractTechStaffWithPageSplit(
   }
 }
 
-/** PROMPT_TECH_STAFF を使ってGeminiを呼び出す */
+/**
+ * PROMPT_TECH_STAFF を使ってGeminiから生データを抽出し、
+ * 決定的計算エンジンで技術職員数値を算出する
+ */
 async function callTechStaffGemini(
   model: UnifiedModel,
   pdfPart: { inlineData: { mimeType: string; data: string } },
@@ -1789,19 +1758,45 @@ async function callTechStaffGemini(
       contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_TECH_STAFF }] }],
     });
     const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const parsed = parseJsonResponse<PassTechStaffResult>(text);
+    const rawData = parseJsonResponse<GeminiTechStaffRawResult>(text);
 
-    if (parsed?.industryTotals) {
-      // バリデーション: techStaffValueが異常に大きくないか
-      for (const [code, val] of Object.entries(parsed.industryTotals)) {
-        if (val > 500) {
-          console.warn(`[Tech Staff] Suspicious value for industry ${code}: ${val}, capping at 500`);
-          parsed.industryTotals[code] = Math.min(val, 500);
-        }
+    if (!rawData?.staffList || rawData.staffList.length === 0) {
+      console.warn('[Tech Staff] No staff list extracted from PDF');
+      return null;
+    }
+
+    console.log(`[Tech Staff] Extracted ${rawData.staffList.length} raw staff entries from PDF`);
+
+    // Geminiの生データを ExtractedStaffMember に変換
+    const extractedStaff: ExtractedStaffMember[] = rawData.staffList.map((s) => ({
+      name: s.name,
+      industryCode1: s.industryCode1,
+      qualificationCode1: s.qualificationCode1,
+      lectureFlag1: s.lectureFlag1,
+      industryCode2: s.industryCode2,
+      qualificationCode2: s.qualificationCode2,
+      lectureFlag2: s.lectureFlag2,
+      supervisorCertNumber: s.supervisorCertNumber,
+    }));
+
+    // 決定的計算エンジンで点数を算出
+    const calcResult = calculateTechStaffValues(extractedStaff);
+
+    console.log(`[Tech Staff] Calculated industryTotals:`, JSON.stringify(calcResult.industryTotals));
+
+    // バリデーション: techStaffValueが異常に大きくないか
+    for (const [code, val] of Object.entries(calcResult.industryTotals)) {
+      if (val > 500) {
+        console.warn(`[Tech Staff] Suspicious value for industry ${code}: ${val}, capping at 500`);
+        calcResult.industryTotals[code] = Math.min(val, 500);
       }
     }
 
-    return parsed;
+    return {
+      staffList: extractedStaff,
+      industryTotals: calcResult.industryTotals,
+      totalStaffCount: calcResult.totalStaffCount,
+    };
   } catch (e) {
     console.warn('[Tech Staff] callTechStaffGemini failed:', e);
     return null;
@@ -1857,7 +1852,10 @@ ${indStr}
 
 ## 検証ルール
 1. **自己資本額（equity）**: 「経営状況分析」の「自己資本額」欄の値（千円単位）。100億を超える値は円で読んでいる可能性が高い → 1000で割る。
-2. **営業年数**: 「その他の審査項目（社会性等）」の「営業年数」欄。通常2桁。「55」を「5」と読み間違えるパターンに注意。
+2. **営業年数（最重要）**: 「その他の審査項目（社会性等）」の「営業年数」欄。通常2桁（10〜60年程度）。固定帳票では各桁が別のマス目に入っています。
+   - **営業年数が1桁（1〜9）の場合は必ず再確認してください。** 隣のマス目に2桁目がないか、PDFを注意深く確認してください。
+   - 「57」を「5」、「35」を「3」と読み間違えるパターンが頻発します。
+   - 初回許可年月日が読める場合、審査基準日との年数差と営業年数が一致するか確認してください。
 3. **業種別完成工事高**: 「別紙一」の各列を正確に読む。前期/当期が逆になっていないか、桁が合っているか確認。
 4. **許可番号**: 「○○県知事」か「国土交通大臣」か、番号は何番か。
 
@@ -2116,6 +2114,12 @@ export async function extractKeishinDataWithGemini(
       if (parsedTechStaff.totalStaffCount > 0 && merged.techStaffCount === 0) {
         merged.techStaffCount = parsedTechStaff.totalStaffCount;
       }
+
+      // 個別職員リストを保存（TechStaffPanel自動入力用）
+      if (parsedTechStaff.staffList && parsedTechStaff.staffList.length > 0) {
+        merged.staffList = parsedTechStaff.staffList;
+        console.log(`[Tech Staff] Preserved ${parsedTechStaff.staffList.length} staff entries for TechStaffPanel`);
+      }
     }
 
     // ── バリデーション ──
@@ -2226,6 +2230,18 @@ function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
       ind.currCompletion = Math.floor(ind.currCompletion / 1000);
       ind.prevPrimeContract = Math.floor(ind.prevPrimeContract / 1000);
       ind.currPrimeContract = Math.floor(ind.currPrimeContract / 1000);
+    }
+  }
+
+  // businessYears: 1桁は桁落ちの可能性が高い
+  if (data.businessYears >= 1 && data.businessYears <= 9) {
+    const hasSignificantRevenue = data.industries.some(
+      (ind) => ind.currCompletion > 100_000 || ind.prevCompletion > 100_000,
+    );
+    if (hasSignificantRevenue) {
+      console.warn(
+        `[validateAndCorrectKeishin] businessYears=${data.businessYears} seems too low for a company with significant revenue. Possible OCR digit-dropping.`,
+      );
     }
   }
 

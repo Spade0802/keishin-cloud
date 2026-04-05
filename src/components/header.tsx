@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ChevronDown, Shield } from 'lucide-react';
+import { Menu, X, ChevronDown, Shield, CreditCard } from 'lucide-react';
 import { useSession } from '@/lib/session-context';
 
 // ログイン後のみ表示
@@ -158,10 +158,30 @@ export function Header() {
             </Link>
           )}
 
+          {/* 料金プラン - 常に表示 */}
+          <Link
+            href="/pricing"
+            className={`px-3 py-2 rounded-md transition-colors ${
+              isActive('/pricing')
+                ? 'text-foreground bg-muted font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            料金
+          </Link>
+
           {isLoggedIn ? (
-            <Link href="/dashboard/history" className="ml-2">
-              <Button size="sm" variant="outline">ダッシュボード</Button>
-            </Link>
+            <div className="ml-2 flex items-center gap-2">
+              <Link href="/account/billing">
+                <Button size="sm" variant="ghost" className="gap-1">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  プラン
+                </Button>
+              </Link>
+              <Link href="/dashboard/history">
+                <Button size="sm" variant="outline">ダッシュボード</Button>
+              </Link>
+            </div>
           ) : (
             <div className="ml-2 flex items-center gap-2">
               <Link href="/login">
@@ -258,6 +278,33 @@ export function Header() {
               {item.label}
             </Link>
           ))}
+
+          <div className="border-t my-1" />
+          <Link
+            href="/pricing"
+            className={`text-sm py-2.5 px-3 rounded-md ${
+              isActive('/pricing')
+                ? 'text-foreground bg-muted font-medium'
+                : 'text-muted-foreground'
+            }`}
+            onClick={() => setMobileOpen(false)}
+          >
+            料金プラン
+          </Link>
+          {isLoggedIn && (
+            <Link
+              href="/account/billing"
+              className={`flex items-center gap-2 text-sm py-2.5 px-3 rounded-md ${
+                pathname.startsWith('/account/billing')
+                  ? 'text-foreground bg-muted font-medium'
+                  : 'text-muted-foreground'
+              }`}
+              onClick={() => setMobileOpen(false)}
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              プラン管理
+            </Link>
+          )}
 
           <div className="border-t my-2" />
           {isLoggedIn ? (

@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { systemSettings, users } from '@/lib/db/schema';
 import { getAllSettings, invalidateSettingsCache } from '@/lib/settings';
+import { getCacheStats, clearAnalysisCache } from '@/lib/ai-cache';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -36,7 +37,7 @@ function maskApiKey(value: string): string {
   return '****' + value.slice(-4);
 }
 
-const API_KEY_FIELDS = ['gemini_api_key', 'openai_api_key'];
+const API_KEY_FIELDS = ['gemini_api_key', 'openai_api_key', 'stripe_secret_key', 'stripe_webhook_secret'];
 
 const VALID_KEYS = new Set([
   'ai_provider',
@@ -47,6 +48,15 @@ const VALID_KEYS = new Set([
   'ocr_provider',
   'max_file_size_mb',
   'ai_analysis_enabled',
+  // Stripe 課金設定
+  'stripe_secret_key',
+  'stripe_publishable_key',
+  'stripe_webhook_secret',
+  'stripe_price_standard_yearly',
+  'stripe_price_standard_monthly',
+  'stripe_price_premium_yearly',
+  'stripe_price_premium_monthly',
+  'bypass_billing',
 ]);
 
 const DESCRIPTIONS: Record<string, string> = {
@@ -58,6 +68,14 @@ const DESCRIPTIONS: Record<string, string> = {
   ocr_provider: 'OCR プロバイダー (gemini / document-ai / vision-api)',
   max_file_size_mb: '最大アップロードファイルサイズ (MB)',
   ai_analysis_enabled: 'AI 分析機能の有効/無効',
+  stripe_secret_key: 'Stripe シークレットキー',
+  stripe_publishable_key: 'Stripe 公開キー',
+  stripe_webhook_secret: 'Stripe Webhook シークレット',
+  stripe_price_standard_yearly: 'スタンダード年額プラン Price ID',
+  stripe_price_standard_monthly: 'スタンダード月額プラン Price ID',
+  stripe_price_premium_yearly: 'プレミアム年額プラン Price ID',
+  stripe_price_premium_monthly: 'プレミアム月額プラン Price ID',
+  bypass_billing: '課金バイパス (true/false)',
 };
 
 // ---------------------------------------------------------------------------
@@ -81,7 +99,9 @@ export async function GET() {
     };
   }
 
-  return NextResponse.json({ settings: masked });
+  const aiCacheStats = getCacheStats();
+
+  return NextResponse.json({ settings: masked, aiCacheStats });
 }
 
 // ---------------------------------------------------------------------------
@@ -164,4 +184,19 @@ export async function PUT(request: Request) {
   invalidateSettingsCache();
 
   return NextResponse.json({ success: true });
+}
+
+// ---------------------------------------------------------------------------
+// DELETE — AI分析キャッシュのクリア
+// ---------------------------------------------------------------------------
+
+export async function DELETE() {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: '権限がありません' }, { status: 403 });
+  }
+
+  clearAnalysisCache();
+
+  return NextResponse.json({ success: true, message: 'AI分析キャッシュをクリアしました' });
 }

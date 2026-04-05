@@ -8,7 +8,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Download,
-  TrendingUp,
   ChevronDown,
   ChevronUp,
   ArrowUpRight,
@@ -16,9 +15,11 @@ import {
   Minus,
   BarChart3,
   FileSpreadsheet,
+  FileText,
   AlertCircle,
   Sparkles,
   SlidersHorizontal,
+  Loader2,
 } from 'lucide-react';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
@@ -36,6 +37,12 @@ interface IndustryResult {
   Z2: number;
   P: number;
   prevP?: number;
+  /** 2年平均完成工事高（千円） */
+  x1TwoYearAvg?: number;
+  /** 当期完成工事高（千円） */
+  x1Current?: number;
+  /** X1算出に採用された方 */
+  x1Selected?: '2年平均' | '当期';
 }
 
 interface ResultViewProps {
@@ -129,9 +136,6 @@ export function ResultView(props: ResultViewProps) {
     socialItems,
   } = props;
 
-  const [yDetailOpen, setYDetailOpen] = useState(false);
-  const [improvementOpen, setImprovementOpen] = useState(false);
-
   // AI分析用の入力データを構築
   const aiAnalysisInput: AnalysisInput | undefined = useMemo(() => {
     if (readOnly && !staticAiAnalysis) return undefined;
@@ -166,14 +170,6 @@ export function ResultView(props: ResultViewProps) {
   // Calculate P formula breakdown for first industry
   const primaryInd = industries[0];
 
-  // Improvement suggestions
-  const improvements = useMemo(() => [
-    { rank: 1, name: '資本性借入金の認定', impact: '全業種P +5〜8', detail: '借入契約の要件を確認し、資本性借入金として認定を受ける', difficulty: '要確認' },
-    { rank: 2, name: 'CCUS就業履歴の蓄積開始', impact: '全業種P +0〜5', detail: '建設キャリアアップシステムへの現場利用を開始する', difficulty: '容易' },
-    { rank: 3, name: 'ISO14001の取得', impact: '全業種P +1〜2', detail: '環境マネジメントシステムISO14001を取得する', difficulty: '中' },
-    { rank: 4, name: '借入金の返済', impact: '全業種P +3〜8', detail: '負債回転期間・自己資本比率の改善によるY点上昇', difficulty: '資金による' },
-  ], []);
-
   async function handleDownloadExcel() {
     try {
       const res = await fetch('/api/export-excel', {
@@ -189,7 +185,7 @@ export function ResultView(props: ResultViewProps) {
           pl,
         }),
       });
-      if (!res.ok) throw new Error('Download failed');
+      if (!res.ok) throw new Error('Excelファイルのダウンロードに失敗しました。');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -202,8 +198,37 @@ export function ResultView(props: ResultViewProps) {
     }
   }
 
-  function handleDownloadPDF() {
-    window.print();
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  async function handleDownloadPDF() {
+    setPdfLoading(true);
+    try {
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName,
+          period,
+          reviewBaseDate,
+          industries,
+          Y, X2, X21, X22, W, wTotal,
+          yResult,
+          wDetail,
+        }),
+      });
+      if (!res.ok) throw new Error('PDFファイルのダウンロードに失敗しました。');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `keishin_report_${period || 'trial'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('PDF download failed:', err);
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   return (
@@ -227,9 +252,13 @@ export function ResultView(props: ResultViewProps) {
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel
             </Button>
-            <Button onClick={handleDownloadPDF} variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              PDF
+            <Button onClick={handleDownloadPDF} variant="outline" disabled={pdfLoading}>
+              {pdfLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" />
+              )}
+              PDFエクスポート
             </Button>
           </div>
         )}
@@ -286,6 +315,21 @@ export function ResultView(props: ResultViewProps) {
             <div className="text-sm font-mono bg-muted/30 rounded-lg p-4">
               <div>P = 0.25×<span className="font-bold">{primaryInd.X1}</span> + 0.15×<span className="font-bold">{X2}</span> + 0.20×<span className="font-bold">{Y}</span></div>
               <div className="ml-6">+ 0.25×<span className="font-bold">{primaryInd.Z}</span> + 0.15×<span className="font-bold">{W}</span> = <span className="text-primary font-bold text-lg">{primaryInd.P}</span></div>
+              {primaryInd.x1Selected && (
+                <div className="mt-2 text-xs border-t pt-2">
+                  <span className="text-muted-foreground">X1完工高: </span>
+                  <span className={primaryInd.x1Selected === '2年平均' ? 'text-green-600 font-semibold' : 'text-muted-foreground'}>
+                    2年平均 ¥{primaryInd.x1TwoYearAvg?.toLocaleString()}千円
+                  </span>
+                  <span className="text-muted-foreground mx-1">vs</span>
+                  <span className={primaryInd.x1Selected === '当期' ? 'text-green-600 font-semibold' : 'text-muted-foreground'}>
+                    当期 ¥{primaryInd.x1Current?.toLocaleString()}千円
+                  </span>
+                  <Badge variant="outline" className="ml-2 text-[10px] py-0 bg-green-50 text-green-700 border-green-200">
+                    採用: {primaryInd.x1Selected}（より大きいため）
+                  </Badge>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <ContributionBar label={`X1=${primaryInd.X1}`} value={Math.round(0.25 * primaryInd.X1)} maxValue={Math.round(primaryInd.P * 0.35)} />
@@ -300,18 +344,16 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="grid w-full grid-cols-7 overflow-x-auto text-xs sm:text-sm">
+        <TabsList className="grid w-full grid-cols-5 text-xs sm:text-sm">
           <TabsTrigger value="industry">業種別P点</TabsTrigger>
-          <TabsTrigger value="y-detail">Y点詳細</TabsTrigger>
-          <TabsTrigger value="scores">評点内訳</TabsTrigger>
+          <TabsTrigger value="scores">評点詳細</TabsTrigger>
           <TabsTrigger value="bs-pl">決算書</TabsTrigger>
-          <TabsTrigger value="improvement">改善提案</TabsTrigger>
           <TabsTrigger value="simulation" className="flex items-center gap-1">
-            <SlidersHorizontal className="h-3 w-3" />
+            <SlidersHorizontal className="h-3 w-3 hidden sm:block" />
             シミュレーション
           </TabsTrigger>
           <TabsTrigger value="ai-analysis" className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3" />
+            <Sparkles className="h-3 w-3 hidden sm:block" />
             AI分析
           </TabsTrigger>
         </TabsList>
@@ -343,7 +385,20 @@ export function ResultView(props: ResultViewProps) {
                     {industries.map((ind) => (
                       <tr key={ind.name} className="border-b">
                         <td className="py-2 font-medium">{ind.name}</td>
-                        <td className="py-2 text-right font-mono">{ind.X1}</td>
+                        <td className="py-2 text-right font-mono">
+                          <div>{ind.X1}</div>
+                          {ind.x1Selected && (
+                            <div className="text-[10px] leading-tight mt-0.5">
+                              <span className={ind.x1Selected === '2年平均' ? 'text-green-600 font-medium' : 'text-muted-foreground'}>
+                                2年平均:{ind.x1TwoYearAvg?.toLocaleString()}
+                              </span>
+                              <span className="text-muted-foreground mx-0.5">/</span>
+                              <span className={ind.x1Selected === '当期' ? 'text-green-600 font-medium' : 'text-muted-foreground'}>
+                                当期:{ind.x1Current?.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </td>
                         <td className="py-2 text-right font-mono">{X2}</td>
                         <td className="py-2 text-right font-mono">{Y}</td>
                         <td className="py-2 text-right font-mono">{ind.Z}</td>
@@ -364,48 +419,38 @@ export function ResultView(props: ResultViewProps) {
           </Card>
         </TabsContent>
 
-        {/* Y Score Detail */}
-        <TabsContent value="y-detail">
+        {/* Score Details (Y + X2 + Z + W merged) */}
+        <TabsContent value="scores">
           <div className="space-y-4">
+            {/* Y点詳細 */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">③ Y点 = {Y}（経営状況分析）</CardTitle>
+                <CardTitle className="text-base">Y点 = {Y}（経営状況分析）</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <YRadarChart indicators={yResult.indicators} indicatorsRaw={yResult.indicatorsRaw} />
                 <Separator />
-                <div className="text-center text-sm">
-                  A = {yResult.A.toFixed(4)} → Y = {Y}
-                </div>
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    営業キャッシュフロー明細を表示
+                  </summary>
+                  <div className="font-mono space-y-1 mt-3">
+                    <div className="flex justify-between"><span>経常利益</span><span>{yResult.operatingCFDetail.ordinaryProfit.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>＋減価償却実施額</span><span>{yResult.operatingCFDetail.depreciation.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>－法人税等</span><span>{yResult.operatingCFDetail.corporateTax.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>＋貸倒引当金増減</span><span>{yResult.operatingCFDetail.allowanceChange.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>－売掛債権増減</span><span>{yResult.operatingCFDetail.receivableChange.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>＋仕入債務増減</span><span>{yResult.operatingCFDetail.payableChange.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>－棚卸資産増減</span><span>{yResult.operatingCFDetail.inventoryChange.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>＋受入金増減</span><span>{yResult.operatingCFDetail.advanceChange.toLocaleString()}</span></div>
+                    <Separator />
+                    <div className="flex justify-between font-bold"><span>営業CF</span><span>{yResult.operatingCF.toLocaleString()} 千円</span></div>
+                  </div>
+                </details>
               </CardContent>
             </Card>
 
-            {/* Operating CF detail */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">営業キャッシュフロー明細</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm font-mono space-y-1">
-                  <div className="flex justify-between"><span>経常利益</span><span>{yResult.operatingCFDetail.ordinaryProfit.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>＋減価償却実施額</span><span>{yResult.operatingCFDetail.depreciation.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>－法人税等</span><span>{yResult.operatingCFDetail.corporateTax.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>＋貸倒引当金増減</span><span>{yResult.operatingCFDetail.allowanceChange.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>－売掛債権増減</span><span>{yResult.operatingCFDetail.receivableChange.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>＋仕入債務増減</span><span>{yResult.operatingCFDetail.payableChange.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>－棚卸資産増減</span><span>{yResult.operatingCFDetail.inventoryChange.toLocaleString()}</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>＋受入金増減</span><span>{yResult.operatingCFDetail.advanceChange.toLocaleString()}</span></div>
-                  <Separator />
-                  <div className="flex justify-between font-bold"><span>営業CF</span><span>{yResult.operatingCF.toLocaleString()} 千円</span></div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Score Details */}
-        <TabsContent value="scores">
-          <div className="space-y-4">
+            {/* X2 */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">X2 = {X2}（自己資本額及び利益額）</CardTitle>
@@ -467,9 +512,18 @@ export function ResultView(props: ResultViewProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 text-center">
-                    {(['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8'] as const).map((key) => (
+                    {([
+                      { key: 'w1' as const, label: '労働福祉' },
+                      { key: 'w2' as const, label: '営業年数' },
+                      { key: 'w3' as const, label: '防災活動' },
+                      { key: 'w4' as const, label: '法令遵守' },
+                      { key: 'w5' as const, label: '経理・監査' },
+                      { key: 'w6' as const, label: '研究開発' },
+                      { key: 'w7' as const, label: '建設機械' },
+                      { key: 'w8' as const, label: 'ISO等' },
+                    ]).map(({ key, label }) => (
                       <div key={key} className="p-2 rounded border">
-                        <div className="text-[10px] text-muted-foreground uppercase">{key}</div>
+                        <div className="text-[10px] text-muted-foreground">{label}</div>
                         <div className={`text-sm font-bold ${wDetail[key] < 0 ? 'text-red-600' : wDetail[key] > 0 ? 'text-green-600' : ''}`}>
                           {wDetail[key]}
                         </div>
@@ -500,105 +554,6 @@ export function ResultView(props: ResultViewProps) {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        {/* Improvement Suggestions */}
-        <TabsContent value="improvement" className="space-y-6">
-          {/* Simulation Comparison Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                改善シミュレーション比較
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-muted-foreground">
-                      <th className="py-2 text-left">評点</th>
-                      <th className="py-2 text-center">
-                        <span className="block font-semibold text-foreground">現状</span>
-                      </th>
-                      <th className="py-2 text-center">
-                        <span className="block font-semibold text-blue-600">短期改善</span>
-                        <span className="block text-[10px]">社会性項目の充実</span>
-                      </th>
-                      <th className="py-2 text-center">
-                        <span className="block font-semibold text-green-600">中長期改善</span>
-                        <span className="block text-[10px]">財務+技術力向上</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: 'Y（経営状況）', curr: Y, short: Y + 15, long: Y + 42 },
-                      { label: 'X2（自己資本等）', curr: X2, short: X2 + 5, long: X2 + 18 },
-                      { label: 'W（社会性等）', curr: W, short: W + 62, long: W + 85 },
-                    ].map((row) => (
-                      <tr key={row.label} className="border-b">
-                        <td className="py-3 font-medium">{row.label}</td>
-                        <td className="py-3 text-center font-mono">{row.curr}</td>
-                        <td className="py-3 text-center font-mono text-blue-600">
-                          {row.short}
-                          <span className="text-xs ml-1 text-blue-500">(+{row.short - row.curr})</span>
-                        </td>
-                        <td className="py-3 text-center font-mono text-green-600">
-                          {row.long}
-                          <span className="text-xs ml-1 text-green-500">(+{row.long - row.curr})</span>
-                        </td>
-                      </tr>
-                    ))}
-                    {industries.slice(0, 3).map((ind) => (
-                      <tr key={ind.name} className="border-b bg-muted/30">
-                        <td className="py-3 font-medium">P点（{ind.name}）</td>
-                        <td className="py-3 text-center font-mono font-bold">{ind.P}</td>
-                        <td className="py-3 text-center font-mono font-bold text-blue-600">
-                          {ind.P + 12}
-                          <span className="text-xs ml-1 text-blue-500">(+12)</span>
-                        </td>
-                        <td className="py-3 text-center font-mono font-bold text-green-600">
-                          {ind.P + 35}
-                          <span className="text-xs ml-1 text-green-500">(+35)</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                ※ 改善値は主要施策を実施した場合の推定値です。実際の結果は状況により異なります。
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Impact Ranking */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                P点改善インパクト順
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {improvements.map((imp) => (
-                <div key={imp.rank} className="flex items-start gap-3 rounded-lg border p-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
-                    {imp.rank}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{imp.name}</span>
-                      <Badge variant="outline" className="text-green-700 bg-green-50 border-green-200">{imp.impact}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">{imp.detail}</p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0">{imp.difficulty}</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Simulation Panel */}

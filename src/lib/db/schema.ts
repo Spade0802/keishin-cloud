@@ -23,10 +23,29 @@ export const userRoleEnum = pgEnum('user_role', ['admin', 'member']);
 
 // ─── 法人テーブル ───
 
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'trialing',
+  'active',
+  'past_due',
+  'canceled',
+  'unpaid',
+  'incomplete',
+  'none',
+]);
+
+export const planEnum = pgEnum('plan', ['free', 'standard', 'premium']);
+
 export const organizations = pgTable('organizations', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
   permitNumber: text('permit_number'),
+  // ─── Stripe Billing ───
+  stripeCustomerId: text('stripe_customer_id').unique(),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  subscriptionStatus: subscriptionStatusEnum('subscription_status').default('none').notNull(),
+  plan: planEnum('plan').default('free').notNull(),
+  currentPeriodEnd: timestamp('current_period_end', { mode: 'date' }),
+  trialEndsAt: timestamp('trial_ends_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
@@ -162,6 +181,20 @@ export const fiscalPeriods = pgTable('fiscal_periods', {
   prevPeriodSnapshot: jsonb('prev_period_snapshot'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─── 監査ログテーブル ───
+
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  resource: text('resource'),
+  resourceId: text('resource_id'),
+  details: jsonb('details'),
+  ipAddress: text('ip_address'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 // ─── リレーション ───

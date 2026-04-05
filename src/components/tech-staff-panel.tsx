@@ -17,13 +17,22 @@ import {
 // ---- Industry name <-> 2-digit code mapping ----
 
 const INDUSTRY_NAME_TO_CODE: Record<string, string> = {
+  // Full official names (from input-wizard INDUSTRY_CODES)
+  '土木一式工事': '01', '建築一式工事': '02', '大工工事': '03', '左官工事': '04',
+  'とび・土工・コンクリート工事': '05', '石工事': '06', '屋根工事': '07', '電気工事': '08',
+  '管工事': '09', 'タイル・れんが・ブロック工事': '10', '鋼構造物工事': '11', '鉄筋工事': '12',
+  '舗装工事': '13', 'しゅんせつ工事': '14', '板金工事': '15', 'ガラス工事': '16',
+  '塗装工事': '17', '防水工事': '18', '内装仕上工事': '19', '機械器具設置工事': '20',
+  '熱絶縁工事': '21', '電気通信工事': '22', '造園工事': '23', 'さく井工事': '24',
+  '建具工事': '25', '水道施設工事': '26', '消防施設工事': '27', '清掃施設工事': '28', '解体工事': '29',
+  // Short name aliases (for compatibility with Gemini extraction)
   '土木': '01', '建築': '02', '大工': '03', '左官': '04',
   'とび': '05', '石': '06', '屋根': '07', '電気': '08',
   '管': '09', 'タイル': '10', '鋼構造物': '11', '鉄筋': '12',
-  'ほ装': '13', 'しゅんせつ': '14', '板金': '15', 'ガラス': '16',
-  '塗装': '17', '防水': '18', '内装': '19', '機械器具': '20',
+  'ほ装': '13', '舗装': '13', 'しゅんせつ': '14', '板金': '15', 'ガラス': '16',
+  '塗装': '17', '防水': '18', '内装': '19', '内装仕上': '19', '機械器具': '20',
   '熱絶縁': '21', '電気通信': '22', '造園': '23', 'さく井': '24',
-  '建具': '25', '水道': '26', '消防施設': '27', '清掃': '28', '解体': '29',
+  '建具': '25', '水道': '26', '水道施設': '26', '消防施設': '27', '清掃': '28', '解体': '29',
 };
 
 
@@ -53,16 +62,30 @@ export interface IndustryTechValue {
   }>;
 }
 
+/** Extracted staff member from PDF (numbers as used in ExtractedStaffMember) */
+export interface ExternalStaffEntry {
+  name: string;
+  industryCode1?: string;
+  qualificationCode1?: number;
+  lectureFlag1?: number;
+  industryCode2?: string;
+  qualificationCode2?: number;
+  lectureFlag2?: number;
+  supervisorCertNumber?: string;
+}
+
 interface TechStaffPanelProps {
   /** Names of industries from Step 2 (e.g., ['電気', '管']) */
   industryNames: string[];
   /** Callback with per-industry tech staff values: Record<industryName, value> */
   onValuesCalculated?: (values: Record<string, number>, details: IndustryTechValue[]) => void;
+  /** Pre-extracted staff list from PDF to auto-populate the panel */
+  externalStaff?: ExternalStaffEntry[];
 }
 
 let nextId = 1;
 
-export function TechStaffPanel({ industryNames, onValuesCalculated }: TechStaffPanelProps) {
+export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaff }: TechStaffPanelProps) {
   const [staff, setStaff] = useState<StaffEntry[]>([
     {
       id: nextId++,
@@ -77,6 +100,32 @@ export function TechStaffPanel({ industryNames, onValuesCalculated }: TechStaffP
     },
   ]);
   const [showBreakdown, setShowBreakdown] = useState(true);
+
+  // Auto-populate from PDF-extracted staff list
+  useEffect(() => {
+    if (!externalStaff || externalStaff.length === 0) return;
+    // Only auto-populate if staff list is the default single empty entry
+    const isDefault = staff.length === 1 && !staff[0].name && !staff[0].industryCode1 && !staff[0].qualificationCode1;
+    if (!isDefault) return;
+
+    const mapped: StaffEntry[] = externalStaff.map((s) => ({
+      id: nextId++,
+      name: s.name || '',
+      industryCode1: s.industryCode1 ? String(s.industryCode1).padStart(2, '0') : '',
+      qualificationCode1: s.qualificationCode1 ? String(s.qualificationCode1) : '',
+      lectureFlag1: s.lectureFlag1 != null ? String(s.lectureFlag1) : '2',
+      industryCode2: s.industryCode2 ? String(s.industryCode2).padStart(2, '0') : '',
+      qualificationCode2: s.qualificationCode2 ? String(s.qualificationCode2) : '',
+      lectureFlag2: s.lectureFlag2 != null ? String(s.lectureFlag2) : '2',
+      hasSupervisorCert: !!s.supervisorCertNumber,
+    }));
+
+    if (mapped.length > 0) {
+      setStaff(mapped);
+      console.log(`[TechStaffPanel] Auto-populated ${mapped.length} staff from PDF extraction`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalStaff]);
 
   function addStaff() {
     setStaff((prev) => [

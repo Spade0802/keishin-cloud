@@ -18,6 +18,7 @@ import {
   Calculator,
   ClipboardCheck,
   ChevronDown,
+  Save,
 } from 'lucide-react';
 import { FileUpload } from '@/components/file-upload';
 import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/components/file-upload';
@@ -26,12 +27,14 @@ import { WItemsChecklist } from '@/components/w-items-checklist';
 import { TechStaffPanel } from '@/components/tech-staff-panel';
 import type { IndustryTechValue } from '@/components/tech-staff-panel';
 import { ResultView } from '@/components/result-view';
+import { ExtractionProgress } from '@/components/extraction-progress';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
 import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from '@/lib/engine/types';
 import type { KeishinPdfResult } from '@/lib/keishin-pdf-parser';
 import { buildKeishinBSFromParsed, buildKeishinPLFromParsed } from '@/lib/engine/parsed-to-keishin';
+import { useAutoSave, useRestoreSave } from '@/lib/hooks/use-auto-save';
 
 // ---- Types ----
 
@@ -60,6 +63,51 @@ interface PrevPeriodData {
   constructionPayable: string;
   inventoryAndMaterials: string;
   advanceReceived: string;
+}
+
+interface WizardSaveData {
+  step: number;
+  basicInfo: BasicInfo;
+  industries: IndustryInput[];
+  equity: string;
+  ebitda: string;
+  prevData: PrevPeriodData;
+  sales: string;
+  grossProfit: string;
+  ordinaryProfit: string;
+  interestExpense: string;
+  interestDividendIncome: string;
+  currentLiabilities: string;
+  fixedLiabilities: string;
+  totalCapital: string;
+  fixedAssets: string;
+  retainedEarnings: string;
+  corporateTax: string;
+  depreciation: string;
+  allowanceDoubtful: string;
+  notesAndReceivable: string;
+  constructionPayable: string;
+  inventoryAndMaterials: string;
+  advanceReceived: string;
+  wTotal: number;
+  wScore: number;
+  currentSocialItems?: SocialItems;
+}
+
+const WIZARD_SAVE_KEY = 'input-data';
+
+function isWizardEmpty(d: WizardSaveData): boolean {
+  return (
+    !d.sales &&
+    !d.grossProfit &&
+    !d.ordinaryProfit &&
+    !d.basicInfo.companyName &&
+    !d.basicInfo.permitNumber &&
+    d.industries.every((i) => !i.name && !i.currCompletion && !i.prevCompletion) &&
+    !d.equity &&
+    !d.ebitda &&
+    d.wTotal === 0
+  );
 }
 
 // ---- Industry Codes (建設業許可業種 29種) ----
@@ -323,6 +371,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   // Step 3: Tech staff auto-calculation
   const [autoTechValues, setAutoTechValues] = useState<Record<string, number>>({});
   const [techValueDetails, setTechValueDetails] = useState<IndustryTechValue[]>([]);
+  // Step 3: Extracted staff list from PDF (for TechStaffPanel auto-populate)
+  const [extractedStaff, setExtractedStaff] = useState<KeishinPdfResult['staffList']>(undefined);
   const [techValueOverrides, setTechValueOverrides] = useState<Record<number, boolean>>({});
 
   // 提出書PDF読込状態
@@ -330,6 +380,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [keishinPdfProcessing, setKeishinPdfProcessing] = useState(false);
   const [keishinPdfError, setKeishinPdfError] = useState<string | null>(null);
   const [keishinPdfMappings, setKeishinPdfMappings] = useState<{ source: string; target: string; value: string | number }[]>([]);
+  const [keishinPdfComplete, setKeishinPdfComplete] = useState(false);
 
   // Step 4: Previous period
   const [prevData, setPrevData] = useState<PrevPeriodData>(() => {
@@ -337,6 +388,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     return { totalCapital: '', operatingCF: '', allowanceDoubtful: '', notesAndReceivable: '', constructionPayable: '', inventoryAndMaterials: '', advanceReceived: '' };
   });
   const [prevFileLoading, setPrevFileLoading] = useState(false);
+  const [prevFileComplete, setPrevFileComplete] = useState(false);
   const [prevFileName, setPrevFileName] = useState<string | null>(null);
   const [prevFileError, setPrevFileError] = useState<string | null>(null);
   const prevFileRef = useRef<HTMLInputElement>(null);
@@ -348,7 +400,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   type ResultType = {
     Y: number; X2: number; X21: number; X22: number; W: number; wTotal: number;
     yResult: YResult; wDetail: WDetail;
-    industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number }>;
+    industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number; x1TwoYearAvg: number; x1Current: number; x1Selected: '2年平均' | '当期' }>;
     bs?: KeishinBS; pl?: KeishinPL;
   };
   const [result, setResult] = useState<ResultType | null>(
@@ -357,6 +409,78 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+
+  // ---- Auto-save / Restore ----
+  const [restoreBannerDismissed, setRestoreBannerDismissed] = useState(false);
+
+  const wizardSnapshot: WizardSaveData = useMemo(() => ({
+    step, basicInfo, industries, equity, ebitda, prevData,
+    sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome,
+    currentLiabilities, fixedLiabilities, totalCapital, fixedAssets,
+    retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
+    notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
+    wTotal, wScore, currentSocialItems,
+  }), [
+    step, basicInfo, industries, equity, ebitda, prevData,
+    sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome,
+    currentLiabilities, fixedLiabilities, totalCapital, fixedAssets,
+    retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
+    notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
+    wTotal, wScore, currentSocialItems,
+  ]);
+
+  // Don't auto-save when wizard is empty or showing results, or when loaded from props
+  const shouldSave = !initialInputData && step <= 4 && !isWizardEmpty(wizardSnapshot);
+  const { savedAt, clear: clearAutoSave } = useAutoSave<WizardSaveData>(
+    WIZARD_SAVE_KEY,
+    wizardSnapshot,
+    shouldSave ? 500 : Infinity
+  );
+
+  const {
+    data: savedData,
+    hasSavedData,
+    discard: discardSavedData,
+  } = useRestoreSave<WizardSaveData>(WIZARD_SAVE_KEY);
+
+  const showRestoreBanner = hasSavedData && !restoreBannerDismissed && !initialInputData && step <= 4;
+
+  function handleRestore() {
+    if (!savedData) return;
+    setStep(savedData.step);
+    setBasicInfo(savedData.basicInfo);
+    setIndustries(savedData.industries);
+    setEquity(savedData.equity);
+    setEbitda(savedData.ebitda);
+    setPrevData(savedData.prevData);
+    setSales(savedData.sales);
+    setGrossProfit(savedData.grossProfit);
+    setOrdinaryProfit(savedData.ordinaryProfit);
+    setInterestExpense(savedData.interestExpense);
+    setInterestDividendIncome(savedData.interestDividendIncome);
+    setCurrentLiabilities(savedData.currentLiabilities);
+    setFixedLiabilities(savedData.fixedLiabilities);
+    setTotalCapital(savedData.totalCapital);
+    setFixedAssets(savedData.fixedAssets);
+    setRetainedEarnings(savedData.retainedEarnings);
+    setCorporateTax(savedData.corporateTax);
+    setDepreciation(savedData.depreciation);
+    setAllowanceDoubtful(savedData.allowanceDoubtful);
+    setNotesAndReceivable(savedData.notesAndReceivable);
+    setConstructionPayable(savedData.constructionPayable);
+    setInventoryAndMaterials(savedData.inventoryAndMaterials);
+    setAdvanceReceived(savedData.advanceReceived);
+    setWTotal(savedData.wTotal);
+    setWScore(savedData.wScore);
+    if (savedData.currentSocialItems) setCurrentSocialItems(savedData.currentSocialItems);
+    if (savedData.sales) setFileLoaded(true);
+    setRestoreBannerDismissed(true);
+  }
+
+  function handleDiscard() {
+    discardSavedData();
+    setRestoreBannerDismissed(true);
+  }
 
   // Clear step validation error when user types in the sales field
   function handleSalesChange(v: string) {
@@ -507,6 +631,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     }
 
     setPrevFileLoading(true);
+    setPrevFileComplete(false);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -543,10 +668,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       if (data.bs?.currentLiabilities?.['未成工事受入金']) updated.advanceReceived = String(data.bs.currentLiabilities['未成工事受入金']);
 
       setPrevData(updated);
+      setPrevFileComplete(true);
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
       setPrevFileError(e instanceof Error ? e.message : '解析に失敗しました。');
     } finally {
       setPrevFileLoading(false);
+      setPrevFileComplete(false);
     }
   }, [prevData]);
 
@@ -555,6 +683,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   async function handleKeishinPdfUpload(file: File) {
     setKeishinPdfError(null);
     setKeishinPdfProcessing(true);
+    setKeishinPdfComplete(false);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -598,14 +727,25 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       }
       if (Object.keys(wItems).length > 0) {
         setExternalWItems(wItems);
+        console.log('[Keishin PDF] W items extracted:', Object.keys(wItems).length, 'items', JSON.stringify(wItems));
+      }
+
+      // Step 3: 技術職員リストをTechStaffPanelに渡す
+      if (data.staffList && data.staffList.length > 0) {
+        setExtractedStaff(data.staffList);
+        console.log('[Keishin PDF] Staff list extracted:', data.staffList.length, 'entries');
       }
 
       setKeishinPdfMappings(data.mappings || []);
       setKeishinPdfLoaded(true);
+      // Signal completion so progress bar jumps to 100%
+      setKeishinPdfComplete(true);
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
       setKeishinPdfError(e instanceof Error ? e.message : '提出書PDFの解析に失敗しました');
     } finally {
       setKeishinPdfProcessing(false);
+      setKeishinPdfComplete(false);
     }
   }
 
@@ -661,14 +801,17 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         .filter((ind) => ind.name)
         .map((ind) => {
           const avgComp = Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2);
+          const currComp = num(ind.currCompletion);
+          const adoptedComp = Math.max(avgComp, currComp);
+          const x1Selected: '2年平均' | '当期' = avgComp >= currComp ? '2年平均' : '当期';
           const avgSub = Math.floor((num(ind.prevSubcontract) + num(ind.currSubcontract)) / 2);
           const techVal = num(ind.techStaffValue);
-          const X1 = lookupScore(X1_TABLE, avgComp);
+          const X1 = lookupScore(X1_TABLE, adoptedComp);
           const z1 = lookupScore(Z1_TABLE, techVal);
           const z2 = lookupScore(Z2_TABLE, avgSub);
           const Z = calculateZ(z1, z2);
           const P = calculateP(X1, x2, yResult.Y, Z, W);
-          return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P };
+          return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P, x1TwoYearAvg: avgComp, x1Current: currComp, x1Selected };
         });
 
       const bs = previewBS ? buildKeishinBSFromParsed(previewBS) : undefined;
@@ -676,6 +819,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const resultObj: ResultType = { Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl };
       setResult(resultObj);
       setStep(5); // Go to result
+
+      // Clear localStorage auto-save on successful calculation
+      clearAutoSave();
 
       // Auto-save to database
       const inputDataPayload = {
@@ -775,6 +921,23 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   return (
     <div className="space-y-6">
+      {/* Restore banner */}
+      {showRestoreBanner && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            前回の入力データがあります
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={handleDiscard}>
+              破棄する
+            </Button>
+            <Button size="sm" onClick={handleRestore}>
+              復元する
+            </Button>
+          </div>
+        </div>
+      )}
+
       {step <= 4 && <StepIndicator current={step} />}
 
       {/* Step 1: Upload + Financial */}
@@ -955,6 +1118,15 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     </span>
                   </label>
                 </div>
+                {keishinPdfProcessing && (
+                  <div className="w-full px-2">
+                    <ExtractionProgress
+                      isActive={keishinPdfProcessing}
+                      isComplete={keishinPdfComplete}
+                      estimatedDuration={25000}
+                    />
+                  </div>
+                )}
                 {keishinPdfError && (
                   <p className="text-xs text-destructive">{keishinPdfError}</p>
                 )}
@@ -1036,9 +1208,29 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {numField('前年度完工高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v))}
                     {numField('当年度完工高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v))}
-                    {numField('前年度元請完工高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
-                    {numField('当年度元請完工高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
+                    {numField('前年度下請完工高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
+                    {numField('当年度下請完工高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
                   </div>
+                  {/* 元請完工高（自動計算）: 完成工事高 - 下請完工高 */}
+                  {(num(ind.prevCompletion) > 0 || num(ind.currCompletion) > 0) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">前期 元請完工高（自動計算）</Label>
+                        <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
+                          {num(ind.prevCompletion) > 0 ? `¥${(num(ind.prevCompletion) - num(ind.prevSubcontract)).toLocaleString()}千円` : '—'}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">当期 元請完工高（自動計算）</Label>
+                        <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
+                          {num(ind.currCompletion) > 0 ? `¥${(num(ind.currCompletion) - num(ind.currSubcontract)).toLocaleString()}千円` : '—'}
+                        </div>
+                      </div>
+                      <div className="col-span-2 self-end text-[10px] text-muted-foreground pb-2">
+                        元請完工高 = 完成工事高 − 下請完工高
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       {numField(
@@ -1076,8 +1268,25 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                         </button>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground self-end pb-2">
-                      2年平均完工高: {Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2).toLocaleString()}千円
+                    <div className="text-xs text-muted-foreground self-end pb-2 space-y-0.5">
+                      {(() => {
+                        const avg = Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2);
+                        const curr = num(ind.currCompletion);
+                        const isAvgSelected = avg >= curr;
+                        return (
+                          <>
+                            <div className={isAvgSelected ? 'text-green-600 font-medium' : ''}>
+                              2年平均: {avg.toLocaleString()}千円{isAvgSelected && ' (採用)'}
+                            </div>
+                            <div className={!isAvgSelected ? 'text-green-600 font-medium' : ''}>
+                              当期: {curr.toLocaleString()}千円{!isAvgSelected && ' (採用)'}
+                            </div>
+                            <div className="text-[10px]">
+                              {isAvgSelected ? '※ 2年平均が大きいため採用' : '※ 当期が大きいため採用'}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1100,6 +1309,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           <TechStaffPanel
             industryNames={industries.filter((ind) => ind.name).map((ind) => ind.name)}
             onValuesCalculated={handleTechValuesCalculated}
+            externalStaff={extractedStaff}
           />
 
           {/* 経審提出書PDF: 未読込ならアップロード欄、読込済みなら反映状況を表示 */}
@@ -1136,6 +1346,15 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                       </span>
                     </label>
                   </div>
+                  {keishinPdfProcessing && (
+                    <div className="w-full px-2">
+                      <ExtractionProgress
+                        isActive={keishinPdfProcessing}
+                        isComplete={keishinPdfComplete}
+                        estimatedDuration={25000}
+                      />
+                    </div>
+                  )}
                   {keishinPdfError && (
                     <p className="text-xs text-destructive">{keishinPdfError}</p>
                   )}
@@ -1149,9 +1368,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <span className="text-sm font-medium text-green-700">提出書PDFから別紙三（W項目）を自動反映済み</span>
                 </div>
-                {keishinPdfMappings.filter(m => m.source === '別紙三').length > 0 && (
+                {keishinPdfMappings.filter(m => m.source === '別紙三' || m.source.includes('別紙三') || m.target.startsWith('W/')).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {keishinPdfMappings.filter(m => m.source === '別紙三').map((m, i) => (
+                    {keishinPdfMappings.filter(m => m.source === '別紙三' || m.source.includes('別紙三') || m.target.startsWith('W/')).map((m, i) => (
                       <Badge key={i} variant="outline" className="text-[10px] bg-green-50 border-green-200 text-green-700">
                         {m.target.replace('W/', '')} = {typeof m.value === 'number' ? m.value.toLocaleString() : m.value}
                       </Badge>
@@ -1163,6 +1382,17 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 </p>
               </CardContent>
             </Card>
+          )}
+
+          {externalWItems && Object.keys(externalWItems).length > 0 && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700 flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 flex-shrink-0" />
+              <span>
+                提出書PDFからW項目を
+                {Object.entries(externalWItems).filter(([, v]) => v !== undefined && v !== null && v !== 0 && v !== false).length}
+                件自動反映しました。値を確認・修正してください。
+              </span>
+            </div>
           )}
 
           <WItemsChecklist onWCalculated={handleWCalculated} externalItems={externalWItems} />
@@ -1208,7 +1438,14 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   }}
                 />
                 {prevFileLoading ? (
-                  <p className="text-sm text-muted-foreground">解析中...</p>
+                  <div className="w-full px-4 py-2">
+                    <ExtractionProgress
+                      isActive={prevFileLoading}
+                      isComplete={prevFileComplete}
+                      estimatedDuration={15000}
+                      label="決算書を解析中"
+                    />
+                  </div>
                 ) : prevFileName && !prevFileError ? (
                   <div className="flex items-center justify-center gap-2 text-sm text-green-700">
                     <CheckCircle className="h-4 w-4" />
@@ -1351,6 +1588,14 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       {saving && (
         <p className="text-xs text-center text-muted-foreground animate-pulse">
           保存中...
+        </p>
+      )}
+
+      {/* Auto-save indicator */}
+      {step <= 4 && savedAt && !isWizardEmpty(wizardSnapshot) && (
+        <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+          <Save className="h-3 w-3" />
+          自動保存済み {savedAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
         </p>
       )}
 

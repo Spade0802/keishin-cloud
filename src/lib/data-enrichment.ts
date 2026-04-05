@@ -291,5 +291,17 @@ export function enrichKeishinData(data: {
     warnings.push(`営業年数(${data.businessYears})が異常値です。確認してください。`);
   }
 
+  // 営業年数が1桁の場合、OCR桁落ちの可能性を警告
+  if (data.businessYears && data.businessYears >= 1 && data.businessYears <= 9) {
+    const hasSignificantRevenue = data.industries?.some(
+      (ind) => ind.currCompletion > 100_000 || ind.prevCompletion > 100_000,
+    );
+    if (hasSignificantRevenue) {
+      warnings.push(
+        `営業年数(${data.businessYears})が1桁です。完工高の規模に対して短すぎる可能性があります。OCRの桁落ち（例: 57→5）がないか確認してください。`,
+      );
+    }
+  }
+
   return { warnings };
 }

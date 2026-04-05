@@ -14,6 +14,7 @@
 
 import type { SocialItems } from './engine/types';
 import { extractKeishinDataWithGemini, isGeminiAvailable } from './gemini-extractor';
+import type { ExtractedStaffMember } from './engine/tech-staff-calculator';
 
 // ─── 結果型 ───
 
@@ -51,6 +52,8 @@ export interface KeishinPdfResult {
   mappings: { source: string; target: string; value: string | number }[];
   /** デバッグ用rawText */
   rawText?: string;
+  /** 技術職員名簿から抽出した個別職員リスト */
+  staffList?: ExtractedStaffMember[];
 }
 
 // ─── Document AI 構造化データ型 ───
@@ -940,6 +943,10 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         if (gd.wItems) {
           result.wItems = gd.wItems;
         }
+        // 技術職員リスト
+        if (gd.staffList && gd.staffList.length > 0) {
+          result.staffList = gd.staffList;
+        }
 
         // マッピング記録
         const addMapping = (src: string, tgt: string, val: string | number) => {
@@ -953,6 +960,55 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         if (result.businessYears) addMapping('営業年数', 'businessYears', result.businessYears);
         for (const ind of result.industries) {
           addMapping(`業種:${ind.name}`, `industries`, ind.currCompletion);
+        }
+
+        // W項目マッピング
+        if (gd.wItems) {
+          const W_ITEM_LABELS: Record<string, string> = {
+            employmentInsurance: '雇用保険',
+            healthInsurance: '健康保険',
+            pensionInsurance: '厚生年金保険',
+            constructionRetirementMutualAid: '建設業退職金共済制度',
+            retirementSystem: '退職一時金制度・企業年金制度',
+            nonStatutoryAccidentInsurance: '法定外労災補償制度',
+            youngTechContinuous: '若年技術者継続',
+            youngTechNew: '若年技術者新規',
+            techStaffCount: '技術職員数',
+            youngTechCount: '若年技術職員数',
+            newYoungTechCount: '新規若年技術職員数',
+            cpdTotalUnits: 'CPD単位数',
+            skillLevelUpCount: '技能レベル向上者数',
+            skilledWorkerCount: '技能者数',
+            deductionTargetCount: '控除対象者数',
+            wlbEruboши: 'えるぼし',
+            wlbKurumin: 'くるみん',
+            wlbYouth: 'ユースエール',
+            ccusImplementation: 'CCUS活用',
+            businessYears: '営業年数',
+            civilRehabilitation: '民事再生',
+            disasterAgreement: '防災協定',
+            suspensionOrder: '営業停止処分',
+            instructionOrder: '指示処分',
+            auditStatus: '監査の受審状況',
+            certifiedAccountants: '公認会計士数',
+            firstClassAccountants: '一級登録経理士数',
+            secondClassAccountants: '二級登録経理士数',
+            rdExpense2YearAvg: '研究開発費（2年平均）',
+            constructionMachineCount: '建設機械台数',
+            iso9001: 'ISO9001',
+            iso14001: 'ISO14001',
+            ecoAction21: 'エコアクション21',
+          };
+
+          for (const [key, value] of Object.entries(gd.wItems)) {
+            if (value !== undefined && value !== null && value !== 0 && value !== false) {
+              result.mappings.push({
+                source: 'Gemini:別紙三',
+                target: `W/${W_ITEM_LABELS[key] || key}`,
+                value: String(value),
+              });
+            }
+          }
         }
 
         result.warnings.push(

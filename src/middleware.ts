@@ -19,5 +19,6 @@ export const config = {
     '/reclassification/:path*',
     '/onboarding/:path*',
     '/admin/:path*',
+    '/account/:path*',
   ],
 };

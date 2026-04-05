@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Building2, Users, Calculator, Activity } from 'lucide-react';
+import { Building2, Users, Calculator, Activity, CreditCard } from 'lucide-react';
 import { getAdminStats, getSimulations } from '@/lib/admin/data';
 
 export default async function AdminDashboardPage() {

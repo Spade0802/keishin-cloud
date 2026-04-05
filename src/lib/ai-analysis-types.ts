@@ -61,6 +61,8 @@ export interface ImpactRankingItem {
   item: string;
   pImpact: string;
   comment: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  difficultyLabel?: string; // 簡単 / 普通 / 困難
 }
 
 /** 確認すべき事項 */
@@ -81,6 +83,13 @@ export interface AccountMappingSuggestion {
   assessment: '採用余地あり' | '要確認' | '非推奨';
 }
 
+/** 期間推移分析 */
+export interface TrendInsights {
+  overallTrend: string;
+  keyChanges: string[];
+  riskFromTrend: string;
+}
+
 /** AI分析結果全体 */
 export interface AnalysisResult {
   reclassificationReview: ReclassificationItem[];
@@ -90,6 +99,7 @@ export interface AnalysisResult {
   impactRanking: ImpactRankingItem[];
   checklistItems: ChecklistItem[];
   accountMappingSuggestions?: AccountMappingSuggestion[];
+  trendInsights?: TrendInsights;
   summary: string;
   disclaimer: string;
 }
@@ -173,4 +183,24 @@ export interface AnalysisInput {
     avgSubcontract: number;
     techStaffValue: number;
   }>;
+  /** 前期データ（期間推移分析用） */
+  previousPeriodData?: {
+    period: string;
+    Y: number;
+    X2: number;
+    W: number;
+    industries: Array<{
+      name: string;
+      X1: number;
+      Z: number;
+      P: number;
+    }>;
+    yResult?: {
+      indicators: Record<string, number>;
+      indicatorsRaw: Record<string, number>;
+      A: number;
+      Y: number;
+      operatingCF: number;
+    };
+  };
 }

@@ -33,6 +33,7 @@ export const authConfig: NextAuthConfig = {
         '/comparison',
         '/reclassification',
         '/admin',
+        '/account',
       ];
 
       const isProtected = protectedPaths.some(

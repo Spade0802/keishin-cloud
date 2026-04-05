@@ -114,6 +114,16 @@ export async function generatePPointAnalysis(
   if (!parsed.checklistItems) parsed.checklistItems = [];
   if (!parsed.accountMappingSuggestions) parsed.accountMappingSuggestions = [];
 
+  // impactRanking の difficulty デフォルト値（旧モデル出力との互換性）
+  for (const item of parsed.impactRanking) {
+    if (!item.difficulty) item.difficulty = 'medium';
+    if (!item.difficultyLabel) {
+      item.difficultyLabel = item.difficulty === 'easy' ? '簡単' : item.difficulty === 'hard' ? '困難' : '普通';
+    }
+  }
+
+  // trendInsights が無い場合は undefined のまま（表示側でハンドリング）
+
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
     '本レポートはAI（Gemini）による自動分析であり、専門家の助言ではありません。' +
@@ -174,9 +184,18 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
 
 ${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify(input.rawBsData, null, 2)}` : ''}
 
+${input.previousPeriodData ? `【前期データ】
+決算期: ${input.previousPeriodData.period}
+Y点: ${input.previousPeriodData.Y}
+X2: ${input.previousPeriodData.X2}
+W点: ${input.previousPeriodData.W}
+業種別スコア:
+${input.previousPeriodData.industries.map((ind) => `  - ${ind.name}: X1=${ind.X1}, Z=${ind.Z}, P=${ind.P}`).join('\n')}
+${input.previousPeriodData.yResult ? `前期Y点指標（生値）:\n${JSON.stringify(input.previousPeriodData.yResult.indicatorsRaw, null, 2)}` : ''}` : ''}
+
 ## 分析内容
 
-以下の7セクションをJSON形式で出力してください。
+以下のセクションをJSON形式で出力してください（前期データがある場合は8セクション、ない場合は7セクション）。
 業種名は必ず次の名前を使用してください: ${JSON.stringify(industryNames)}
 
 ### 1. 再分類レビュー（reclassificationReview）
@@ -209,6 +228,11 @@ ${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify
 
 ### 5. P点改善インパクト順ランキング（impactRanking）
 再分類レビューの各項目を、P点への影響が大きい順にランキング。
+各項目に実現難易度（difficulty）を評価してください：
+- "easy"（簡単）: 書類準備のみで対応可能、専門家判断不要
+- "medium"（普通）: 専門家との確認が必要、一定の準備期間が必要
+- "hard"（困難）: 大幅な体制変更や長期間の準備が必要、リスクが高い
+difficultyLabel には日本語ラベル（簡単/普通/困難）を設定してください。
 
 ### 6. 確認すべき事項チェックリスト（checklistItems）
 経理担当・税理士・行政書士へ確認すべき具体的な事項の一覧。
@@ -235,6 +259,12 @@ ${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify
 
 ※ BS生データがある場合はそれを参照して具体的な科目・金額に基づく提案を行ってください。
 ※ 提案は会計基準上認められる範囲に限定し、虚偽記載に該当するものは含めないでください。
+
+${input.previousPeriodData ? `### 8. 期間推移分析（trendInsights）
+前期データと当期データを比較して、以下を分析してください：
+- overallTrend: 全体的な推移傾向（改善/悪化/横ばいなど、200文字程度で具体的に）
+- keyChanges: 主要な変化点（各指標の増減とその要因の推察、3〜5項目）
+- riskFromTrend: 推移から読み取れるリスク（今後の経審で注意すべき点）` : ''}
 
 ## 出力JSON形式
 {
@@ -304,7 +334,9 @@ ${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify
       "rank": 1,
       "item": "項目名",
       "pImpact": "P影響（概算）",
-      "comment": "コメント"
+      "comment": "コメント",
+      "difficulty": "easy|medium|hard",
+      "difficultyLabel": "簡単|普通|困難"
     }
   ],
   "checklistItems": [
@@ -325,6 +357,11 @@ ${input.rawBsData ? `【BS生データ（変換前・円）】\n${JSON.stringify
       "assessment": "採用余地あり|要確認|非推奨"
     }
   ],
+  ${input.previousPeriodData ? `"trendInsights": {
+    "overallTrend": "全体的な推移傾向の分析",
+    "keyChanges": ["変化点1", "変化点2", "変化点3"],
+    "riskFromTrend": "推移から読み取れるリスク"
+  },` : ''}
   "summary": "入力データに基づく全体の分析サマリー（200文字程度）"
 }
 

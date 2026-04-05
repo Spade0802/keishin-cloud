@@ -21,6 +21,15 @@ interface SettingsData {
   ocr_provider: string;
   max_file_size_mb: string;
   ai_analysis_enabled: string;
+  // Stripe
+  stripe_secret_key: string;
+  stripe_publishable_key: string;
+  stripe_webhook_secret: string;
+  stripe_price_standard_yearly: string;
+  stripe_price_standard_monthly: string;
+  stripe_price_premium_yearly: string;
+  stripe_price_premium_monthly: string;
+  bypass_billing: string;
 }
 
 const DEFAULT_SETTINGS: SettingsData = {
@@ -32,6 +41,15 @@ const DEFAULT_SETTINGS: SettingsData = {
   ocr_provider: 'gemini',
   max_file_size_mb: '50',
   ai_analysis_enabled: 'true',
+  // Stripe
+  stripe_secret_key: '',
+  stripe_publishable_key: '',
+  stripe_webhook_secret: '',
+  stripe_price_standard_yearly: '',
+  stripe_price_standard_monthly: '',
+  stripe_price_premium_yearly: '',
+  stripe_price_premium_monthly: '',
+  bypass_billing: 'true',
 };
 
 // ---------------------------------------------------------------------------
@@ -45,6 +63,8 @@ export function SettingsForm() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
+  const [showStripeKey, setShowStripeKey] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
 
   // トースト自動消去
   useEffect(() => {
@@ -69,6 +89,15 @@ export function SettingsForm() {
         ocr_provider: s.ocr_provider?.value ?? DEFAULT_SETTINGS.ocr_provider,
         max_file_size_mb: s.max_file_size_mb?.value ?? DEFAULT_SETTINGS.max_file_size_mb,
         ai_analysis_enabled: s.ai_analysis_enabled?.value ?? DEFAULT_SETTINGS.ai_analysis_enabled,
+        // Stripe
+        stripe_secret_key: s.stripe_secret_key?.value ?? '',
+        stripe_publishable_key: s.stripe_publishable_key?.value ?? '',
+        stripe_webhook_secret: s.stripe_webhook_secret?.value ?? '',
+        stripe_price_standard_yearly: s.stripe_price_standard_yearly?.value ?? '',
+        stripe_price_standard_monthly: s.stripe_price_standard_monthly?.value ?? '',
+        stripe_price_premium_yearly: s.stripe_price_premium_yearly?.value ?? '',
+        stripe_price_premium_monthly: s.stripe_price_premium_monthly?.value ?? '',
+        bypass_billing: s.bypass_billing?.value ?? DEFAULT_SETTINGS.bypass_billing,
       });
     } catch {
       setToast({ type: 'error', message: '設定の読み込みに失敗しました' });
@@ -140,6 +169,7 @@ export function SettingsForm() {
         <TabsList>
           <TabsTrigger value="ai">AI設定</TabsTrigger>
           <TabsTrigger value="ocr">OCR設定</TabsTrigger>
+          <TabsTrigger value="stripe">課金 (Stripe)</TabsTrigger>
           <TabsTrigger value="other">その他</TabsTrigger>
         </TabsList>
 
@@ -347,6 +377,188 @@ export function SettingsForm() {
                       </div>
                     </label>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ─── 課金(Stripe)設定 ─── */}
+        <TabsContent value="stripe">
+          <div className="space-y-6 pt-2">
+            {/* 課金バイパス */}
+            <Card>
+              <CardHeader>
+                <CardTitle>課金モード</CardTitle>
+                <CardDescription>
+                  テスト中は「バイパス」をONにすると、Stripeなしで全機能が利用可能になります。
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.bypass_billing === 'true'}
+                    onClick={() =>
+                      update(
+                        'bypass_billing',
+                        settings.bypass_billing === 'true' ? 'false' : 'true'
+                      )
+                    }
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      settings.bypass_billing === 'true'
+                        ? 'bg-amber-500'
+                        : 'bg-input'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                        settings.bypass_billing === 'true'
+                          ? 'translate-x-5'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <Label>
+                    {settings.bypass_billing === 'true' ? (
+                      <span className="text-amber-600 font-medium">バイパスON（全機能無料）</span>
+                    ) : (
+                      <span>Stripe課金を有効化</span>
+                    )}
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  本番運用時はOFFにし、下記のStripeキーを設定してください。
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Stripe APIキー */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Stripe APIキー</CardTitle>
+                <CardDescription>
+                  Stripe Dashboardから取得したAPIキーを設定します。テスト用キー（sk_test_）と本番用キー（sk_live_）があります。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stripe_secret_key">シークレットキー</Label>
+                  <div className="relative">
+                    <Input
+                      id="stripe_secret_key"
+                      type={showStripeKey ? 'text' : 'password'}
+                      value={settings.stripe_secret_key}
+                      onChange={(e) => update('stripe_secret_key', e.target.value)}
+                      placeholder="sk_test_..."
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStripeKey(!showStripeKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showStripeKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="stripe_publishable_key">公開キー</Label>
+                  <Input
+                    id="stripe_publishable_key"
+                    value={settings.stripe_publishable_key}
+                    onChange={(e) => update('stripe_publishable_key', e.target.value)}
+                    placeholder="pk_test_..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="stripe_webhook_secret">Webhook シークレット</Label>
+                  <div className="relative">
+                    <Input
+                      id="stripe_webhook_secret"
+                      type={showWebhookSecret ? 'text' : 'password'}
+                      value={settings.stripe_webhook_secret}
+                      onChange={(e) => update('stripe_webhook_secret', e.target.value)}
+                      placeholder="whsec_..."
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showWebhookSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Webhook URL: <code className="bg-muted px-1 rounded">https://your-domain.com/api/webhooks/stripe</code>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Price ID 設定 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>プラン Price ID</CardTitle>
+                <CardDescription>
+                  Stripe Dashboardの「Products」で作成したPrice IDを設定します。
+                  テスト時は¥0のPriceを作成してください。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_price_standard_yearly">
+                      スタンダード（年額¥100,000）
+                    </Label>
+                    <Input
+                      id="stripe_price_standard_yearly"
+                      value={settings.stripe_price_standard_yearly}
+                      onChange={(e) => update('stripe_price_standard_yearly', e.target.value)}
+                      placeholder="price_xxx"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_price_standard_monthly">
+                      スタンダード（月額¥9,800）
+                    </Label>
+                    <Input
+                      id="stripe_price_standard_monthly"
+                      value={settings.stripe_price_standard_monthly}
+                      onChange={(e) => update('stripe_price_standard_monthly', e.target.value)}
+                      placeholder="price_xxx"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_price_premium_yearly">
+                      プレミアム（年額¥300,000）
+                    </Label>
+                    <Input
+                      id="stripe_price_premium_yearly"
+                      value={settings.stripe_price_premium_yearly}
+                      onChange={(e) => update('stripe_price_premium_yearly', e.target.value)}
+                      placeholder="price_xxx"
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stripe_price_premium_monthly">
+                      プレミアム（月額¥29,800）
+                    </Label>
+                    <Input
+                      id="stripe_price_premium_monthly"
+                      value={settings.stripe_price_premium_monthly}
+                      onChange={(e) => update('stripe_price_premium_monthly', e.target.value)}
+                      placeholder="price_xxx"
+                      className="font-mono text-sm"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

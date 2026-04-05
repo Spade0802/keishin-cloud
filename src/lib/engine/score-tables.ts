@@ -20,7 +20,7 @@ export function lookupScore(brackets: Bracket[], value: number): number {
   const bracket = brackets.find((b) => value >= b.min && value < b.max);
   if (!bracket) {
     throw new Error(
-      `No bracket found for value ${value}. Table range: ${brackets[0]?.min ?? '?'} - ${brackets[brackets.length - 1]?.max ?? '?'}`
+      `評点テーブルの該当区間が見つかりません（値: ${value}、範囲: ${brackets[0]?.min ?? '?'} - ${brackets[brackets.length - 1]?.max ?? '?'}）`
     );
   }
   return Math.floor((bracket.a * value) / bracket.b) + bracket.c;

@@ -239,13 +239,16 @@ function buildDemoResult() {
 
   const industries = industryInputs.map((ind, idx) => {
     const avgComp = Math.floor((ind.prevCompletion + ind.currCompletion) / 2);
+    const currComp = ind.currCompletion;
+    const adoptedComp = Math.max(avgComp, currComp);
+    const x1Selected: '2年平均' | '当期' = avgComp >= currComp ? '2年平均' : '当期';
     const avgSub = Math.floor((ind.prevSubcontract + ind.currSubcontract) / 2);
-    const X1 = lookupScore(X1_TABLE, avgComp);
+    const X1 = lookupScore(X1_TABLE, adoptedComp);
     const z1 = lookupScore(Z1_TABLE, ind.techStaffValue);
     const z2 = lookupScore(Z2_TABLE, avgSub);
     const Z = calculateZ(z1, z2);
     const P = calculateP(X1, x2, yResult.Y, Z, W);
-    return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P, prevP: prevScores.industryP[idx] };
+    return { name: ind.name, X1, Z, Z1: z1, Z2: z2, P, prevP: prevScores.industryP[idx], x1TwoYearAvg: avgComp, x1Current: currComp, x1Selected };
   });
 
   return {

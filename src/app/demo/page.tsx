@@ -66,7 +66,7 @@ export default function DemoPage() {
               <CardTitle className="text-base">入力データサマリー</CardTitle>
             </CardHeader>
             <CardContent>
-              <Accordion className="w-full">
+              <Accordion className="w-full" defaultValue={['financials']}>
                 {/* Financial Data */}
                 <AccordionItem value="financials">
                   <AccordionTrigger>
