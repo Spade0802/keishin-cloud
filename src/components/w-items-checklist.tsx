@@ -67,10 +67,27 @@ function SectionBadge({ score, max, isPenalty }: { score: number; max?: string; 
 }
 
 function HelpTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  const id = `tooltip-${text.slice(0, 20).replace(/\s/g, '-')}`;
   return (
-    <span className="relative group inline-flex items-center ml-1">
-      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-muted-foreground cursor-help" />
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-64 px-3 py-2 text-xs text-popover-foreground bg-popover border rounded-md shadow-md whitespace-normal leading-relaxed pointer-events-none">
+    <span className="relative inline-flex items-center ml-1">
+      <button
+        type="button"
+        className="inline-flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-full"
+        aria-describedby={show ? id : undefined}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow((prev) => !prev)}
+      >
+        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-muted-foreground cursor-help" />
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-64 px-3 py-2 text-xs text-popover-foreground bg-popover border rounded-md shadow-md whitespace-normal leading-relaxed pointer-events-none ${show ? 'block' : 'hidden'}`}
+      >
         {text}
       </span>
     </span>

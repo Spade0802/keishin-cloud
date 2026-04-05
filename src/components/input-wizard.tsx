@@ -414,6 +414,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
   // ---- Auto-save / Restore ----
   const [restoreBannerDismissed, setRestoreBannerDismissed] = useState(false);
@@ -773,6 +774,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     const u = [...industries];
     u[i] = { ...u[i], [field]: value };
     setIndustries(u);
+    extractedData.markUserEdited('industries');
   }
 
   // Calculate
@@ -879,6 +881,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     } catch {
       // Save failure is non-blocking - user still sees the result
       console.error('シミュレーション保存に失敗しました');
+      setSaveWarning('自動保存に失敗しました。結果は画面上で確認できますが、アカウントには保存されていません。');
     } finally {
       setSaving(false);
     }
@@ -1059,7 +1062,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('総資本（総資産）', totalCapital, setTotalCapital, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('純資産合計', equity, setEquity, '千円', undefined, fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', undefined, fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful, '千円', undefined, fileLoaded ? (autoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
@@ -1239,19 +1242,19 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <Label className="text-xs">会社名</Label>
-                <Input value={basicInfo.companyName} onChange={(e) => setBasicInfo({ ...basicInfo, companyName: e.target.value })} className="text-sm h-8" />
+                <Input value={basicInfo.companyName} onChange={(e) => { setBasicInfo({ ...basicInfo, companyName: e.target.value }); extractedData.markUserEdited('basicInfo.companyName'); }} className="text-sm h-8" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">許可番号</Label>
-                <Input value={basicInfo.permitNumber} onChange={(e) => setBasicInfo({ ...basicInfo, permitNumber: e.target.value })} className="text-sm h-8" />
+                <Input value={basicInfo.permitNumber} onChange={(e) => { setBasicInfo({ ...basicInfo, permitNumber: e.target.value }); extractedData.markUserEdited('basicInfo.permitNumber'); }} className="text-sm h-8" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">審査基準日</Label>
-                <Input value={basicInfo.reviewBaseDate} onChange={(e) => setBasicInfo({ ...basicInfo, reviewBaseDate: e.target.value })} className="text-sm h-8" placeholder="R7.6.30" />
+                <Input value={basicInfo.reviewBaseDate} onChange={(e) => { setBasicInfo({ ...basicInfo, reviewBaseDate: e.target.value }); extractedData.markUserEdited('basicInfo.reviewBaseDate'); }} className="text-sm h-8" placeholder="R7.6.30" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">期</Label>
-                <Input value={basicInfo.periodNumber} onChange={(e) => setBasicInfo({ ...basicInfo, periodNumber: e.target.value })} className="text-sm h-8" placeholder="第58期" />
+                <Input value={basicInfo.periodNumber} onChange={(e) => { setBasicInfo({ ...basicInfo, periodNumber: e.target.value }); extractedData.markUserEdited('basicInfo.periodNumber'); }} className="text-sm h-8" placeholder="第58期" />
               </div>
             </CardContent>
           </Card>
@@ -1259,7 +1262,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           <Card>
             <CardHeader><CardTitle className="text-base">続紙：X2用データ（千円）</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
-              {numField('利払後事業利益額（X22用 2期平均）', ebitda, setEbitda, '千円', '提出書の続紙に記載')}
+              {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '提出書の続紙に記載')}
               <div className="text-xs text-muted-foreground self-end pb-2">
                 ※ X21は「純資産合計」（Step1で入力済み）から自動算出
               </div>
@@ -1648,6 +1651,14 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           }))}
           socialItems={currentSocialItems}
         />
+      )}
+
+      {/* Save Warning */}
+      {saveWarning && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-800 dark:text-amber-300 flex items-center justify-between">
+          <span>{saveWarning}</span>
+          <button type="button" onClick={() => setSaveWarning(null)} className="ml-2 text-amber-600 hover:text-amber-800 dark:text-amber-400 text-xs underline">閉じる</button>
+        </div>
       )}
 
       {/* Error */}

@@ -4,7 +4,7 @@
 
 ## Status
 - Total issues: 82 (P0: 14, P1: 26, P2: 27, P3: 15)
-- Fixed: 13 (Cycle 1: SEC×6 + DATA×7)
+- Fixed: 24 (Cycle 1: 13, Cycle 2: 6, Cycle 3: 5)
 - Next PDCA cycle: 01:00 JST
 
 ## Priority Queue (P0 → P3)
@@ -19,12 +19,12 @@
 - [ ] CODE-2: W6 R&D formula incorrect - should use revenue ratio, not fixed amount (p-calculator.ts:123)
 - [ ] CODE-3: No unit tests for scoring engine (entire src/)
 - [ ] PERF-1: 5-15 Gemini API calls per PDF upload (gemini-extractor.ts) - reduce to 3
-- [ ] CODE-4: Webhook silently returns 200 when org update fails (webhooks/stripe/route.ts:122)
-- [ ] UX-1: Step validation only exists for Step 1 (input-wizard.tsx:496) [IN PROGRESS - Cycle 2]
+- [x] CODE-4: Webhook 200→500 on failure ✅ Cycle 3
+- [x] UX-1: Step validation ✅ Cycle 2
 - [ ] CODE-5: Untyped JSON.parse of Gemini AI response - need Zod validation (ai-analysis.ts:110)
-- [ ] DOMAIN-1: W items default insurance=true is dangerous (w-items-checklist.tsx:18) [IN PROGRESS - Cycle 2]
-- [ ] DOMAIN-2: P点端数処理がMath.round (result-view.tsx:335) [IN PROGRESS - Cycle 2]
-- [ ] DOMAIN-3: "下請完工高" terminology wrong (input-wizard.tsx:1230) [IN PROGRESS - Cycle 2]
+- [x] DOMAIN-1: W items default insurance=true ✅ Cycle 2
+- [x] DOMAIN-2: P点端数Math.round→floor ✅ Cycle 2
+- [x] DOMAIN-3: 下請完工高→元請完成工事高 ✅ Cycle 2
 
 ### P1 - High (Fix this cycle)
 
@@ -110,3 +110,5 @@
 | Cycle | Time | Issues Fixed | Commit |
 |-------|------|-------------|--------|
 | 1 | 00:35 | 13 (SEC-1~6, DATA-1~7) | e2f91e7 |
+| 2 | 00:55 | 6 (DOMAIN-1~3, UX-1,2,5) | 8b02a52 |
+| 3 | 01:10 | 5 (CODE-4, PERF-2~3, UX-4,7) | 59a61c1 |

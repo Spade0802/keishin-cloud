@@ -165,6 +165,14 @@ export function useExtractedData(): UseExtractedDataReturn {
     if (industries.length > 0) {
       autoFilledFields.add('industries');
       newFieldMeta.industries = { source: 'direct_pdf', timestamp: now, userOverridden: false };
+      // permitType is always defaulted to '一般' - warn user to verify
+      validation.issues.push({
+        field: 'industries.permitType',
+        label: '許可区分',
+        severity: 'info',
+        message: '許可区分はデフォルトで「一般」に設定されています。特定建設業許可をお持ちの業種がある場合は手動で変更してください。',
+        originalValue: '一般',
+      });
     }
 
     // W項目（バリデーション済み）

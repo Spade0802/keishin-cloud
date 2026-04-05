@@ -17,6 +17,37 @@ import { getAIConfig } from './settings';
 import { splitPdfPages, getPdfPageCount } from './pdf-page-splitter';
 import { calculateTechStaffValues, type ExtractedStaffMember } from './engine/tech-staff-calculator';
 
+// ─── エラー型 ───
+
+export type GeminiErrorType = 'ai_unavailable' | 'extraction_failed' | 'timeout' | 'rate_limited';
+
+export class GeminiExtractionError extends Error {
+  public readonly type: GeminiErrorType;
+  public readonly originalError?: unknown;
+
+  constructor(type: GeminiErrorType, message: string, originalError?: unknown) {
+    super(message);
+    this.name = 'GeminiExtractionError';
+    this.type = type;
+    this.originalError = originalError;
+  }
+
+  static fromError(err: unknown): GeminiExtractionError {
+    if (err instanceof GeminiExtractionError) return err;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      return new GeminiExtractionError('rate_limited', `Gemini rate limited: ${msg}`, err);
+    }
+    if (msg.includes('timeout') || msg.includes('DEADLINE_EXCEEDED') || msg.includes('ETIMEDOUT')) {
+      return new GeminiExtractionError('timeout', `Gemini request timed out: ${msg}`, err);
+    }
+    if (msg.includes('API key') || msg.includes('PERMISSION_DENIED') || msg.includes('not found') || msg.includes('Could not load')) {
+      return new GeminiExtractionError('ai_unavailable', `Gemini AI unavailable: ${msg}`, err);
+    }
+    return new GeminiExtractionError('extraction_failed', `Gemini extraction failed: ${msg}`, err);
+  }
+}
+
 // ─── 設定 ───
 
 const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'asia-northeast1';
@@ -590,8 +621,9 @@ export async function extractFinancialDataWithGemini(
       enrichedFields: enriched.enrichedFields,
     };
   } catch (e) {
-    console.error('Gemini financial extraction failed:', e);
-    return null;
+    const typed = GeminiExtractionError.fromError(e);
+    console.error(`Gemini financial extraction failed [${typed.type}]:`, typed.message);
+    throw typed;
   }
 }
 
@@ -1164,8 +1196,9 @@ export async function extractResultPdfWithGemini(
     console.log('Result PDF Gemini extraction:', JSON.stringify(scores).slice(0, 300));
     return { scores, method: 'Gemini' };
   } catch (e) {
-    console.error('Gemini result PDF extraction failed:', e);
-    return null;
+    const typed = GeminiExtractionError.fromError(e);
+    console.error(`Gemini result PDF extraction failed [${typed.type}]:`, typed.message);
+    throw typed;
   }
 }
 
@@ -2197,8 +2230,9 @@ export async function extractKeishinDataWithGemini(
 
     return { data: merged, method: 'Gemini (consensus)' };
   } catch (e) {
-    console.error('Gemini keishin consensus extraction failed:', e);
-    return null;
+    const typed = GeminiExtractionError.fromError(e);
+    console.error(`Gemini keishin consensus extraction failed [${typed.type}]:`, typed.message);
+    throw typed;
   }
 }
 

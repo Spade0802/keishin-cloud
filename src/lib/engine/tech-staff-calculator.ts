@@ -109,8 +109,14 @@ export function calculateTechStaffValues(
     detail: StaffIndustryResult;
   }>();
 
-  for (const member of staffList) {
+  for (let idx = 0; idx < staffList.length; idx++) {
+    const member = staffList[idx];
     const hasCert = !!member.supervisorCertNumber;
+
+    // Dedup key uses row index to distinguish different employees with the same name.
+    // Also includes qualificationCodes as secondary disambiguation for merged data
+    // where row index may not be stable.
+    const personId = `${member.name}::${idx}::${member.qualificationCode1 ?? ''}::${member.qualificationCode2 ?? ''}`;
 
     // 業種1
     if (member.industryCode1 && member.qualificationCode1) {
@@ -133,7 +139,7 @@ export function calculateTechStaffValues(
         supervisorUpgrade,
       };
 
-      const key = `${member.name}::${indCode}`;
+      const key = `${personId}::${indCode}`;
       const existing = personIndustryMax.get(key);
       if (!existing || points > existing.points) {
         personIndustryMax.set(key, { points, detail });
@@ -161,7 +167,7 @@ export function calculateTechStaffValues(
         supervisorUpgrade,
       };
 
-      const key = `${member.name}::${indCode}`;
+      const key = `${personId}::${indCode}`;
       const existing = personIndustryMax.get(key);
       if (!existing || points > existing.points) {
         personIndustryMax.set(key, { points, detail });

@@ -110,12 +110,16 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // 1) Gemini Vision AIで高精度抽出を試行
-    const geminiResult = await extractResultPdfWithGemini(buffer);
-    if (geminiResult) {
-      return NextResponse.json({
-        scores: geminiResult.scores,
-        method: geminiResult.method,
-      });
+    try {
+      const geminiResult = await extractResultPdfWithGemini(buffer);
+      if (geminiResult) {
+        return NextResponse.json({
+          scores: geminiResult.scores,
+          method: geminiResult.method,
+        });
+      }
+    } catch (geminiErr) {
+      console.warn('Gemini result PDF extraction failed, falling back to Document AI:', geminiErr);
     }
 
     // 2) フォールバック: Document AI + regex
