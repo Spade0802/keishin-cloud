@@ -18,6 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/toast';
+import { logger } from '@/lib/logger';
 
 interface OrgBillingInfo {
   id: string;
@@ -75,7 +76,7 @@ export default function AdminBillingPage() {
         setStats(data.stats || null);
       }
     } catch (e) {
-      console.error('Failed to fetch billing data:', e);
+      logger.error('Failed to fetch billing data:', e);
     } finally {
       setLoading(false);
     }

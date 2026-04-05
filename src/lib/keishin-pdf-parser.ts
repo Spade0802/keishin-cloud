@@ -15,6 +15,7 @@
 import type { SocialItems } from './engine/types';
 import { extractKeishinDataWithGemini, isGeminiAvailable } from './gemini-extractor';
 import type { ExtractedStaffMember } from './engine/tech-staff-calculator';
+import { logger } from '@/lib/logger';
 
 // ─── 結果型 ───
 
@@ -239,7 +240,7 @@ async function ocrWithDocumentAI(buffer: Buffer): Promise<DocumentAIResult | nul
 
     return { fullText, pages, formFields: allFormFields };
   } catch (e) {
-    console.error('Document AI error:', e);
+    logger.error('Document AI error:', e);
     return null;
   }
 }
@@ -1020,7 +1021,7 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         return result;
       }
     } catch (e) {
-      console.error('Gemini keishin extraction failed, falling back:', e);
+      logger.error('Gemini keishin extraction failed, falling back:', e);
       result.warnings.push('Gemini AI抽出に失敗しました。従来の方法で解析します。');
     }
   }
@@ -1055,7 +1056,7 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         parseFormFields(docAIResult.formFields, result);
       }
     } catch (e) {
-      console.error('Document AI failed, falling back:', e);
+      logger.error('Document AI failed, falling back:', e);
     }
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseExcel } from '@/lib/excel-parser';
 import { extractFinancialDataFromExcel } from '@/lib/gemini-extractor';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
       method: 'keyword-match',
     });
   } catch (e) {
-    console.error('Excel parse error:', e);
+    logger.error('Excel parse error:', e);
     return NextResponse.json(
       { error: 'ファイルの解析に失敗しました。' },
       { status: 500 }

@@ -22,6 +22,7 @@ import {
   Sparkles,
   AlertCircle,
 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 import { FileUpload } from '@/components/file-upload';
 import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/components/file-upload';
 import { FinancialPreview } from '@/components/financial-preview';
@@ -998,7 +999,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const allWarnings = [...partialWarnings, ...processed.validationIssues];
       setExtractionWarnings(allWarnings);
       if (allWarnings.length > 0 && process.env.NODE_ENV !== 'production') {
-        console.log('[Keishin PDF] Validation issues:', allWarnings.length,
+        logger.debug('[Keishin PDF] Validation issues:', allWarnings.length,
           allWarnings.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
       }
 
@@ -1217,7 +1218,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       }
     } catch {
       // Save failure is non-blocking - user still sees the result
-      console.error('シミュレーション保存に失敗しました');
+      logger.error('シミュレーション保存に失敗しました');
       setSaveWarning('自動保存に失敗しました。結果は画面上で確認できますが、アカウントには保存されていません。');
     } finally {
       setSaving(false);

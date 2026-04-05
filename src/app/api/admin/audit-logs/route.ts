@@ -8,6 +8,7 @@ import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { auditLogs, users } from '@/lib/db/schema';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[Admin AuditLogs] GET error:', error);
+    logger.error('[Admin AuditLogs] GET error:', error);
     return NextResponse.json({ error: '監査ログの取得に失敗しました' }, { status: 500 });
   }
 }

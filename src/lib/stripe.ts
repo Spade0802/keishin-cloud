@@ -5,9 +5,10 @@
  * または BYPASS_BILLING=true の場合は課金チェックをスキップする。
  */
 import Stripe from 'stripe';
+import { logger } from '@/lib/logger';
 
 if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn('[Stripe] STRIPE_SECRET_KEY is not set. Billing features will be bypassed.');
+  logger.warn('[Stripe] STRIPE_SECRET_KEY is not set. Billing features will be bypassed.');
 }
 
 export const stripe: Stripe | null = process.env.STRIPE_SECRET_KEY
@@ -18,7 +19,7 @@ export const stripe: Stripe | null = process.env.STRIPE_SECRET_KEY
 export function isBillingBypassed(): boolean {
   if (process.env.BYPASS_BILLING === 'true') return true;
   if (!process.env.STRIPE_SECRET_KEY) {
-    console.error('[Stripe] STRIPE_SECRET_KEY is not set and BYPASS_BILLING is not true. Billing will NOT be bypassed.');
+    logger.error('[Stripe] STRIPE_SECRET_KEY is not set and BYPASS_BILLING is not true. Billing will NOT be bypassed.');
     return false;
   }
   return false;

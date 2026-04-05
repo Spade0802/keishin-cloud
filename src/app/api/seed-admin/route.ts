@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { seedAdmin } from '@/lib/seed-admin';
 import { ERR_UNAUTHORIZED, ERR_ADMIN_INTERNAL } from '@/lib/error-messages';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   // Block in production unless explicitly allowed for initial setup
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     const result = await seedAdmin();
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    console.error('seed-admin error:', error);
+    logger.error('seed-admin error:', error);
     return NextResponse.json(
       { error: ERR_ADMIN_INTERNAL },
       { status: 500 }

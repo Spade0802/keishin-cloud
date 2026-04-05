@@ -14,6 +14,7 @@ import {
   FileText,
   Download,
 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface AuditLogEntry {
   id: string;
@@ -114,7 +115,7 @@ export default function AdminAuditLogsPage() {
         setPagination(data.pagination || null);
       }
     } catch (e) {
-      console.error('Failed to fetch audit logs:', e);
+      logger.error('Failed to fetch audit logs:', e);
     } finally {
       setLoading(false);
     }

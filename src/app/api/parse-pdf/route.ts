@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parsePDF } from '@/lib/pdf-parser';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (e) {
-    console.error('PDF parse error:', e);
+    logger.error('PDF parse error:', e);
     return NextResponse.json(
       { error: 'PDFの解析に失敗しました。' },
       { status: 500 }

@@ -21,6 +21,7 @@ import {
 } from '@/lib/error-messages';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { captureException } from '@/lib/error-tracking';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   if (!stripe) {
@@ -38,11 +39,11 @@ export async function POST(req: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error('[Stripe Webhook] Signature verification failed:', err);
+    logger.error('[Stripe Webhook] Signature verification failed:', err);
     return NextResponse.json({ error: ERR_STRIPE_INVALID_SIGNATURE }, { status: 400 });
   }
 
-  console.log(`[Stripe Webhook] Received event: ${event.type}`);
+  logger.info(`[Stripe Webhook] Received event: ${event.type}`);
 
   // 全 Webhook イベントを監査ログに記録
   logAudit({
@@ -72,10 +73,10 @@ export async function POST(req: NextRequest) {
         break;
 
       default:
-        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+        logger.debug(`[Stripe Webhook] Unhandled event type: ${event.type}`);
     }
   } catch (error) {
-    console.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
+    logger.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
     logAudit({
       action: AUDIT_ACTIONS.STRIPE_WEBHOOK_FAILED,
       resource: 'stripe_event',
@@ -99,11 +100,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const plan = VALID_PLANS.includes(rawPlan as typeof VALID_PLANS[number]) ? rawPlan : 'standard';
 
   if (rawPlan !== plan) {
-    console.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in checkout metadata, defaulting to "standard"`);
+    logger.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in checkout metadata, defaulting to "standard"`);
   }
 
   if (!organizationId) {
-    console.error('[Stripe Webhook] No organizationId in checkout session metadata');
+    logger.error('[Stripe Webhook] No organizationId in checkout session metadata');
     return;
   }
 
@@ -131,7 +132,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     details: { plan, subscriptionId },
   });
 
-  console.log(`[Stripe Webhook] Checkout completed for org ${organizationId}, plan: ${plan}`);
+  logger.info(`[Stripe Webhook] Checkout completed for org ${organizationId}, plan: ${plan}`);
 }
 
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
@@ -165,7 +166,7 @@ async function updateOrgSubscription(orgId: string, subscription: Stripe.Subscri
   const plan = VALID_PLANS.includes(rawPlan as typeof VALID_PLANS[number]) ? rawPlan : 'standard';
 
   if (rawPlan !== plan) {
-    console.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in subscription metadata, defaulting to "standard"`);
+    logger.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in subscription metadata, defaulting to "standard"`);
   }
   const status = mapStripeStatus(subscription.status);
 
@@ -198,7 +199,7 @@ async function updateOrgSubscription(orgId: string, subscription: Stripe.Subscri
     details: { status, plan },
   });
 
-  console.log(`[Stripe Webhook] Subscription updated for org ${orgId}: ${status}, plan: ${plan}`);
+  logger.info(`[Stripe Webhook] Subscription updated for org ${orgId}: ${status}, plan: ${plan}`);
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -239,7 +240,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     details: { customerId },
   });
 
-  console.log(`[Stripe Webhook] Subscription canceled for org ${org.id}`);
+  logger.info(`[Stripe Webhook] Subscription canceled for org ${org.id}`);
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
@@ -265,7 +266,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     details: { customerId },
   });
 
-  console.log(`[Stripe Webhook] Payment failed for customer ${customerId}`);
+  logger.info(`[Stripe Webhook] Payment failed for customer ${customerId}`);
 }
 
 function mapStripeStatus(

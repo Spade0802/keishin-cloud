@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import { isBillingBypassed, PLANS } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -110,7 +111,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('[Admin Billing] GET error:', error);
+    logger.error('[Admin Billing] GET error:', error);
     return NextResponse.json({ error: '課金情報の取得に失敗しました' }, { status: 500 });
   }
 }
@@ -135,7 +136,8 @@ export async function PUT(request: Request) {
   let body: { organizationId: string; action: string; plan?: string };
   try {
     body = await request.json();
-  } catch {
+  } catch (error) {
+    logger.warn('[Admin Billing] JSON parse error:', error);
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 });
   }
 
@@ -172,7 +174,7 @@ export async function PUT(request: Request) {
             updatedAt: new Date(),
           })
           .where(eq(organizations.id, organizationId));
-        console.log(`[Admin Billing] Activated ${org.name} to ${targetPlan} by admin ${admin.id}`);
+        logger.info(`[Admin Billing] Activated ${org.name} to ${targetPlan} by admin ${admin.id}`);
         break;
       }
 
@@ -190,7 +192,7 @@ export async function PUT(request: Request) {
             updatedAt: new Date(),
           })
           .where(eq(organizations.id, organizationId));
-        console.log(`[Admin Billing] Changed ${org.name} plan to ${plan} by admin ${admin.id}`);
+        logger.info(`[Admin Billing] Changed ${org.name} plan to ${plan} by admin ${admin.id}`);
         break;
       }
 
@@ -200,7 +202,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Admin Billing] PUT error:', error);
+    logger.error('[Admin Billing] PUT error:', error);
     return NextResponse.json({ error: 'プラン変更に失敗しました' }, { status: 500 });
   }
 }

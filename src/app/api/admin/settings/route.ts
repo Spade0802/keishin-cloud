@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { systemSettings, users } from '@/lib/db/schema';
 import { getAllSettings, invalidateSettingsCache } from '@/lib/settings';
 import { getCacheStats, clearAnalysisCache } from '@/lib/ai-cache';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -124,7 +125,8 @@ export async function PUT(request: Request) {
   let body: Record<string, string>;
   try {
     body = await request.json();
-  } catch {
+  } catch (error) {
+    logger.warn('[Admin Settings] JSON parse error:', error);
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 });
   }
 

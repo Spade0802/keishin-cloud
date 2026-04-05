@@ -20,6 +20,7 @@ import {
   CURRENT_TABLE_VERSION,
   type ReferenceTables,
 } from '@/lib/score-table-checker';
+import { logger } from '@/lib/logger';
 import type { Bracket } from '@/lib/engine/score-tables';
 
 // ---------------------------------------------------------------------------
@@ -61,8 +62,9 @@ export async function GET() {
       .where(eq(systemSettings.key, SETTING_KEY_LAST_VERIFIED))
       .then((rows) => rows[0]);
     lastVerified = row?.value ?? null;
-  } catch {
+  } catch (error) {
     // テーブルが存在しない場合など — 無視して null を返す
+    logger.warn('[Score Table Check] Failed to fetch last verified date:', error);
   }
 
   return NextResponse.json({
@@ -120,7 +122,8 @@ export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
     body = await request.json();
-  } catch {
+  } catch (error) {
+    logger.warn('[Score Table Check] JSON parse error:', error);
     return NextResponse.json(
       { error: '不正なリクエスト: JSON パースエラー' },
       { status: 400 }
@@ -185,8 +188,9 @@ export async function POST(request: Request) {
           updatedBy: admin.id,
         },
       });
-  } catch {
+  } catch (error) {
     // 記録失敗は致命的ではない — レスポンスは返す
+    logger.warn('[Score Table Check] Failed to save last verified date:', error);
   }
 
   return NextResponse.json(result);

@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { stripe, isBillingBypassed, getStripePriceId } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
     // Validate baseUrl to prevent open redirect
     const isValidBaseUrl = rawBaseUrl.startsWith('https://') || rawBaseUrl.startsWith('http://localhost');
     if (!isValidBaseUrl) {
-      console.error('[Stripe] Invalid NEXT_PUBLIC_URL:', rawBaseUrl);
+      logger.error('[Stripe] Invalid NEXT_PUBLIC_URL:', rawBaseUrl);
       return NextResponse.json(
         { error: 'サーバー設定エラーです。管理者にお問い合わせください。' },
         { status: 500 }
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (error) {
-    console.error('[Stripe] Checkout session error:', error);
+    logger.error('[Stripe] Checkout session error:', error);
     return NextResponse.json(
       { error: 'チェックアウトセッションの作成に失敗しました' },
       { status: 500 }

@@ -5,6 +5,7 @@
  */
 import { db } from '@/lib/db';
 import { auditLogs } from '@/lib/db/schema';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // アクション定数
@@ -82,6 +83,6 @@ export function logAudit(params: LogAuditParams): void {
       ipAddress: params.ipAddress ?? null,
     })
     .catch((err) => {
-      console.error('[AuditLog] Failed to write audit log:', err);
+      logger.error('[AuditLog] Failed to write audit log:', err);
     });
 }

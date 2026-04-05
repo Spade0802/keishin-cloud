@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { getUsers } from '@/lib/admin/data';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -43,7 +44,7 @@ export async function GET() {
     const userList = await getUsers();
     return NextResponse.json({ users: userList });
   } catch (err) {
-    console.error('[admin/users] GET error:', err);
+    logger.error('[admin/users] GET error:', err);
     return NextResponse.json({ error: '内部エラーが発生しました' }, { status: 500 });
   }
 }
@@ -102,7 +103,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ error: '不明なアクションです' }, { status: 400 });
   } catch (err) {
-    console.error('[admin/users] PATCH error:', err);
+    logger.error('[admin/users] PATCH error:', err);
     return NextResponse.json({ error: '内部エラーが発生しました' }, { status: 500 });
   }
 }

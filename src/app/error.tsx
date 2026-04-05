@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export default function RootError({
   error,
@@ -13,7 +14,7 @@ export default function RootError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Root error boundary caught:', error);
+    logger.error('Root error boundary caught:', error);
   }, [error]);
 
   return (

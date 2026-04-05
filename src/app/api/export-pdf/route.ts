@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { generatePdfReport } from '@/lib/pdf-report';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('PDF export failed:', error);
+    logger.error('PDF export failed:', error);
     return NextResponse.json(
       { error: 'PDF生成に失敗しました' },
       { status: 500 }

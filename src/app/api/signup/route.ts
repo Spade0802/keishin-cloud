@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { RateLimiter } from '@/lib/rate-limiter';
 import { isValidEmail, sanitizeString } from '@/lib/security';
+import { logger } from '@/lib/logger';
 
 /** サインアップ: 1 IPあたり 1 分間 3 リクエスト */
 const signupLimiter = new RateLimiter({
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
       },
     );
   } catch (error) {
-    console.error('[signup] Account creation failed:', error);
+    logger.error('[signup] Account creation failed:', error);
     return NextResponse.json(
       { error: 'アカウント作成に失敗しました' },
       { status: 500 }

@@ -8,6 +8,7 @@ import {
   setCachedAnalysis,
 } from '@/lib/ai-cache';
 import { aiAnalysisLimiter } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 /** POST /api/ai-analysis — AI分析レポートを生成 */
 export async function POST(req: NextRequest) {
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
   let body: AnalysisInput;
   try {
     body = await req.json();
-  } catch {
+  } catch (error) {
+    logger.warn('[ai-analysis] JSON parse error:', error);
     return NextResponse.json(
       { error: 'リクエストの形式が不正です' },
       { status: 400 },
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     // エラーはキャッシュしない
-    console.error('[ai-analysis] Gemini error:', err);
+    logger.error('[ai-analysis] Gemini error:', err);
     return NextResponse.json(
       {
         error:

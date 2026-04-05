@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { isBillingBypassed, PLANS } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -76,7 +77,7 @@ export async function GET() {
       hasSubscription: !!org.stripeSubscriptionId,
     });
   } catch (error) {
-    console.error('[Stripe] Subscription query error:', error);
+    logger.error('[Stripe] Subscription query error:', error);
     return NextResponse.json(
       { error: 'サブスクリプション情報の取得に失敗しました' },
       { status: 500 }

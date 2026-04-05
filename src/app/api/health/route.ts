@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,8 @@ export async function GET() {
   let dbStatus: 'ok' | 'error' = 'ok';
   try {
     await db.execute(sql`SELECT 1`);
-  } catch {
+  } catch (error) {
+    logger.error('[Health] DB connectivity check failed:', error);
     dbStatus = 'error';
   }
 

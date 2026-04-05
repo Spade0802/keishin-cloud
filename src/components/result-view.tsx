@@ -33,6 +33,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip';
 import { showToast } from '@/components/ui/toast';
+import { logger } from '@/lib/logger';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
 import { KeishinPLTable } from '@/components/keishin-pl-table';
@@ -354,7 +355,7 @@ export function ResultView(props: ResultViewProps) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Excel download failed:', err);
+      logger.error('Excel download failed:', err);
       showToast(err instanceof Error ? err.message : 'Excelダウンロードに失敗しました', 'error');
     } finally {
       setExcelLoading(false);
@@ -388,7 +389,7 @@ export function ResultView(props: ResultViewProps) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('PDF download failed:', err);
+      logger.error('PDF download failed:', err);
       showToast(err instanceof Error ? err.message : 'PDFダウンロードに失敗しました', 'error');
     } finally {
       setPdfLoading(false);

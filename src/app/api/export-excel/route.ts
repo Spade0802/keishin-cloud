@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { generatePScoreExcel } from '@/lib/excel-export';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Excel export failed:', error);
+    logger.error('Excel export failed:', error);
     return NextResponse.json(
       { error: 'Excel生成に失敗しました' },
       { status: 500 }

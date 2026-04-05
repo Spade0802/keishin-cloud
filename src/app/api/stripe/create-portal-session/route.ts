@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { stripe, isBillingBypassed } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: portalSession.url });
   } catch (error) {
-    console.error('[Stripe] Portal session error:', error);
+    logger.error('[Stripe] Portal session error:', error);
     return NextResponse.json(
       { error: 'ポータルセッションの作成に失敗しました' },
       { status: 500 }

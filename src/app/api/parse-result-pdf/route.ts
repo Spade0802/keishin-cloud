@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractResultPdfWithGemini, type ResultPdfScores } from '@/lib/gemini-extractor';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 // Document AI設定（フォールバック用）
 const PROJECT_ID = process.env.GCP_PROJECT_ID || 'jww-dxf-converter';
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (geminiErr) {
-      console.warn('Gemini result PDF extraction failed, falling back to Document AI:', geminiErr);
+      logger.warn('Gemini result PDF extraction failed, falling back to Document AI:', geminiErr);
     }
 
     // 2) フォールバック: Document AI + regex
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
       });
       fullText = result.document?.text || '';
     } catch (docaiErr) {
-      console.warn('Document AI failed:', docaiErr);
+      logger.warn('Document AI failed:', docaiErr);
     }
 
     if (!fullText) {
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
       method: 'Document AI',
     });
   } catch (error) {
-    console.error('Result PDF parse failed:', error);
+    logger.error('Result PDF parse failed:', error);
     return NextResponse.json(
       { error: '結果通知書の解析に失敗しました' },
       { status: 500 }

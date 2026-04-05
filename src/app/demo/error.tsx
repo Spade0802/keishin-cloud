@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export default function DemoError({
   error,
@@ -13,7 +14,7 @@ export default function DemoError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Demo error boundary caught:', error);
+    logger.error('Demo error boundary caught:', error);
   }, [error]);
 
   return (
