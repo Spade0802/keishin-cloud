@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Loader2,
   FileText,
+  Download,
 } from 'lucide-react';
 
 interface AuditLogEntry {
@@ -71,6 +72,29 @@ export default function AdminAuditLogsPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function exportCsv() {
+    const header = ['日時', 'ユーザー名', 'メール', 'アクション', 'リソース', 'リソースID', 'IPアドレス', '詳細'];
+    const escapeCell = (val: string) => `"${val.replace(/"/g, '""')}"`;
+    const rows = logs.map((log) => [
+      new Date(log.createdAt).toLocaleString('ja-JP'),
+      log.userName || 'システム',
+      log.userEmail || '',
+      ACTION_LABELS[log.action]?.label || log.action,
+      log.resource || '',
+      log.resourceId || '',
+      log.ipAddress || '',
+      log.details ? JSON.stringify(log.details) : '',
+    ].map(escapeCell).join(','));
+    const csv = '\uFEFF' + [header.map(escapeCell).join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -134,10 +158,16 @@ export default function AdminAuditLogsPage() {
           <FileText className="h-5 w-5 text-muted-foreground" />
           <h2 className="text-xl font-bold">監査ログ</h2>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
-          <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-          更新
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={logs.length === 0}>
+            <Download className="h-3 w-3 mr-1" />
+            CSVエクスポート
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+            更新
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -206,13 +236,14 @@ export default function AdminAuditLogsPage() {
                   <th className="pb-2 pr-4 font-medium">ユーザー</th>
                   <th className="pb-2 pr-4 font-medium">アクション</th>
                   <th className="pb-2 pr-4 font-medium">リソース</th>
+                  <th className="pb-2 pr-4 font-medium">IP</th>
                   <th className="pb-2 font-medium">詳細</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
                       監査ログがありません
                     </td>
                   </tr>
@@ -258,6 +289,9 @@ export default function AdminAuditLogsPage() {
                       {!log.resource && (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </td>
+                    <td className="py-3 pr-4 text-xs font-mono text-muted-foreground">
+                      {log.ipAddress || '-'}
                     </td>
                     <td className="py-3 text-xs">
                       {log.details ? (

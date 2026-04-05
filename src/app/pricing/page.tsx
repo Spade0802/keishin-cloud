@@ -239,7 +239,7 @@ export default function PricingPage() {
               <details key={i} className="group rounded-lg border p-4">
                 <summary className="cursor-pointer font-medium text-sm list-none flex items-center justify-between">
                   {faq.q}
-                  <span className="text-muted-foreground group-open:rotate-180 transition">
+                  <span className="text-muted-foreground group-open:rotate-180 transition" aria-hidden="true">
                     &#9660;
                   </span>
                 </summary>

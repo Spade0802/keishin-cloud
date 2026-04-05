@@ -4,8 +4,8 @@
 
 ## Status
 - Total issues: 82 (P0: 14, P1: 26, P2: 27, P3: 15)
-- Fixed: 24 (Cycle 1: 13, Cycle 2: 6, Cycle 3: 5)
-- Next PDCA cycle: 01:00 JST
+- Fixed: 28 (Cycle 1: 13, Cycle 2: 6, Cycle 3: 5, Cycle 10: 4)
+- Next PDCA cycle: 02:00 JST
 
 ## Priority Queue (P0 → P3)
 
@@ -15,13 +15,13 @@
 - [x] SEC-2: Seed-admin endpoint available in production ✅ Cycle 1
 - [x] SEC-3: API routes not in auth middleware matcher ✅ Cycle 1
 - [x] DATA-1: Prime contract mapped to subcontract field ✅ Cycle 1
-- [ ] CODE-1: X1 score table non-monotonic anomaly at high brackets (score-tables.ts) - verify against official table
-- [ ] CODE-2: W6 R&D formula incorrect - should use revenue ratio, not fixed amount (p-calculator.ts:123)
-- [ ] CODE-3: No unit tests for scoring engine (entire src/)
-- [ ] PERF-1: 5-15 Gemini API calls per PDF upload (gemini-extractor.ts) - reduce to 3
+- [ ] CODE-1: X1 score table non-monotonic anomaly at high brackets (score-tables.ts) - ⚠️ 要国交省告示照合 Cycle 10で注釈追加
+- [x] CODE-2: W6 R&D formula incorrect - should use revenue ratio, not fixed amount ✅ Cycle 10
+- [x] CODE-3: No unit tests for scoring engine (92 tests) ✅ Cycle 10
+- [x] PERF-1: 5-15 Gemini API calls per PDF → 1-3 calls ✅ Cycle 10
 - [x] CODE-4: Webhook 200→500 on failure ✅ Cycle 3
 - [x] UX-1: Step validation ✅ Cycle 2
-- [ ] CODE-5: Untyped JSON.parse of Gemini AI response - need Zod validation (ai-analysis.ts:110)
+- [x] CODE-5: Zod validation for Gemini AI response ✅ Cycle 10
 - [x] DOMAIN-1: W items default insurance=true ✅ Cycle 2
 - [x] DOMAIN-2: P点端数Math.round→floor ✅ Cycle 2
 - [x] DOMAIN-3: 下請完工高→元請完成工事高 ✅ Cycle 2
@@ -112,3 +112,4 @@
 | 1 | 00:35 | 13 (SEC-1~6, DATA-1~7) | e2f91e7 |
 | 2 | 00:55 | 6 (DOMAIN-1~3, UX-1,2,5) | 8b02a52 |
 | 3 | 01:10 | 5 (CODE-4, PERF-2~3, UX-4,7) | 59a61c1 |
+| 10 | 00:55 | 4 (CODE-2,3,5, PERF-1) | pending |

@@ -112,7 +112,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Checkout Session 作成
-    const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+    const rawBaseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+    // Validate baseUrl to prevent open redirect
+    const isValidBaseUrl = rawBaseUrl.startsWith('https://') || rawBaseUrl.startsWith('http://localhost');
+    if (!isValidBaseUrl) {
+      console.error('[Stripe] Invalid NEXT_PUBLIC_URL:', rawBaseUrl);
+      return NextResponse.json(
+        { error: 'サーバー設定エラーです。管理者にお問い合わせください。' },
+        { status: 500 }
+      );
+    }
+    const baseUrl = rawBaseUrl;
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',

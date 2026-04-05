@@ -120,11 +120,19 @@ export function calculateW(items: SocialItems): {
   w5 += items.secondClassAccountants * 1;
 
   // W6: 研究開発費
+  // 研究開発費(2年平均) ÷ 完成工事高(2年平均) × 100 の比率で評点化
   let w6 = 0;
-  if (items.rdExpense2YearAvg > 0) {
-    // 研究開発費÷売上高×100 で評点化
-    // 簡易的に金額ベースで加点
-    w6 = Math.min(25, Math.floor(items.rdExpense2YearAvg / 10000));
+  if (
+    items.rdExpense2YearAvg > 0 &&
+    items.completionAmount2YearAvg != null &&
+    items.completionAmount2YearAvg > 0
+  ) {
+    const rdRatio =
+      (items.rdExpense2YearAvg / items.completionAmount2YearAvg) * 100;
+    if (rdRatio >= 5) w6 = 25;
+    else if (rdRatio >= 3) w6 = 15;
+    else if (rdRatio >= 1) w6 = 5;
+    // rdRatio < 1 → 0点
   }
 
   // W7: 建設機械保有

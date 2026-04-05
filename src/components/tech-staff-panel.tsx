@@ -169,7 +169,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
     () =>
       Object.entries(QUALIFICATION_MULTIPLIERS).map(([code, info]) => ({
         code,
-        label: `${code}: ${info.name} (${info.grade} x${info.multiplier})`,
+        label: `${info.name} (${info.grade} x${info.multiplier})`,
         name: info.name,
       })),
     []

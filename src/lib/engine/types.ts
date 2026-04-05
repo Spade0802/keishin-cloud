@@ -275,6 +275,7 @@ export interface SocialItems {
   firstClassAccountants: number;
   secondClassAccountants: number;
   rdExpense2YearAvg: number;
+  completionAmount2YearAvg?: number;
   constructionMachineCount: number;
   iso9001: boolean;
   iso14001: boolean;

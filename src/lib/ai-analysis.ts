@@ -6,8 +6,102 @@
  *
  * Vertex AI（無料）と Google AI Studio APIキー（有料）の両方に対応。
  */
+import { z } from 'zod';
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
 import { getGeminiModel, isRateLimitError } from './gemini-client';
+
+// ── Zod schema for AI response validation ──
+
+const ReclassificationItemSchema = z.object({
+  no: z.number(),
+  item: z.string(),
+  currentTreatment: z.string(),
+  alternativePlan: z.string(),
+  legality: z.string(),
+  requiredDocuments: z.string(),
+  yImpact: z.string(),
+  xImpact: z.string(),
+  zImpact: z.string(),
+  wImpact: z.string(),
+  pImpact: z.string(),
+  assessment: z.enum(['採用余地あり', '要確認', '非推奨', '—']).catch('要確認'),
+  risk: z.string(),
+  affectedFields: z.record(z.string(), z.number()).optional().default({}),
+}).passthrough();
+
+const SimulationScoresSchema = z.object({
+  y: z.number(),
+  x2: z.number(),
+  z: z.record(z.string(), z.number()),
+  w: z.number(),
+  p: z.record(z.string(), z.number()),
+}).passthrough();
+
+const SimulationCaseSchema = z.object({
+  label: z.string(),
+  description: z.string(),
+  assumptions: z.record(z.string(), z.string()).catch({}),
+  scores: SimulationScoresSchema,
+}).passthrough();
+
+const ItemAssessmentSchema = z.object({
+  category: z.enum(['confirmed', 'reviewable', 'insufficientBasis', 'shouldNotDo']).catch('reviewable'),
+  item: z.string(),
+  currentPImpact: z.string(),
+  revisedPImpact: z.string(),
+  action: z.string(),
+}).passthrough();
+
+const RiskPointSchema = z.object({
+  topic: z.string(),
+  riskContent: z.string(),
+  severity: z.enum(['高', '中', '低']).catch('中'),
+  response: z.string(),
+}).passthrough();
+
+const ImpactRankingItemSchema = z.object({
+  rank: z.number(),
+  item: z.string(),
+  pImpact: z.string(),
+  comment: z.string(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional().default('medium'),
+  difficultyLabel: z.string().optional(),
+}).passthrough();
+
+const ChecklistItemSchema = z.object({
+  item: z.string(),
+  target: z.string(),
+}).passthrough();
+
+const AccountMappingSuggestionSchema = z.object({
+  accountName: z.string(),
+  currentMapping: z.string(),
+  suggestedMapping: z.string(),
+  rationale: z.string(),
+  pImpact: z.string(),
+  yImpact: z.string(),
+  risk: z.enum(['low', 'medium', 'high']).catch('medium'),
+  assessment: z.enum(['採用余地あり', '要確認', '非推奨']).catch('要確認'),
+}).passthrough();
+
+const TrendInsightsSchema = z.object({
+  overallTrend: z.string(),
+  keyChanges: z.array(z.string()),
+  riskFromTrend: z.string(),
+}).passthrough();
+
+const AnalysisResultSchema = z.object({
+  reclassificationReview: z.array(ReclassificationItemSchema).catch([]),
+  simulationComparison: z.array(SimulationCaseSchema).catch([]),
+  itemAssessments: z.array(ItemAssessmentSchema).catch([]),
+  riskPoints: z.array(RiskPointSchema).catch([]),
+  impactRanking: z.array(ImpactRankingItemSchema).optional().default([]),
+  checklistItems: z.array(ChecklistItemSchema).optional().default([]),
+  accountMappingSuggestions: z.array(AccountMappingSuggestionSchema).optional().default([]),
+  trendInsights: TrendInsightsSchema.optional(),
+  summary: z.string().catch('（サマリーの生成に失敗しました）'),
+  disclaimer: z.string().optional().default(''),
+}).passthrough();
 
 /** Gemini にリクエストを送り、4セクションの分析レポートを取得する */
 export async function generatePPointAnalysis(
@@ -74,22 +168,31 @@ export async function generatePPointAnalysis(
     }
   }
 
-  const parsed = JSON.parse(jsonText) as AnalysisResult;
+  let rawParsed: unknown;
+  try {
+    rawParsed = JSON.parse(jsonText);
+  } catch (e) {
+    console.error('[ai-analysis] JSON parse failed:', (e as Error).message);
+    console.error('[ai-analysis] Raw text (first 500 chars):', jsonText.slice(0, 500));
+    throw new Error('Gemini の応答を JSON としてパースできませんでした');
+  }
 
-  // 新フィールドのデフォルト値（旧モデル出力との互換性）
-  if (!parsed.impactRanking) parsed.impactRanking = [];
-  if (!parsed.checklistItems) parsed.checklistItems = [];
-  if (!parsed.accountMappingSuggestions) parsed.accountMappingSuggestions = [];
+  const validationResult = AnalysisResultSchema.safeParse(rawParsed);
+  if (!validationResult.success) {
+    console.error('[ai-analysis] Zod validation failed:', JSON.stringify(validationResult.error.issues, null, 2));
+    throw new Error(
+      `Gemini の応答が期待する形式と一致しません: ${validationResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+    );
+  }
 
-  // impactRanking の difficulty デフォルト値（旧モデル出力との互換性）
+  const parsed = validationResult.data as AnalysisResult;
+
+  // impactRanking の difficultyLabel デフォルト値
   for (const item of parsed.impactRanking) {
-    if (!item.difficulty) item.difficulty = 'medium';
     if (!item.difficultyLabel) {
       item.difficultyLabel = item.difficulty === 'easy' ? '簡単' : item.difficulty === 'hard' ? '困難' : '普通';
     }
   }
-
-  // trendInsights が無い場合は undefined のまま（表示側でハンドリング）
 
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
