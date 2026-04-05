@@ -165,6 +165,90 @@ const INDUSTRY_CODES = [
   { code: '29', name: '解体工事' },
 ] as const;
 
+// Industry code groups for categorised display
+const INDUSTRY_GROUPS = [
+  { label: '一式工事（2種）', codes: ['01', '02'] },
+  { label: '専門工事（27種）', codes: ['03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29'] },
+] as const;
+
+/**
+ * Format a value in 千円 (thousands of yen) to a human-readable Japanese string.
+ * e.g. 100000 (= 1億円) → "= 1億円", 12000 → "= 1,200万円", 123456 → "= 1億2,345万6千円"
+ */
+function formatSenYenHint(value: string): string | null {
+  const n = parseFloat(value);
+  if (isNaN(n) || n === 0) return null;
+  // value is in 千円, so actual yen = n * 1000
+  const absN = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+
+  // absN is in 千円 units
+  const oku = Math.floor(absN / 100000); // 1億 = 100,000千円
+  const remainder = absN - oku * 100000;
+  const man = Math.floor(remainder / 10); // 1万 = 10千円
+  const sen = Math.floor(remainder - man * 10); // remaining 千円
+
+  if (absN < 10) return null; // too small to format
+  const parts: string[] = [];
+  if (oku > 0) parts.push(`${oku.toLocaleString()}億`);
+  if (man > 0) parts.push(`${man.toLocaleString()}万`);
+  if (sen > 0) parts.push(`${sen}千`);
+  if (parts.length === 0) return null;
+  return `= ${sign}${parts.join('')}円`;
+}
+
+/**
+ * Cross-step data consistency checks.
+ * Returns an array of warning strings for display in the validation summary.
+ */
+function checkCrossStepConsistency(
+  totalCapital: string,
+  equity: string,
+  sales: string,
+  industries: IndustryInput[],
+  wDetail: WDetail | null,
+  currentSocialItems: SocialItems | undefined,
+  techValueDetails: IndustryTechValue[],
+  numFn: (s: string) => number,
+): string[] {
+  const warnings: string[] = [];
+  const tc = numFn(totalCapital);
+  const eq = numFn(equity);
+  const sl = numFn(sales);
+
+  // 1. totalCapital should be >= equity
+  if (tc > 0 && eq > tc) {
+    warnings.push(`純資産合計(${eq.toLocaleString()}千円)が総資本(${tc.toLocaleString()}千円)を超えています。Step 1の値を確認してください。`);
+  }
+
+  // 2. sales should be >= each industry's completion amount
+  const validIndustries = industries.filter((ind) => ind.name);
+  for (const ind of validIndustries) {
+    const curr = numFn(ind.currCompletion);
+    if (sl > 0 && curr > sl) {
+      warnings.push(`${ind.name}の当期完成工事高(${curr.toLocaleString()}千円)がStep 1の売上高(${sl.toLocaleString()}千円)を超えています。`);
+    }
+  }
+
+  // 3. Tech staff count in W items should match actual staff entered in Step 3 panel
+  // W items techStaffCount is tracked in currentSocialItems?.techStaffCount
+  if (currentSocialItems && typeof currentSocialItems.techStaffCount === 'number' && currentSocialItems.techStaffCount > 0) {
+    // Count unique staff from techValueDetails
+    const uniqueStaffNames = new Set<string>();
+    for (const detail of techValueDetails) {
+      for (const b of detail.breakdown) {
+        uniqueStaffNames.add(b.staffName);
+      }
+    }
+    const actualStaffCount = uniqueStaffNames.size;
+    if (actualStaffCount > 0 && currentSocialItems.techStaffCount !== actualStaffCount) {
+      warnings.push(`W項目の技術職員数(${currentSocialItems.techStaffCount}名)とStep 3で入力した技術職員数(${actualStaffCount}名)が一致しません。`);
+    }
+  }
+
+  return warnings;
+}
+
 // INDUSTRY_W_DEFAULTS, getIndustryWDefaults, getFinancialFieldWarning
 // are imported from @/lib/input-wizard-validation
 
@@ -282,7 +366,8 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
           <div ref={listRef} id={listId} role="listbox" aria-label="業種一覧" className="max-h-48 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-3 py-2 text-xs text-muted-foreground">該当する業種がありません</div>
-            ) : (
+            ) : search ? (
+              // When searching, show flat list (no groups)
               filtered.map((item, idx) => (
                 <button
                   key={item.code}
@@ -299,6 +384,41 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
                   {item.name}
                 </button>
               ))
+            ) : (
+              // When not searching, show grouped by category
+              (() => {
+                let globalIdx = 0;
+                return INDUSTRY_GROUPS.map((group) => {
+                  const groupItems = filtered.filter((item) => (group.codes as readonly string[]).includes(item.code));
+                  if (groupItems.length === 0) return null;
+                  return (
+                    <div key={group.label}>
+                      <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                        {group.label}
+                      </div>
+                      {groupItems.map((item) => {
+                        const idx = globalIdx++;
+                        return (
+                          <button
+                            key={item.code}
+                            id={`industry-option-${item.code}`}
+                            type="button"
+                            role="option"
+                            aria-selected={value === item.name}
+                            onClick={() => { onChange(item.name); setOpen(false); setSearch(''); }}
+                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground transition-colors ${
+                              value === item.name ? 'bg-accent/50 font-medium' : ''
+                            } ${idx === highlightIndex ? 'bg-accent text-accent-foreground' : ''}`}
+                          >
+                            <span className="font-mono text-muted-foreground mr-1.5">{item.code}</span>
+                            {item.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                });
+              })()
             )}
           </div>
           {value && (
@@ -386,6 +506,10 @@ function numField(
         <Input id={fieldId} type="number" value={value} onChange={(e) => onChange(e.target.value)} className={`text-right text-sm h-10 sm:h-8 ${warning ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`} />
         <span className="text-xs text-muted-foreground whitespace-nowrap w-8">{unit}</span>
       </div>
+      {unit === '千円' && (() => {
+        const hint = formatSenYenHint(value);
+        return hint ? <p className="text-[10px] text-muted-foreground font-mono">{hint}</p> : null;
+      })()}
       {warning && (
         <p className={`text-[10px] ${warning.level === 'warning' ? 'text-amber-600' : 'text-blue-600'}`}>
           {warning.message}
@@ -597,45 +721,70 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     if (stepError) { setStepError(null); setStepErrorField(null); }
   }
 
-  function validateStep(current: number): boolean {
+  /** Returns the error field name if validation fails, or null if valid. */
+  function validateStep(current: number): string | null {
     if (current === 1) {
       const salesNum = parseFloat(sales);
       if (!sales || isNaN(salesNum) || salesNum <= 0) {
         setStepError('完成工事高（売上高）は必須です。0より大きい値を入力してください。');
         setStepErrorField('sales');
-        return false;
+        return 'sales';
       }
       const tc = num(totalCapital);
       if (tc <= 0) {
         setStepError('総資本（総資産）は必須です。0より大きい値を入力してください。Y点の計算に必要です。');
         setStepErrorField('totalCapital');
-        return false;
+        return 'totalCapital';
       }
       setStepError(null);
       setStepErrorField(null);
-      return true;
+      return null;
     }
     if (current === 2) {
       const validIndustries = industries.filter((ind) => ind.name && num(ind.currCompletion) > 0);
       if (validIndustries.length === 0) {
         setStepError('業種を1つ以上入力してください。業種名と当年度完工高（0より大きい値）が必要です。');
         setStepErrorField('industries');
-        return false;
+        return 'industries';
       }
       setStepError(null);
       setStepErrorField(null);
-      return true;
+      return null;
     }
-    return true;
+    return null;
+  }
+
+  function scrollToFirstError(fieldId?: string | null) {
+    requestAnimationFrame(() => {
+      // Try to find the specific error field first
+      if (fieldId) {
+        const fieldLabel = `numfield-${fieldId.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, '-')}`;
+        const el = document.getElementById(fieldLabel);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus({ preventScroll: true });
+          return;
+        }
+      }
+      // Fallback: find the first .text-destructive element
+      const errorEl = wizardTopRef.current?.querySelector('.text-destructive');
+      if (errorEl) {
+        errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
   }
 
   function handleNextStep() {
-    if (validateStep(step)) {
+    const errorField = validateStep(step);
+    if (errorField === null) {
       setStep(step + 1);
       // Scroll to top of the wizard when navigating between steps
       requestAnimationFrame(() => {
         wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
+    } else {
+      // Auto-scroll to the first error field
+      scrollToFirstError(errorField);
     }
   }
 
@@ -1950,6 +2099,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           {(() => {
             const sections: { name: string; warnings: string[] }[] = [];
 
+            // Cross-step consistency checks
+            const crossStepWarnings = checkCrossStepConsistency(
+              totalCapital, equity, sales, industries, wDetail, currentSocialItems, techValueDetails, num
+            );
+
             // Step 1: Financial data
             const finWarnings: string[] = [];
             if (!sales || num(sales) <= 0) finWarnings.push('完成工事高（売上高）が未入力');
@@ -1981,6 +2135,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             const prevWarnings: string[] = [];
             if (!prevData.totalCapital) prevWarnings.push('前期 総資本が未入力');
             sections.push({ name: 'Step 4: 前期データ', warnings: prevWarnings });
+
+            // Cross-step consistency
+            if (crossStepWarnings.length > 0) {
+              sections.push({ name: 'ステップ間整合性チェック', warnings: crossStepWarnings });
+            }
 
             const totalWarnings = sections.reduce((s, sec) => s + sec.warnings.length, 0);
             const hasWarnings = totalWarnings > 0;
