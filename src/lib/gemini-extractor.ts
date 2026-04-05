@@ -602,11 +602,86 @@ interface VerificationResult {
   }>;
 }
 
+// ── ヘルパー: Gemini 呼び出し結果からテキスト取得 ──
+function extractText(
+  result: PromiseSettledResult<{ response: { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } }>,
+): string {
+  if (result.status !== 'fulfilled') return '';
+  return result.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+// ── ヘルパー: 2つの業種抽出結果から合意値を選択 ──
+function consensusIndustries(
+  a: PassIndustriesResult | null,
+  b: PassIndustriesResult | null,
+): PassIndustriesResult['industries'] {
+  if (!a?.industries?.length && !b?.industries?.length) return [];
+  if (!a?.industries?.length) return b!.industries;
+  if (!b?.industries?.length) return a.industries;
+
+  // 両方ある場合: 業種数が多い方をベースにし、合意する値を採用
+  const base = a.industries.length >= b.industries.length ? a.industries : b.industries;
+  const other = a.industries.length >= b.industries.length ? b.industries : a.industries;
+
+  // codeでマッチング
+  const otherMap = new Map(other.map((i) => [i.code, i]));
+
+  return base.map((ind) => {
+    const match = otherMap.get(ind.code);
+    if (!match) return ind;
+
+    // 両方の値が一致（±10%以内）なら信頼度高 → そのまま
+    // 不一致なら大きい方を採用（列ずれの場合小さい方は2年前の値の可能性）
+    return {
+      name: ind.name,
+      code: ind.code,
+      prevCompletion: pickConsensus(ind.prevCompletion, match.prevCompletion),
+      currCompletion: pickConsensus(ind.currCompletion, match.currCompletion),
+      prevPrimeContract: pickConsensus(ind.prevPrimeContract, match.prevPrimeContract),
+      currPrimeContract: pickConsensus(ind.currPrimeContract, match.currPrimeContract),
+    };
+  });
+}
+
+/** 2つの値から合意値を選ぶ。一致なら確定、不一致なら両方ログして大きい方 */
+function pickConsensus(a: number, b: number): number {
+  if (a === b) return a;
+  // ±10%以内なら平均
+  if (a > 0 && b > 0 && Math.abs(a - b) / Math.max(a, b) < 0.1) {
+    return Math.round((a + b) / 2);
+  }
+  // 片方が0なら非0を採用
+  if (a === 0) return b;
+  if (b === 0) return a;
+  // 大幅に異なる場合は大きい方（列ずれで2年前の小さい値を拾っている可能性）
+  return Math.max(a, b);
+}
+
+/** 2つの基本情報結果から合意値を選ぶ */
+function consensusBasic(
+  a: PassBasicResult | null,
+  b: PassBasicResult | null,
+): PassBasicResult | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    companyName: a.companyName || b.companyName,
+    permitNumber: a.permitNumber || b.permitNumber,
+    reviewBaseDate: a.reviewBaseDate || b.reviewBaseDate,
+    periodNumber: a.periodNumber || b.periodNumber,
+    equity: pickConsensus(a.equity, b.equity),
+    ebitda: pickConsensus(a.ebitda, b.ebitda),
+    techStaffCount: pickConsensus(a.techStaffCount, b.techStaffCount),
+    businessYears: pickConsensus(a.businessYears, b.businessYears),
+  };
+}
+
 /**
- * Gemini Vision API で経審提出書 PDF からデータを抽出する（マルチパス方式）
+ * Gemini Vision API で経審提出書 PDF からデータを抽出する（多数決方式）
  *
- * Pass 1-3: セクション別に並列抽出
- * Pass 4: 抽出結果をPDFと照合して検証・修正
+ * 基本情報と業種を2回ずつ並列抽出し、合意する値を採用。
+ * W項目は1回で十分（boolean主体で安定している）。
+ * 最後に検証パスで照合。
  */
 export async function extractKeishinDataWithGemini(
   buffer: Buffer,
@@ -621,91 +696,84 @@ export async function extractKeishinDataWithGemini(
       },
     };
 
-    // ── Pass 1-3: 並列抽出 ──
-    const [basicResult, industriesResult, wItemsResult] = await Promise.allSettled([
-      model.generateContent({
-        contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_BASIC }] }],
-      }),
-      model.generateContent({
-        contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_INDUSTRIES }] }],
-      }),
-      model.generateContent({
-        contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_WITEMS }] }],
-      }),
+    // ── 5パス並列実行（基本×2, 業種×2, W項目×1）──
+    const [basic1, basic2, ind1, ind2, wResult] = await Promise.allSettled([
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_BASIC }] }] }),
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_BASIC }] }] }),
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_INDUSTRIES }] }] }),
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_INDUSTRIES }] }] }),
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_WITEMS }] }] }),
     ]);
 
     console.log(
-      'Keishin multi-pass results:',
-      `basic=${basicResult.status}, industries=${industriesResult.status}, wItems=${wItemsResult.status}`
+      'Keishin consensus extraction:',
+      `basic1=${basic1.status}, basic2=${basic2.status}, ind1=${ind1.status}, ind2=${ind2.status}, wItems=${wResult.status}`
     );
 
-    // 結果をマージ
+    // ── 基本情報: 2回の合意 ──
+    const parsedBasic1 = parseJsonResponse<PassBasicResult>(extractText(basic1));
+    const parsedBasic2 = parseJsonResponse<PassBasicResult>(extractText(basic2));
+    const basicConsensus = consensusBasic(parsedBasic1, parsedBasic2);
+
+    console.log('Basic A:', JSON.stringify(parsedBasic1).slice(0, 200));
+    console.log('Basic B:', JSON.stringify(parsedBasic2).slice(0, 200));
+
+    // ── 業種: 2回の合意 ──
+    const parsedInd1 = parseJsonResponse<PassIndustriesResult>(extractText(ind1));
+    const parsedInd2 = parseJsonResponse<PassIndustriesResult>(extractText(ind2));
+    const industriesConsensus = consensusIndustries(parsedInd1, parsedInd2);
+
+    console.log(
+      'Industries A:',
+      parsedInd1?.industries?.map((i) => `${i.name}(${i.code}):p=${i.prevCompletion},c=${i.currCompletion}`).join(', ') || 'null'
+    );
+    console.log(
+      'Industries B:',
+      parsedInd2?.industries?.map((i) => `${i.name}(${i.code}):p=${i.prevCompletion},c=${i.currCompletion}`).join(', ') || 'null'
+    );
+    console.log(
+      'Industries consensus:',
+      industriesConsensus.map((i) => `${i.name}(${i.code}):p=${i.prevCompletion},c=${i.currCompletion}`).join(', ')
+    );
+
+    // ── マージ ──
     const merged: KeishinGeminiResult = {
       basicInfo: { companyName: '', permitNumber: '', reviewBaseDate: '', periodNumber: '' },
       equity: 0,
       ebitda: 0,
       techStaffCount: 0,
-      industries: [],
+      industries: industriesConsensus,
       wItems: {},
       businessYears: 0,
     };
 
-    // Pass 1: 基本情報
-    if (basicResult.status === 'fulfilled') {
-      const text = basicResult.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const parsed = parseJsonResponse<PassBasicResult>(text);
-      if (parsed) {
-        merged.basicInfo.companyName = parsed.companyName || '';
-        merged.basicInfo.permitNumber = parsed.permitNumber || '';
-        merged.basicInfo.reviewBaseDate = parsed.reviewBaseDate || '';
-        merged.basicInfo.periodNumber = parsed.periodNumber || '';
-        merged.equity = parsed.equity || 0;
-        merged.ebitda = parsed.ebitda || 0;
-        merged.techStaffCount = parsed.techStaffCount || 0;
-        merged.businessYears = parsed.businessYears || 0;
-        console.log('Pass 1 (basic):', JSON.stringify(parsed).slice(0, 300));
-      }
-    } else {
-      console.error('Pass 1 (basic) failed:', basicResult.reason);
+    if (basicConsensus) {
+      merged.basicInfo.companyName = basicConsensus.companyName || '';
+      merged.basicInfo.permitNumber = basicConsensus.permitNumber || '';
+      merged.basicInfo.reviewBaseDate = basicConsensus.reviewBaseDate || '';
+      merged.basicInfo.periodNumber = basicConsensus.periodNumber || '';
+      merged.equity = basicConsensus.equity || 0;
+      merged.ebitda = basicConsensus.ebitda || 0;
+      merged.techStaffCount = basicConsensus.techStaffCount || 0;
+      merged.businessYears = basicConsensus.businessYears || 0;
     }
 
-    // Pass 2: 業種別完成工事高
-    if (industriesResult.status === 'fulfilled') {
-      const text = industriesResult.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const parsed = parseJsonResponse<PassIndustriesResult>(text);
-      if (parsed?.industries) {
-        merged.industries = parsed.industries;
-        console.log(
-          'Pass 2 (industries):',
-          parsed.industries.map((i) => `${i.name}(${i.code}): prev=${i.prevCompletion} curr=${i.currCompletion}`).join(', ')
-        );
+    // W項目
+    const parsedW = parseJsonResponse<Partial<SocialItems>>(extractText(wResult));
+    if (parsedW) {
+      merged.wItems = parsedW;
+      if (parsedW.techStaffCount && parsedW.techStaffCount > 0) {
+        merged.techStaffCount = parsedW.techStaffCount;
       }
-    } else {
-      console.error('Pass 2 (industries) failed:', industriesResult.reason);
+      if (parsedW.businessYears && parsedW.businessYears > 0) {
+        merged.businessYears = parsedW.businessYears;
+      }
     }
 
-    // Pass 3: W項目
-    if (wItemsResult.status === 'fulfilled') {
-      const text = wItemsResult.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const parsed = parseJsonResponse<Partial<SocialItems>>(text);
-      if (parsed) {
-        merged.wItems = parsed;
-        if (parsed.techStaffCount && parsed.techStaffCount > 0) {
-          merged.techStaffCount = parsed.techStaffCount;
-        }
-        if (parsed.businessYears && parsed.businessYears > 0) {
-          merged.businessYears = parsed.businessYears;
-        }
-        console.log('Pass 3 (wItems):', JSON.stringify(parsed).slice(0, 500));
-      }
-    } else {
-      console.error('Pass 3 (wItems) failed:', wItemsResult.reason);
-    }
-
-    // ── バリデーション＆自動補正（Pass 4 前） ──
+    // ── バリデーション ──
     validateAndCorrectKeishin(merged);
 
-    // ── Pass 4: 検証パス（抽出結果をPDFと照合） ──
+    // ── 検証パス（結果をPDFと照合） ──
     try {
       const verifyPrompt = buildVerificationPrompt(merged);
       const verifyResult = await model.generateContent({
@@ -715,46 +783,39 @@ export async function extractKeishinDataWithGemini(
       const verified = parseJsonResponse<VerificationResult>(verifyText);
 
       if (verified) {
-        console.log('Pass 4 (verification):', JSON.stringify(verified).slice(0, 500));
+        console.log('Verification:', JSON.stringify(verified).slice(0, 500));
 
-        // 検証結果で上書き（基本情報）
         if (verified.companyName) merged.basicInfo.companyName = verified.companyName;
         if (verified.permitNumber) merged.basicInfo.permitNumber = verified.permitNumber;
         if (verified.reviewBaseDate) merged.basicInfo.reviewBaseDate = verified.reviewBaseDate;
         if (verified.periodNumber) merged.basicInfo.periodNumber = verified.periodNumber;
-
-        // 数値（検証値が0でない場合のみ上書き）
         if (verified.equity > 0) merged.equity = verified.equity;
         if (verified.ebitda !== undefined) merged.ebitda = verified.ebitda;
         if (verified.techStaffCount > 0) merged.techStaffCount = verified.techStaffCount;
         if (verified.businessYears > 0) {
           merged.businessYears = verified.businessYears;
-          // W項目にも反映
           if (merged.wItems) {
             (merged.wItems as Record<string, unknown>).businessYears = verified.businessYears;
           }
         }
-
-        // 業種（検証結果にデータがあれば上書き）
-        if (verified.industries && verified.industries.length > 0) {
+        if (verified.industries?.length > 0) {
           merged.industries = verified.industries;
         }
 
-        // 検証後も自動補正を再実行
         validateAndCorrectKeishin(merged);
       }
     } catch (e) {
-      console.warn('Pass 4 (verification) failed, using unverified data:', e);
+      console.warn('Verification pass failed, using consensus data:', e);
     }
 
-    // 業種データの品質チェック
+    // 業種品質チェック
     if (merged.industries.length >= 2) {
       const vals = merged.industries.map(
         (ind) => `${ind.prevCompletion}-${ind.currCompletion}-${ind.prevPrimeContract}-${ind.currPrimeContract}`
       );
       const allSame = vals.every((v) => v === vals[0]);
       if (allSame && vals[0] !== '0-0-0-0') {
-        console.warn('Industries still identical after verification. Resetting.', vals[0]);
+        console.warn('Industries identical after consensus. Resetting.');
         for (const ind of merged.industries) {
           ind.prevCompletion = 0;
           ind.currCompletion = 0;
@@ -771,13 +832,13 @@ export async function extractKeishinDataWithGemini(
       Object.keys(merged.wItems).length > 0;
 
     if (!hasAnyData) {
-      console.warn('Multi-pass extraction returned no meaningful data');
+      console.warn('Consensus extraction returned no meaningful data');
       return null;
     }
 
-    return { data: merged, method: 'Gemini (multi-pass + verify)' };
+    return { data: merged, method: 'Gemini (consensus)' };
   } catch (e) {
-    console.error('Gemini keishin multi-pass extraction failed:', e);
+    console.error('Gemini keishin consensus extraction failed:', e);
     return null;
   }
 }
