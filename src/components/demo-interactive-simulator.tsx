@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Calculator, RotateCcw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Calculator, RotateCcw, TrendingUp, TrendingDown, Minus, Building2 } from 'lucide-react';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -89,6 +89,165 @@ const SOCIAL_ITEMS_BASE: SocialItems = {
   ecoAction21: false,
 };
 
+/** Preset scenarios */
+interface PresetScenario {
+  name: string;
+  description: string;
+  values: typeof DEFAULTS;
+  socialOverrides?: Partial<SocialItems>;
+}
+
+const PRESET_SMALL: typeof DEFAULTS = {
+  sales: 50000,
+  grossProfit: 8500,
+  ordinaryProfit: 2100,
+  interestExpense: 450,
+  interestDividendIncome: 50,
+  currentLiabilities: 12000,
+  fixedLiabilities: 5000,
+  totalCapital: 35000,
+  equity: 18000,
+  fixedAssets: 10000,
+  retainedEarnings: 12000,
+  corporateTax: 700,
+  depreciation: 1200,
+  allowanceDoubtful: 200,
+  notesAndReceivable: 8000,
+  constructionPayable: 5500,
+  inventoryAndMaterials: 800,
+  advanceReceived: 300,
+  prevCompletion: 45000,
+  currCompletion: 50000,
+  prevSubcontract: 15000,
+  currSubcontract: 18000,
+  techStaffValue: 8,
+  businessYears: 15,
+};
+
+const PRESET_LARGE: typeof DEFAULTS = {
+  sales: 15000000,
+  grossProfit: 2100000,
+  ordinaryProfit: 750000,
+  interestExpense: 45000,
+  interestDividendIncome: 12000,
+  currentLiabilities: 2800000,
+  fixedLiabilities: 1200000,
+  totalCapital: 8500000,
+  equity: 4500000,
+  fixedAssets: 3200000,
+  retainedEarnings: 3800000,
+  corporateTax: 250000,
+  depreciation: 120000,
+  allowanceDoubtful: 8000,
+  notesAndReceivable: 2200000,
+  constructionPayable: 1800000,
+  inventoryAndMaterials: 85000,
+  advanceReceived: 45000,
+  prevCompletion: 13500000,
+  currCompletion: 15000000,
+  prevSubcontract: 9500000,
+  currSubcontract: 10500000,
+  techStaffValue: 350,
+  businessYears: 60,
+};
+
+const PRESET_NEW: typeof DEFAULTS = {
+  sales: 120000,
+  grossProfit: 18000,
+  ordinaryProfit: 3500,
+  interestExpense: 1200,
+  interestDividendIncome: 100,
+  currentLiabilities: 25000,
+  fixedLiabilities: 15000,
+  totalCapital: 55000,
+  equity: 15000,
+  fixedAssets: 18000,
+  retainedEarnings: 5000,
+  corporateTax: 1200,
+  depreciation: 2000,
+  allowanceDoubtful: 300,
+  notesAndReceivable: 15000,
+  constructionPayable: 10000,
+  inventoryAndMaterials: 1500,
+  advanceReceived: 500,
+  prevCompletion: 100000,
+  currCompletion: 120000,
+  prevSubcontract: 30000,
+  currSubcontract: 40000,
+  techStaffValue: 12,
+  businessYears: 3,
+};
+
+const PRESETS: PresetScenario[] = [
+  {
+    name: '中小建設業',
+    description: '年商5千万円規模',
+    values: PRESET_SMALL,
+    socialOverrides: {
+      techStaffCount: 5,
+      youngTechCount: 1,
+      cpdTotalUnits: 30,
+      skillLevelUpCount: 0,
+      businessYears: 15,
+      constructionMachineCount: 1,
+      iso9001: false,
+      iso14001: false,
+    },
+  },
+  {
+    name: '中堅建設業',
+    description: '年商28億円規模（デフォルト）',
+    values: { ...DEFAULTS },
+  },
+  {
+    name: '大規模建設業',
+    description: '年商150億円規模',
+    values: PRESET_LARGE,
+    socialOverrides: {
+      techStaffCount: 180,
+      youngTechCount: 45,
+      cpdTotalUnits: 6500,
+      skillLevelUpCount: 25,
+      skilledWorkerCount: 60,
+      businessYears: 60,
+      constructionMachineCount: 15,
+      iso9001: true,
+      iso14001: true,
+      auditStatus: 4,
+      certifiedAccountants: 2,
+      firstClassAccountants: 3,
+    },
+  },
+  {
+    name: '新規参入',
+    description: '営業年数3年・年商1.2億円',
+    values: PRESET_NEW,
+    socialOverrides: {
+      techStaffCount: 8,
+      youngTechCount: 3,
+      cpdTotalUnits: 40,
+      skillLevelUpCount: 1,
+      businessYears: 3,
+      constructionMachineCount: 0,
+      iso9001: false,
+      iso14001: false,
+      constructionRetirementMutualAid: false,
+      retirementSystem: false,
+      disasterAgreement: false,
+      auditStatus: 0,
+    },
+  },
+];
+
+/** P score component weights for visual breakdown */
+const P_WEIGHTS = [
+  { key: 'X1' as const, weight: 0.25, label: 'X1 (完工高)' },
+  { key: 'X2' as const, weight: 0.15, label: 'X2 (自己資本・利益)' },
+  { key: 'Y' as const, weight: 0.20, label: 'Y (経営状況)' },
+  { key: 'Z' as const, weight: 0.25, label: 'Z (技術力)' },
+  { key: 'W' as const, weight: 0.15, label: 'W (社会性)' },
+];
+
 interface FieldDef {
   key: keyof typeof DEFAULTS;
   label: string;
@@ -154,11 +313,20 @@ function computeResult(values: typeof DEFAULTS) {
   const Z = calculateZ(z1, z2);
   const P = calculateP(X1, x2, yResult.Y, Z, wCalc.W);
 
-  return { P, X1, x2, Y: yResult.Y, Z, W: wCalc.W, ebitda };
+  const contributions = {
+    X1: 0.25 * X1,
+    X2: 0.15 * x2,
+    Y: 0.20 * yResult.Y,
+    Z: 0.25 * Z,
+    W: 0.15 * wCalc.W,
+  };
+
+  return { P, X1, x2, Y: yResult.Y, Z, W: wCalc.W, ebitda, contributions };
 }
 
 export function DemoInteractiveSimulator() {
   const [values, setValues] = useState({ ...DEFAULTS });
+  const [activePreset, setActivePreset] = useState<string>('中堅建設業');
 
   const baseResult = useMemo(() => computeResult(DEFAULTS), []);
   const currentResult = useMemo(() => {
@@ -173,16 +341,33 @@ export function DemoInteractiveSimulator() {
     const num = parseInt(raw.replace(/,/g, ''), 10);
     if (!isNaN(num)) {
       setValues((prev) => ({ ...prev, [key]: num }));
+      setActivePreset('');
     } else if (raw === '' || raw === '-') {
       setValues((prev) => ({ ...prev, [key]: 0 }));
+      setActivePreset('');
     }
   }
 
   function handleReset() {
     setValues({ ...DEFAULTS });
+    setActivePreset('中堅建設業');
+  }
+
+  function handlePreset(preset: PresetScenario) {
+    setValues({ ...preset.values });
+    setActivePreset(preset.name);
   }
 
   const pDiff = currentResult ? currentResult.P - baseResult.P : 0;
+
+  // Contribution breakdown for the bar chart
+  const contributionTotal = currentResult
+    ? currentResult.contributions.X1 +
+      currentResult.contributions.X2 +
+      currentResult.contributions.Y +
+      currentResult.contributions.Z +
+      currentResult.contributions.W
+    : 0;
 
   const groups = ['決算書', '業種', 'W項目'];
 
@@ -240,6 +425,91 @@ export function DemoInteractiveSimulator() {
           </div>
         </div>
       </div>
+
+      {/* Preset Scenarios */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+          <Building2 className="h-4 w-4" />
+          プリセットシナリオ
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PRESETS.map((preset) => (
+            <Button
+              key={preset.name}
+              variant={activePreset === preset.name ? 'default' : 'outline'}
+              size="sm"
+              className="h-auto py-2 flex flex-col items-start text-left"
+              onClick={() => handlePreset(preset)}
+            >
+              <span className="text-xs font-semibold">{preset.name}</span>
+              <span className="text-[10px] opacity-70">{preset.description}</span>
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contribution Breakdown Bar Chart */}
+      {currentResult && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <h3 className="text-sm font-semibold">P点 構成内訳</h3>
+          {/* Stacked bar */}
+          <div className="flex h-6 rounded-md overflow-hidden">
+            {P_WEIGHTS.map(({ key, label }, i) => {
+              const val = key === 'X2'
+                ? currentResult.contributions.X2
+                : currentResult.contributions[key];
+              const pct = contributionTotal > 0 ? (val / contributionTotal) * 100 : 20;
+              const colors = [
+                'bg-blue-500',
+                'bg-emerald-500',
+                'bg-amber-500',
+                'bg-purple-500',
+                'bg-rose-500',
+              ];
+              return (
+                <div
+                  key={key}
+                  className={`${colors[i]} transition-all duration-300`}
+                  style={{ width: `${pct}%` }}
+                  title={`${label}: ${Math.floor(val)}点`}
+                />
+              );
+            })}
+          </div>
+          {/* Legend with values */}
+          <div className="grid grid-cols-5 gap-2 text-xs">
+            {P_WEIGHTS.map(({ key, weight, label }, i) => {
+              const rawScore = key === 'X2' ? currentResult.x2 : currentResult[key];
+              const contribution = key === 'X2'
+                ? currentResult.contributions.X2
+                : currentResult.contributions[key];
+              const colors = [
+                'bg-blue-500',
+                'bg-emerald-500',
+                'bg-amber-500',
+                'bg-purple-500',
+                'bg-rose-500',
+              ];
+              const pct = contributionTotal > 0
+                ? ((contribution / contributionTotal) * 100).toFixed(1)
+                : '20.0';
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <div className={`h-2 w-2 rounded-full ${colors[i]}`} />
+                    <span className="text-muted-foreground">{key}</span>
+                  </div>
+                  <div className="font-mono font-bold">{Math.floor(contribution)}</div>
+                  <div className="text-muted-foreground">
+                    {rawScore} x {weight}
+                  </div>
+                  <div className="text-muted-foreground">{pct}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Input Fields */}
       <div className="space-y-4">
