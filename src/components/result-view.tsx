@@ -406,30 +406,30 @@ export function ResultView(props: ResultViewProps) {
         <div className="flex flex-wrap gap-2" data-print-hide>
           {!readOnly && (
             <>
-              <Button onClick={handleDownloadExcel} variant="outline" size="sm" disabled={excelLoading}>
+              <Button onClick={handleDownloadExcel} variant="outline" size="sm" disabled={excelLoading} aria-label="Excel形式でダウンロード">
                 {excelLoading ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 )}
                 <span className="hidden sm:inline">Excel</span>
               </Button>
-              <Button onClick={handleDownloadPDF} variant="outline" size="sm" disabled={pdfLoading}>
+              <Button onClick={handleDownloadPDF} variant="outline" size="sm" disabled={pdfLoading} aria-label="PDF形式でダウンロード">
                 {pdfLoading ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  <FileText className="mr-1.5 h-4 w-4" />
+                  <FileText className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 )}
                 <span className="hidden sm:inline">PDF</span>
               </Button>
             </>
           )}
-          <Button onClick={handleCopyToClipboard} variant="outline" size="sm">
-            <ClipboardCopy className="mr-1.5 h-4 w-4" />
+          <Button onClick={handleCopyToClipboard} variant="outline" size="sm" aria-label="結果をクリップボードにコピー">
+            <ClipboardCopy className="mr-1.5 h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">コピー</span>
           </Button>
-          <Button onClick={() => window.print()} variant="outline" size="sm">
-            <Printer className="mr-1.5 h-4 w-4" />
+          <Button onClick={() => window.print()} variant="outline" size="sm" aria-label="結果を印刷">
+            <Printer className="mr-1.5 h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">印刷</span>
           </Button>
         </div>
@@ -456,9 +456,9 @@ export function ResultView(props: ResultViewProps) {
               </CardHeader>
               <CardContent className="px-3 sm:px-6">
                 <Tooltip>
-                  <TooltipTrigger className="cursor-help inline-flex items-center gap-1">
+                  <TooltipTrigger className="cursor-help inline-flex items-center gap-1" aria-label={`${ind.name} P点: ${ind.P}点。詳細を表示`}>
                     <div className="text-3xl sm:text-4xl font-bold text-primary">{ind.P}</div>
-                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-left">
                     <p className="font-medium mb-1">P点の計算式</p>
@@ -564,16 +564,16 @@ export function ResultView(props: ResultViewProps) {
 
       {/* Detailed Tabs */}
       <Tabs defaultValue="industry" className="w-full">
-        <TabsList className="flex w-full overflow-x-auto text-xs sm:text-sm sm:grid sm:grid-cols-5">
-          <TabsTrigger value="industry">業種別P点</TabsTrigger>
-          <TabsTrigger value="scores">評点詳細</TabsTrigger>
-          <TabsTrigger value="bs-pl">決算書</TabsTrigger>
-          <TabsTrigger value="simulation" className="flex items-center gap-1">
-            <SlidersHorizontal className="h-3 w-3 hidden sm:block" />
+        <TabsList className="flex w-full overflow-x-auto text-xs sm:text-sm sm:grid sm:grid-cols-5" aria-label="結果詳細タブ">
+          <TabsTrigger value="industry" aria-label="業種別P点タブ">業種別P点</TabsTrigger>
+          <TabsTrigger value="scores" aria-label="評点詳細タブ">評点詳細</TabsTrigger>
+          <TabsTrigger value="bs-pl" aria-label="決算書タブ">決算書</TabsTrigger>
+          <TabsTrigger value="simulation" className="flex items-center gap-1" aria-label="シミュレーションタブ">
+            <SlidersHorizontal className="h-3 w-3 hidden sm:block" aria-hidden="true" />
             シミュレーション
           </TabsTrigger>
-          <TabsTrigger value="ai-analysis" className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3 hidden sm:block" />
+          <TabsTrigger value="ai-analysis" className="flex items-center gap-1" aria-label="AI分析タブ">
+            <Sparkles className="h-3 w-3 hidden sm:block" aria-hidden="true" />
             AI分析
           </TabsTrigger>
         </TabsList>
@@ -652,7 +652,7 @@ export function ResultView(props: ResultViewProps) {
                 <YRadarChart indicators={yResult.indicators} indicatorsRaw={yResult.indicatorsRaw} />
                 <Separator />
                 <details className="text-sm">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="営業キャッシュフロー明細の表示を切り替え">
                     営業キャッシュフロー明細を表示
                   </summary>
                   <div className="font-mono space-y-1 mt-3">

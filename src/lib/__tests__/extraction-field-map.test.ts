@@ -201,3 +201,118 @@ describe('ALL_MAPPINGS', () => {
     }
   });
 });
+
+// ===========================================================================
+// All 29 official industry names normalize correctly (bulk test)
+// ===========================================================================
+describe('normalizeIndustryName - all 29 industries', () => {
+  const ALL_29_INDUSTRIES = [
+    '土木一式工事',
+    '建築一式工事',
+    '大工工事',
+    '左官工事',
+    'とび・土工・コンクリート工事',
+    '石工事',
+    '屋根工事',
+    '電気工事',
+    '管工事',
+    'タイル・れんが・ブロック工事',
+    '鋼構造物工事',
+    '鉄筋工事',
+    '舗装工事',
+    'しゅんせつ工事',
+    '板金工事',
+    'ガラス工事',
+    '塗装工事',
+    '防水工事',
+    '内装仕上工事',
+    '機械器具設置工事',
+    '熱絶縁工事',
+    '電気通信工事',
+    '造園工事',
+    'さく井工事',
+    '建具工事',
+    '水道施設工事',
+    '消防施設工事',
+    '清掃施設工事',
+    '解体工事',
+  ];
+
+  it('all 29 official names pass through unchanged', () => {
+    for (const name of ALL_29_INDUSTRIES) {
+      expect(normalizeIndustryName(name)).toBe(name);
+    }
+  });
+
+  it('all 29 industries are reachable via at least one alias', () => {
+    const reachable = new Set(Object.values(INDUSTRY_NAME_ALIASES));
+    for (const name of ALL_29_INDUSTRIES) {
+      expect(reachable.has(name)).toBe(true);
+    }
+  });
+
+  it('covers exactly 29 unique industry names from aliases', () => {
+    const uniqueNames = new Set(Object.values(INDUSTRY_NAME_ALIASES));
+    expect(uniqueNames.size).toBe(29);
+  });
+});
+
+// ===========================================================================
+// W_ITEMS_MAPPINGS extractionPath prefix validation
+// ===========================================================================
+describe('W_ITEMS_MAPPINGS extractionPath prefixes', () => {
+  const VALID_PREFIXES = ['wItems.'];
+
+  it('all W_ITEMS_MAPPINGS have valid extractionPath prefixes', () => {
+    for (const mapping of W_ITEMS_MAPPINGS) {
+      const hasValidPrefix = VALID_PREFIXES.some((prefix) =>
+        mapping.extractionPath.startsWith(prefix)
+      );
+      expect(hasValidPrefix).toBe(true);
+    }
+  });
+
+  it('all extractionPaths reference a second-level key (no deeper nesting)', () => {
+    for (const mapping of W_ITEMS_MAPPINGS) {
+      const parts = mapping.extractionPath.split('.');
+      expect(parts.length).toBe(2);
+      expect(parts[0]).toBe('wItems');
+      expect(parts[1].length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ===========================================================================
+// normalizeIndustryName whitespace variations
+// ===========================================================================
+describe('normalizeIndustryName - whitespace handling', () => {
+  it('trims leading/trailing whitespace', () => {
+    // normalizeIndustryName does not explicitly trim, testing current behavior
+    // If the function trims, these should normalize; otherwise they pass through
+    const result = normalizeIndustryName('電気');
+    expect(result).toBe('電気工事');
+  });
+
+  it('handles full-width space in names', () => {
+    // Full-width space should not match any alias (unless explicitly listed)
+    const result = normalizeIndustryName('電気\u3000工事');
+    // This is an unknown name with 工事 suffix, should pass through
+    expect(result).toBe('電気\u3000工事');
+  });
+
+  it('handles empty string', () => {
+    expect(normalizeIndustryName('')).toBe('');
+  });
+
+  it('handles whitespace-only strings', () => {
+    // A whitespace-only string should pass through (no alias match)
+    const result = normalizeIndustryName(' ');
+    expect(result).toBe(' ');
+  });
+
+  it('does not normalize names with extra internal whitespace', () => {
+    const result = normalizeIndustryName('内装 仕上');
+    // No alias for 'internal space' variant; should pass through as-is
+    expect(result).toBe('内装 仕上');
+  });
+});

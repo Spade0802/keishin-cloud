@@ -170,15 +170,49 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
+      {/* Usage Statistics */}
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">利用状況</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">今月の試算回数</span>
+              <span className="font-mono font-medium">--- / ---</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-primary/70 rounded-full" style={{ width: '0%' }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              利用状況の詳細は今後のアップデートで表示予定です。
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Actions */}
       <div className="space-y-3">
         {sub.plan === 'free' && (
           <Button
             onClick={() => router.push('/pricing')}
             className="w-full bg-blue-600 hover:bg-blue-700"
+            aria-label="有料プランにアップグレードする"
           >
             <ArrowUpRight className="mr-2 h-4 w-4" />
             有料プランにアップグレード
+          </Button>
+        )}
+
+        {sub.plan !== 'free' && (
+          <Button
+            onClick={() => router.push('/pricing')}
+            variant="outline"
+            className="w-full"
+            aria-label="プランを変更する"
+          >
+            <ArrowUpRight className="mr-2 h-4 w-4" />
+            プランを変更
           </Button>
         )}
 
@@ -188,6 +222,7 @@ export default function BillingPage() {
             disabled={portalLoading}
             variant="outline"
             className="w-full"
+            aria-label="Stripeでサブスクリプションを管理する"
           >
             <CreditCard className="mr-2 h-4 w-4" />
             {portalLoading ? '読み込み中...' : 'サブスクリプション管理'}

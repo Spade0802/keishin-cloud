@@ -409,7 +409,7 @@ export function DemoInteractiveSimulator() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-3 text-center text-xs">
+          <div className="grid grid-cols-5 gap-2 sm:gap-3 text-center text-xs">
             {[
               { label: 'X1', value: currentResult?.X1 },
               { label: 'X2', value: currentResult?.x2 },
@@ -419,7 +419,7 @@ export function DemoInteractiveSimulator() {
             ].map((item) => (
               <div key={item.label}>
                 <div className="text-muted-foreground">{item.label}</div>
-                <div className="font-bold text-base">{item.value ?? '-'}</div>
+                <div className="font-bold text-sm sm:text-base">{item.value ?? '-'}</div>
               </div>
             ))}
           </div>
@@ -477,7 +477,7 @@ export function DemoInteractiveSimulator() {
             })}
           </div>
           {/* Legend with values */}
-          <div className="grid grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-xs">
             {P_WEIGHTS.map(({ key, weight, label }, i) => {
               const rawScore = key === 'X2' ? currentResult.x2 : currentResult[key];
               const contribution = key === 'X2'
@@ -496,8 +496,8 @@ export function DemoInteractiveSimulator() {
               return (
                 <div key={key} className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <div className={`h-2 w-2 rounded-full ${colors[i]}`} />
-                    <span className="text-muted-foreground">{key}</span>
+                    <div className={`h-2 w-2 shrink-0 rounded-full ${colors[i]}`} />
+                    <span className="text-muted-foreground truncate">{key}</span>
                   </div>
                   <div className="font-mono font-bold">{Math.floor(contribution)}</div>
                   <div className="text-muted-foreground">
@@ -517,7 +517,7 @@ export function DemoInteractiveSimulator() {
           <p className="text-sm text-muted-foreground">
             下記の数値を変更すると、P点がリアルタイムで再計算されます。登録不要で何度でもお試しいただけます。
           </p>
-          <Button variant="outline" size="sm" onClick={handleReset}>
+          <Button variant="outline" size="sm" onClick={handleReset} aria-label="入力値をデフォルトにリセット">
             <RotateCcw className="h-3 w-3 mr-1" />
             リセット
           </Button>
@@ -546,7 +546,8 @@ export function DemoInteractiveSimulator() {
                         inputMode="numeric"
                         value={values[field.key].toLocaleString()}
                         onChange={(e) => handleChange(field.key, e.target.value)}
-                        className="h-8 text-sm font-mono"
+                        className="h-10 sm:h-8 text-sm font-mono w-full"
+                        aria-label={field.label}
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {field.unit}
