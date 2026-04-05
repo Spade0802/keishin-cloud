@@ -14,6 +14,7 @@ import {
   calculateX2,
   calculateZ,
   calculateW,
+  calculateX1WithAverage,
 } from '../p-calculator';
 import type { SocialItems } from '../types';
 
@@ -764,5 +765,60 @@ describe('getEffectiveMultiplier', () => {
 
   it('returns 1 for unknown qualification code', () => {
     expect(getEffectiveMultiplier(999, 1, true)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateX1WithAverage (激変緩和措置)
+// ---------------------------------------------------------------------------
+describe('calculateX1WithAverage', () => {
+  it('returns current year when no prev (single year)', () => {
+    // With prev = 0, twoYearAvg = floor((100000+0)/2) = 50000
+    // Max(100000, 50000) = 100000
+    expect(calculateX1WithAverage(100000, 0)).toBe(100000);
+  });
+
+  it('returns 2-year average when higher than current', () => {
+    // curr=80000, prev=120000 → twoYearAvg = floor(200000/2) = 100000
+    // Max(80000, 100000) = 100000
+    expect(calculateX1WithAverage(80000, 120000)).toBe(100000);
+  });
+
+  it('returns 3-year average when it is the highest', () => {
+    // curr=60000, prev=90000, prevPrev=150000
+    // twoYearAvg = floor(150000/2) = 75000
+    // threeYearAvg = floor(300000/3) = 100000
+    // Max(60000, 75000, 100000) = 100000
+    expect(calculateX1WithAverage(60000, 90000, 150000)).toBe(100000);
+  });
+
+  it('returns current year when it is the highest (no averaging used)', () => {
+    // curr=200000, prev=100000, prevPrev=50000
+    // twoYearAvg = floor(300000/2) = 150000
+    // threeYearAvg = floor(350000/3) = 116666
+    // Max(200000, 150000, 116666) = 200000
+    expect(calculateX1WithAverage(200000, 100000, 50000)).toBe(200000);
+  });
+
+  it('returns 2-year average as highest with 3 years of data', () => {
+    // curr=100000, prev=200000, prevPrev=50000
+    // twoYearAvg = floor(300000/2) = 150000
+    // threeYearAvg = floor(350000/3) = 116666
+    // Max(100000, 150000, 116666) = 150000
+    expect(calculateX1WithAverage(100000, 200000, 50000)).toBe(150000);
+  });
+
+  it('handles equal values (no advantage to averaging)', () => {
+    expect(calculateX1WithAverage(100000, 100000)).toBe(100000);
+    expect(calculateX1WithAverage(100000, 100000, 100000)).toBe(100000);
+  });
+
+  it('floors the averages', () => {
+    // curr=1, prev=2 → twoYearAvg = floor(3/2) = 1
+    // Max(1, 1) = 1
+    expect(calculateX1WithAverage(1, 2)).toBe(1);
+    // curr=0, prev=1, prevPrev=1 → twoYearAvg=0, threeYearAvg=0
+    // Max(0, 0, 0) = 0
+    expect(calculateX1WithAverage(0, 1, 1)).toBe(0);
   });
 });
