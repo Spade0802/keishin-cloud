@@ -106,7 +106,7 @@ export default function PricingPage() {
           >
             年払い
             <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 text-[10px]">
-              2ヶ月お得
+              最大16%お得
             </Badge>
           </button>
         </div>
@@ -117,6 +117,9 @@ export default function PricingPage() {
             const Icon = plan.icon;
             const price = interval === 'year' ? plan.priceYearly : plan.priceMonthly;
             const isPopular = plan.badge === '人気';
+            const savingsPercent = plan.priceMonthly > 0
+              ? Math.round((1 - plan.priceYearly / (plan.priceMonthly * 12)) * 100)
+              : 0;
 
             return (
               <Card
@@ -151,9 +154,14 @@ export default function PricingPage() {
                         </span>
                         <span className="text-muted-foreground text-sm">円/月</span>
                         {interval === 'year' && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            年額 {price.toLocaleString()}円（税抜）
-                          </p>
+                          <>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              年額 {price.toLocaleString()}円（税抜）
+                            </p>
+                            <Badge variant="secondary" className="mt-1 bg-green-100 text-green-700 text-[10px]">
+                              月払いより{savingsPercent}%お得
+                            </Badge>
+                          </>
                         )}
                       </div>
                     )}
@@ -212,6 +220,43 @@ export default function PricingPage() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Feature Comparison Table */}
+        <div className="mt-16 max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-8">機能比較表</h2>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="text-left p-4 font-medium">機能</th>
+                  <th className="p-4 font-medium text-center">{PLANS.free.nameJa}</th>
+                  <th className="p-4 font-medium text-center bg-blue-50">{PLANS.standard.nameJa}</th>
+                  <th className="p-4 font-medium text-center">{PLANS.premium.nameJa}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { feature: 'P点シミュレーション', free: '月3回', standard: '無制限', premium: '無制限' },
+                  { feature: '企業登録数', free: '1社', standard: '10社', premium: '無制限' },
+                  { feature: 'AI分析', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: '月10回', premium: '無制限' },
+                  { feature: 'Excelエクスポート', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: <Check className="h-4 w-4 mx-auto text-green-500" />, premium: <Check className="h-4 w-4 mx-auto text-green-500" /> },
+                  { feature: 'PDFエクスポート', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: <Check className="h-4 w-4 mx-auto text-green-500" />, premium: <Check className="h-4 w-4 mx-auto text-green-500" /> },
+                  { feature: '期間比較', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: <Check className="h-4 w-4 mx-auto text-green-500" />, premium: <Check className="h-4 w-4 mx-auto text-green-500" /> },
+                  { feature: '再分類シミュレーション', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: <Check className="h-4 w-4 mx-auto text-green-500" />, premium: <Check className="h-4 w-4 mx-auto text-green-500" /> },
+                  { feature: 'API連携', free: <X className="h-4 w-4 mx-auto text-gray-400" />, standard: <X className="h-4 w-4 mx-auto text-gray-400" />, premium: <Check className="h-4 w-4 mx-auto text-green-500" /> },
+                  { feature: 'サポート', free: '-', standard: 'メール', premium: '優先 + 専任担当' },
+                ].map((row, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="p-4 font-medium">{row.feature}</td>
+                    <td className="p-4 text-center">{row.free}</td>
+                    <td className="p-4 text-center bg-blue-50/50">{row.standard}</td>
+                    <td className="p-4 text-center">{row.premium}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* FAQ */}

@@ -22,7 +22,9 @@ export async function getAdminStats(): Promise<AdminStats> {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [orgCount, userCount, monthlySimCount, activeUserCount] = await Promise.all([
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const [orgCount, userCount, monthlySimCount, activeUserCount, totalSimCount, activeSubCount, recentSignupCount] = await Promise.all([
     db.select({ value: count() }).from(organizations).then((r) => r[0]?.value ?? 0),
     db.select({ value: count() }).from(users).then((r) => r[0]?.value ?? 0),
     db
@@ -37,6 +39,22 @@ export async function getAdminStats(): Promise<AdminStats> {
       .innerJoin(simulations, eq(users.id, simulations.userId))
       .where(gte(simulations.createdAt, new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)))
       .then((r) => Number(r[0]?.value ?? 0)),
+    // Total simulation count
+    db.select({ value: count() }).from(simulations).then((r) => r[0]?.value ?? 0),
+    // Active subscriptions (active or trialing)
+    db
+      .select({ value: count() })
+      .from(organizations)
+      .where(
+        sql`${organizations.subscriptionStatus} in ('active', 'trialing')`
+      )
+      .then((r) => r[0]?.value ?? 0),
+    // Recent signups (last 7 days)
+    db
+      .select({ value: count() })
+      .from(users)
+      .where(gte(users.createdAt, sevenDaysAgo))
+      .then((r) => r[0]?.value ?? 0),
   ]);
 
   return {
@@ -44,6 +62,9 @@ export async function getAdminStats(): Promise<AdminStats> {
     totalUsers: userCount,
     monthlySimulations: monthlySimCount,
     recentActiveUsers: activeUserCount,
+    totalSimulations: totalSimCount,
+    activeSubscriptions: activeSubCount,
+    recentSignups: recentSignupCount,
   };
 }
 

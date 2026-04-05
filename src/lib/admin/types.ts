@@ -33,4 +33,7 @@ export interface AdminStats {
   totalUsers: number;
   monthlySimulations: number;
   recentActiveUsers: number;
+  totalSimulations: number;
+  activeSubscriptions: number;
+  recentSignups: number;
 }

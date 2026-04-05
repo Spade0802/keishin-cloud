@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Building2, Users, Calculator, Activity, CreditCard } from 'lucide-react';
+import { Building2, Users, Calculator, Activity, CreditCard, BarChart3, UserPlus } from 'lucide-react';
 import { getAdminStats, getSimulations } from '@/lib/admin/data';
 
 export default async function AdminDashboardPage() {
@@ -23,14 +23,29 @@ export default async function AdminDashboardPage() {
       icon: Users,
     },
     {
+      title: '有効サブスクリプション',
+      value: stats.activeSubscriptions,
+      icon: CreditCard,
+    },
+    {
       title: '今月の試算回数',
       value: stats.monthlySimulations,
       icon: Calculator,
     },
     {
+      title: '累計試算数',
+      value: stats.totalSimulations,
+      icon: BarChart3,
+    },
+    {
       title: 'アクティブユーザー',
       value: stats.recentActiveUsers,
       icon: Activity,
+    },
+    {
+      title: '直近7日の新規登録',
+      value: stats.recentSignups,
+      icon: UserPlus,
     },
   ];
 
