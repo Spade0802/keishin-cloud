@@ -35,6 +35,7 @@ import {
   ResponsiveContainer,
   LabelList,
 } from 'recharts';
+import type { Props as RechartsLabelProps } from 'recharts/types/component/Label';
 import type {
   AnalysisResult,
   AnalysisInput,
@@ -218,8 +219,7 @@ function CaseComparisonChart({ cases }: { cases: CaseChartData[] }) {
     return row;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderDeltaLabel = (props: any) => {
+  const renderDeltaLabel = (props: RechartsLabelProps) => {
     const x = Number(props.x ?? 0);
     const y = Number(props.y ?? 0);
     const width = Number(props.width ?? 0);

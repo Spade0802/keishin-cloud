@@ -14,14 +14,30 @@ const PROJECT =
 const LOCATION = process.env.VERTEX_AI_LOCATION || 'asia-northeast1';
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
+// ── 型定義 ──
+
+/** Gemini SDK のモデルオブジェクトの共通インターフェース */
+export interface GenerativeModelLike {
+  generateContent(request: unknown): Promise<{
+    response: {
+      text: () => string;
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+        finishReason?: string;
+      }>;
+    };
+  }>;
+}
+
 // ── キャッシュ ──
 
 type CachedModelEntry = {
   provider: string;
   apiKey: string | undefined;
   modelName: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  model: any;
+  model: GenerativeModelLike;
 };
 
 let cachedGeminiPaid: CachedModelEntry | null = null;
@@ -75,11 +91,9 @@ export interface GeminiModelResult {
   provider: 'gemini-paid' | 'vertex';
   modelName: string;
   /** Gemini Paid のモデル。429 時は getVertexModel() でフォールバック可能 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  model: any;
+  model: GenerativeModelLike;
   /** Vertex AI のモデルを取得（フォールバック用） */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getVertexModel: () => any;
+  getVertexModel: () => GenerativeModelLike;
 }
 
 /**

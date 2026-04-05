@@ -707,11 +707,11 @@ export function autoCorrectUnit(data: Partial<RawFinancialData>): void {
       'specialGain', 'specialLoss', 'preTaxProfit',
       'corporateTax', 'netIncome',
     ];
+    const plRecord = pl as Record<string, number | Record<string, number>>;
     for (const key of numKeys) {
-      const val = pl[key];
+      const val = plRecord[key];
       if (typeof val === 'number') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pl as any)[key] = divK(val);
+        plRecord[key] = divK(val);
       }
     }
     // 販管費内訳

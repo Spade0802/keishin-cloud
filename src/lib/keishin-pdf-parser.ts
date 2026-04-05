@@ -185,10 +185,12 @@ async function ocrWithDocumentAI(buffer: Buffer): Promise<DocumentAIResult | nul
     const fullText = document.text;
 
     // テキストアンカーからテキストを抽出するヘルパー
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const extractText = (textAnchor: any): string => {
+    interface TextAnchor {
+      textSegments?: Array<{ startIndex?: unknown; endIndex?: unknown }> | null;
+    }
+    const extractText = (textAnchor: TextAnchor | null | undefined): string => {
       if (!textAnchor?.textSegments) return '';
-      return (textAnchor.textSegments as Array<{ startIndex?: unknown; endIndex?: unknown }>)
+      return textAnchor.textSegments
         .map(seg => {
           const start = Number(seg.startIndex || 0);
           const end = Number(seg.endIndex || 0);
