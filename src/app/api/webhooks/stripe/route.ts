@@ -141,16 +141,13 @@ async function updateOrgSubscription(orgId: string, subscription: Stripe.Subscri
   }
   const status = mapStripeStatus(subscription.status);
 
-  // Stripe v2025: current_period_end is on subscription items, not subscription root
-  // Fall back to items[0] or use cancel_at as approximate end date
   // Stripe v2025: current_period_end moved to subscription items
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const subRaw = subscription as any;
+  const firstItem = subscription.items?.data?.[0];
   const rawPeriodEnd: number | undefined =
-    subRaw.current_period_end ?? subRaw.items?.data?.[0]?.current_period_end;
+    firstItem?.current_period_end;
   const periodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000) : null;
 
-  const rawTrialEnd: number | null | undefined = subRaw.trial_end;
+  const rawTrialEnd: number | null | undefined = subscription.trial_end;
   const trialEnd = rawTrialEnd ? new Date(rawTrialEnd * 1000) : null;
 
   await db

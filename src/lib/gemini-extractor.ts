@@ -14,6 +14,7 @@
 import type { RawFinancialData, SocialItems } from './engine/types';
 import type { KeishinPdfResult } from './keishin-pdf-parser';
 import { getGeminiModel, isRateLimitError } from './gemini-client';
+import { logger } from './logger';
 // splitPdfPages, getPdfPageCount no longer needed after API call optimization
 import { calculateTechStaffValues, type ExtractedStaffMember } from './engine/tech-staff-calculator';
 
@@ -74,7 +75,7 @@ async function getGenerativeModel(): Promise<UnifiedModel> {
   const gemini = await getGeminiModel();
 
   if (gemini.provider === 'gemini-paid') {
-    console.log(`Using Gemini Paid API (${gemini.modelName})`);
+    logger.info(`Using Gemini Paid API (${gemini.modelName})`);
     const model = gemini.model;
     return {
       async generateContent(request) {
@@ -98,9 +99,9 @@ async function getGenerativeModel(): Promise<UnifiedModel> {
         } catch (err: unknown) {
           if (isRateLimitError(err)) {
             const errMsg = err instanceof Error ? err.message : String(err);
-            console.warn(`[gemini-paid] Rate limited (429), falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
+            logger.warn(`[gemini-paid] Rate limited (429), falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
             const vertexModel = gemini.getVertexModel() as unknown as UnifiedModel;
-            console.log(`[gemini-paid→vertex-ai] Retrying with Vertex AI (${gemini.modelName})`);
+            logger.info(`[gemini-paid→vertex-ai] Retrying with Vertex AI (${gemini.modelName})`);
             return vertexModel.generateContent(request);
           }
           throw err;
@@ -110,7 +111,7 @@ async function getGenerativeModel(): Promise<UnifiedModel> {
   }
 
   // Vertex AI 方式
-  console.log(`Using Vertex AI (${gemini.modelName})`);
+  logger.info(`Using Vertex AI (${gemini.modelName})`);
   return gemini.model as unknown as UnifiedModel;
 }
 
@@ -294,12 +295,12 @@ export async function extractFinancialDataWithGemini(
     });
 
     const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    console.log(`[Financial PDF] Single-pass extraction: ${text.length} chars`);
+    logger.info(`[Financial PDF] Single-pass extraction: ${text.length} chars`);
 
     const parsed = parseJsonResponse<Partial<RawFinancialData>>(text);
 
     if (!parsed || (!parsed.bs && !parsed.pl && !parsed.manufacturing)) {
-      console.warn('Financial extraction returned empty');
+      logger.warn('Financial extraction returned empty');
       return null;
     }
 
@@ -311,7 +312,7 @@ export async function extractFinancialDataWithGemini(
     const enriched = enrichFinancialData(parsed);
 
     if (enriched.warnings.length > 0) {
-      console.warn('[Financial enrichment warnings]:', enriched.warnings);
+      logger.warn('[Financial enrichment warnings]:', enriched.warnings);
     }
 
     return {
@@ -321,7 +322,7 @@ export async function extractFinancialDataWithGemini(
     };
   } catch (e) {
     const typed = GeminiExtractionError.fromError(e);
-    console.error(`Gemini financial extraction failed [${typed.type}]:`, typed.message);
+    logger.error(`Gemini financial extraction failed [${typed.type}]:`, typed.message);
     throw typed;
   }
 }
@@ -527,7 +528,7 @@ export async function extractFinancialDataFromExcel(
           warnings.push(...enriched.warnings);
 
           if (enriched.enrichedFields.length > 0) {
-            console.log(`[Excel Gemini] Enriched ${enriched.enrichedFields.length} fields`);
+            logger.info(`[Excel Gemini] Enriched ${enriched.enrichedFields.length} fields`);
           }
 
           return { data: enriched.data, method: 'Gemini (Excel)', warnings };
@@ -536,7 +537,7 @@ export async function extractFinancialDataFromExcel(
 
       warnings.push('Gemini AIでの解析に失敗しました。キーワードマッチにフォールバックします。');
     } catch (e) {
-      console.error('Gemini Excel extraction failed:', e);
+      logger.error('Gemini Excel extraction failed:', e);
       warnings.push('Gemini AIでの解析でエラーが発生しました。キーワードマッチにフォールバックします。');
     }
   }
@@ -638,15 +639,15 @@ export async function extractResultPdfWithGemini(
     const scores = parseJsonResponse<ResultPdfScores>(text);
 
     if (!scores) {
-      console.warn('Gemini result PDF extraction: parse failed');
+      logger.warn('Gemini result PDF extraction: parse failed');
       return null;
     }
 
-    console.log('Result PDF Gemini extraction:', JSON.stringify(scores).slice(0, 300));
+    logger.info('Result PDF Gemini extraction:', JSON.stringify(scores).slice(0, 300));
     return { scores, method: 'Gemini' };
   } catch (e) {
     const typed = GeminiExtractionError.fromError(e);
-    console.error(`Gemini result PDF extraction failed [${typed.type}]:`, typed.message);
+    logger.error(`Gemini result PDF extraction failed [${typed.type}]:`, typed.message);
     throw typed;
   }
 }
@@ -666,7 +667,7 @@ export function autoCorrectUnit(data: Partial<RawFinancialData>): void {
   // 10,000,000千円 = 100億円を閾値とする
   if (totalAssets < 10_000_000) return;
 
-  console.warn(
+  logger.warn(
     `Auto-correcting unit: totalAssets=${totalAssets} looks like yen, dividing all by 1000`
   );
 
@@ -1061,7 +1062,7 @@ async function extractTechStaffWithPageSplit(
     return await callTechStaffGemini(model, fullPdfPart);
   } catch (e) {
     const typed = GeminiExtractionError.fromError(e);
-    console.error(`[Tech Staff] extraction failed [${typed.type}]:`, typed.message);
+    logger.error(`[Tech Staff] extraction failed [${typed.type}]:`, typed.message);
     // Re-throw critical errors (auth/config issues); return null only for extraction failures
     if (typed.type === 'ai_unavailable' || typed.type === 'rate_limited') {
       throw typed;
@@ -1086,11 +1087,11 @@ async function callTechStaffGemini(
     const rawData = parseJsonResponse<GeminiTechStaffRawResult>(text);
 
     if (!rawData?.staffList || rawData.staffList.length === 0) {
-      console.warn('[Tech Staff] No staff list extracted from PDF');
+      logger.warn('[Tech Staff] No staff list extracted from PDF');
       return null;
     }
 
-    console.log(`[Tech Staff] Extracted ${rawData.staffList.length} raw staff entries from PDF`);
+    logger.info(`[Tech Staff] Extracted ${rawData.staffList.length} raw staff entries from PDF`);
 
     // Geminiの生データを ExtractedStaffMember に変換
     const extractedStaff: ExtractedStaffMember[] = rawData.staffList.map((s) => ({
@@ -1107,12 +1108,12 @@ async function callTechStaffGemini(
     // 決定的計算エンジンで点数を算出
     const calcResult = calculateTechStaffValues(extractedStaff);
 
-    console.log(`[Tech Staff] Calculated industryTotals:`, JSON.stringify(calcResult.industryTotals));
+    logger.info(`[Tech Staff] Calculated industryTotals:`, JSON.stringify(calcResult.industryTotals));
 
     // バリデーション: techStaffValueが異常に大きくないか
     for (const [code, val] of Object.entries(calcResult.industryTotals)) {
       if (val > 500) {
-        console.warn(`[Tech Staff] Suspicious value for industry ${code}: ${val}, capping at 500`);
+        logger.warn(`[Tech Staff] Suspicious value for industry ${code}: ${val}, capping at 500`);
         calcResult.industryTotals[code] = Math.min(val, 500);
       }
     }
@@ -1124,7 +1125,7 @@ async function callTechStaffGemini(
     };
   } catch (e) {
     const typed = GeminiExtractionError.fromError(e);
-    console.error(`[Tech Staff] callTechStaffGemini failed [${typed.type}]:`, typed.message);
+    logger.error(`[Tech Staff] callTechStaffGemini failed [${typed.type}]:`, typed.message);
     throw typed;
   }
 }
@@ -1266,7 +1267,7 @@ export async function extractKeishinDataWithGemini(
       extractTechStaffWithPageSplit(model, buffer, pdfPart),
     ]);
 
-    console.log(
+    logger.info(
       'Keishin optimized extraction:',
       `comprehensive=${comprehensiveResult.status}, techStaff=${techStaffResult.status}`
     );
@@ -1277,7 +1278,7 @@ export async function extractKeishinDataWithGemini(
       : '';
     const parsed = parseJsonResponse<ComprehensiveKeishinResult>(comprehensiveText);
 
-    console.log('Comprehensive:', JSON.stringify(parsed).slice(0, 500));
+    logger.debug('Comprehensive:', JSON.stringify(parsed).slice(0, 500));
 
     // ── マージ ──
     const merged: KeishinGeminiResult = {
@@ -1319,8 +1320,8 @@ export async function extractKeishinDataWithGemini(
       : null;
 
     if (parsedTechStaff?.industryTotals) {
-      console.log('[Tech Staff] industryTotals:', JSON.stringify(parsedTechStaff.industryTotals));
-      console.log('[Tech Staff] staffList:', parsedTechStaff.staffList?.length, 'entries');
+      logger.info('[Tech Staff] industryTotals:', JSON.stringify(parsedTechStaff.industryTotals));
+      logger.info('[Tech Staff] staffList:', parsedTechStaff.staffList?.length, 'entries');
 
       // 各業種のtechStaffValueを設定
       for (const ind of merged.industries) {
@@ -1329,7 +1330,7 @@ export async function extractKeishinDataWithGemini(
         if (techVal && techVal > 0) {
           if (!ind.techStaffValue || ind.techStaffValue === 0) {
             ind.techStaffValue = techVal;
-            console.log(`[Tech Staff] Set ${ind.name}(${ind.code}) techStaffValue = ${techVal}`);
+            logger.debug(`[Tech Staff] Set ${ind.name}(${ind.code}) techStaffValue = ${techVal}`);
           }
         }
       }
@@ -1342,7 +1343,7 @@ export async function extractKeishinDataWithGemini(
       // 個別職員リストを保存（TechStaffPanel自動入力用）
       if (parsedTechStaff.staffList && parsedTechStaff.staffList.length > 0) {
         merged.staffList = parsedTechStaff.staffList;
-        console.log(`[Tech Staff] Preserved ${parsedTechStaff.staffList.length} staff entries for TechStaffPanel`);
+        logger.info(`[Tech Staff] Preserved ${parsedTechStaff.staffList.length} staff entries for TechStaffPanel`);
       }
     }
 
@@ -1359,7 +1360,7 @@ export async function extractKeishinDataWithGemini(
       const verified = parseJsonResponse<VerificationResult>(verifyText);
 
       if (verified) {
-        console.log('Verification:', JSON.stringify(verified).slice(0, 500));
+        logger.debug('Verification:', JSON.stringify(verified).slice(0, 500));
 
         if (verified.companyName) merged.basicInfo.companyName = verified.companyName;
         if (verified.permitNumber) merged.basicInfo.permitNumber = verified.permitNumber;
@@ -1381,7 +1382,7 @@ export async function extractKeishinDataWithGemini(
         validateAndCorrectKeishin(merged);
       }
     } catch (e) {
-      console.warn('Verification pass failed, using consensus data:', e);
+      logger.warn('Verification pass failed, using consensus data:', e);
     }
 
     // 業種品質チェック
@@ -1391,7 +1392,7 @@ export async function extractKeishinDataWithGemini(
       );
       const allSame = vals.every((v) => v === vals[0]);
       if (allSame && vals[0] !== '0-0-0-0') {
-        console.warn('Industries identical after consensus. Resetting.');
+        logger.warn('Industries identical after consensus. Resetting.');
         for (const ind of merged.industries) {
           ind.prevCompletion = 0;
           ind.currCompletion = 0;
@@ -1408,7 +1409,7 @@ export async function extractKeishinDataWithGemini(
       Object.keys(merged.wItems).length > 0;
 
     if (!hasAnyData) {
-      console.warn('Optimized extraction returned no meaningful data');
+      logger.warn('Optimized extraction returned no meaningful data');
       return null;
     }
 
@@ -1416,13 +1417,13 @@ export async function extractKeishinDataWithGemini(
     const { enrichKeishinData } = await import('./data-enrichment');
     const enrichResult = enrichKeishinData(merged);
     if (enrichResult.warnings.length > 0) {
-      console.warn('[Keishin enrichment warnings]:', enrichResult.warnings);
+      logger.warn('[Keishin enrichment warnings]:', enrichResult.warnings);
     }
 
     return { data: merged, method: 'Gemini (optimized 3-pass)' };
   } catch (e) {
     const typed = GeminiExtractionError.fromError(e);
-    console.error(`Gemini keishin extraction failed [${typed.type}]:`, typed.message);
+    logger.error(`Gemini keishin extraction failed [${typed.type}]:`, typed.message);
     throw typed;
   }
 }
@@ -1438,19 +1439,19 @@ export async function extractKeishinDataWithGemini(
 function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
   // equity: 10億千円（= 1兆円）を超える場合は円で読んでいる
   if (data.equity > 1_000_000_000) {
-    console.warn(`Keishin equity=${data.equity} looks like yen, dividing by 1000`);
+    logger.warn(`Keishin equity=${data.equity} looks like yen, dividing by 1000`);
     data.equity = Math.floor(data.equity / 1000);
   }
   // ebitda も同様
   if (Math.abs(data.ebitda) > 1_000_000_000) {
-    console.warn(`Keishin ebitda=${data.ebitda} looks like yen, dividing by 1000`);
+    logger.warn(`Keishin ebitda=${data.ebitda} looks like yen, dividing by 1000`);
     data.ebitda = Math.floor(data.ebitda / 1000);
   }
 
   // 業種の完工高も: 1億千円（= 1000億円）超は円の可能性
   for (const ind of data.industries) {
     if (ind.prevCompletion > 100_000_000 || ind.currCompletion > 100_000_000) {
-      console.warn(`Industry ${ind.name}: values look like yen, dividing by 1000`);
+      logger.warn(`Industry ${ind.name}: values look like yen, dividing by 1000`);
       ind.prevCompletion = Math.floor(ind.prevCompletion / 1000);
       ind.currCompletion = Math.floor(ind.currCompletion / 1000);
       ind.prevPrimeContract = Math.floor(ind.prevPrimeContract / 1000);
@@ -1464,7 +1465,7 @@ function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
       (ind) => ind.currCompletion > 100_000 || ind.prevCompletion > 100_000,
     );
     if (hasSignificantRevenue) {
-      console.warn(
+      logger.warn(
         `[validateAndCorrectKeishin] businessYears=${data.businessYears} seems too low for a company with significant revenue. Possible OCR digit-dropping.`,
       );
     }
@@ -1475,7 +1476,7 @@ function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
   data.industries = data.industries.filter((ind) => {
     const code = ind.code.padStart(2, '0');
     if (!validCodes.has(code)) {
-      console.warn(`Removing invalid industry code: ${ind.code} (${ind.name})`);
+      logger.warn(`Removing invalid industry code: ${ind.code} (${ind.name})`);
       return false;
     }
     ind.code = code;
@@ -1491,12 +1492,12 @@ function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
       ind.prevPrimeContract === 0 &&
       ind.currPrimeContract === 0;
     if (allZero) {
-      console.warn(`Removing all-zero industry: ${ind.code} ${ind.name}`);
+      logger.warn(`Removing all-zero industry: ${ind.code} ${ind.name}`);
     }
     return !allZero;
   });
   if (beforeCount !== data.industries.length) {
-    console.log(`[validateAndCorrectKeishin] Filtered ${beforeCount - data.industries.length} all-zero industries (${beforeCount} → ${data.industries.length})`);
+    logger.info(`[validateAndCorrectKeishin] Filtered ${beforeCount - data.industries.length} all-zero industries (${beforeCount} → ${data.industries.length})`);
   }
 }
 
@@ -1537,7 +1538,7 @@ function parseJsonResponse<T>(text: string): T | null {
     }
   }
 
-  console.error('Failed to parse Gemini JSON response:', text.slice(0, 500));
+  logger.error('Failed to parse Gemini JSON response:', text.slice(0, 500));
   return null;
 }
 

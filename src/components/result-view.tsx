@@ -381,15 +381,15 @@ export function ResultView(props: ResultViewProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="py-2 text-left">業種</th>
-                      <th className="py-2 text-right">X1<br/><span className="font-normal">完工高</span></th>
-                      <th className="py-2 text-right">X2<br/><span className="font-normal">自己資本等</span></th>
-                      <th className="py-2 text-right">Y<br/><span className="font-normal">経営状況</span></th>
-                      <th className="py-2 text-right">Z<br/><span className="font-normal">技術力</span></th>
-                      <th className="py-2 text-right">W<br/><span className="font-normal">社会性</span></th>
-                      <th className="py-2 text-right font-bold">P<br/><span className="font-normal">総合</span></th>
+                      <th scope="col" className="py-2 text-left">業種</th>
+                      <th scope="col" className="py-2 text-right">X1<br/><span className="font-normal">完工高</span></th>
+                      <th scope="col" className="py-2 text-right">X2<br/><span className="font-normal">自己資本等</span></th>
+                      <th scope="col" className="py-2 text-right">Y<br/><span className="font-normal">経営状況</span></th>
+                      <th scope="col" className="py-2 text-right">Z<br/><span className="font-normal">技術力</span></th>
+                      <th scope="col" className="py-2 text-right">W<br/><span className="font-normal">社会性</span></th>
+                      <th scope="col" className="py-2 text-right font-bold">P<br/><span className="font-normal">総合</span></th>
                       {industries.some((i) => i.prevP !== undefined) && (
-                        <th className="py-2 text-center">変動</th>
+                        <th scope="col" className="py-2 text-center">変動</th>
                       )}
                     </tr>
                   </thead>
@@ -493,10 +493,10 @@ export function ResultView(props: ResultViewProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="py-2 text-left">業種</th>
-                      <th className="py-2 text-right">Z1<br/>(技術職員)</th>
-                      <th className="py-2 text-right">Z2<br/>(元請完工高)</th>
-                      <th className="py-2 text-right font-bold">Z</th>
+                      <th scope="col" className="py-2 text-left">業種</th>
+                      <th scope="col" className="py-2 text-right">Z1<br/>(技術職員)</th>
+                      <th scope="col" className="py-2 text-right">Z2<br/>(元請完工高)</th>
+                      <th scope="col" className="py-2 text-right font-bold">Z</th>
                     </tr>
                   </thead>
                   <tbody>

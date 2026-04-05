@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
 import { getGeminiModel, isRateLimitError } from './gemini-client';
+import { logger } from './logger';
 
 // ── Zod schema for AI response validation ──
 
@@ -119,15 +120,15 @@ export async function generatePPointAnalysis(
     if (provider === 'gemini-paid') {
       // ── Gemini Paid API（429時はVertex AIにフォールバック） ──
       try {
-        console.log(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
+        logger.info(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
         const result = await model.generateContent(prompt);
         responseText = result.response.text() ?? '';
       } catch (err: unknown) {
         if (isRateLimitError(err)) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          console.warn(`[ai-analysis] Gemini Paid rate limited, falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
+          logger.warn(`[ai-analysis] Gemini Paid rate limited, falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
           const vertexModel = getVertexModel();
-          console.log(`[ai-analysis] Retrying with Vertex AI (${modelName}), attempt ${attempt}`);
+          logger.info(`[ai-analysis] Retrying with Vertex AI (${modelName}), attempt ${attempt}`);
           const result = await vertexModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
           });
@@ -138,7 +139,7 @@ export async function generatePPointAnalysis(
       }
     } else {
       // ── Vertex AI ──
-      console.log(`[ai-analysis] Using Vertex AI (${modelName}), attempt ${attempt}`);
+      logger.info(`[ai-analysis] Using Vertex AI (${modelName}), attempt ${attempt}`);
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
@@ -149,7 +150,7 @@ export async function generatePPointAnalysis(
 
     if (text) break;
 
-    console.warn(`[ai-analysis] Attempt ${attempt}: empty response`);
+    logger.warn(`[ai-analysis] Attempt ${attempt}: empty response`);
 
     if (attempt === 2) {
       throw new Error('Gemini からの応答が空でした');
@@ -172,14 +173,14 @@ export async function generatePPointAnalysis(
   try {
     rawParsed = JSON.parse(jsonText);
   } catch (e) {
-    console.error('[ai-analysis] JSON parse failed:', (e as Error).message);
-    console.error('[ai-analysis] Raw text (first 500 chars):', jsonText.slice(0, 500));
+    logger.error('[ai-analysis] JSON parse failed:', (e as Error).message);
+    logger.error('[ai-analysis] Raw text (first 500 chars):', jsonText.slice(0, 500));
     throw new Error('Gemini の応答を JSON としてパースできませんでした');
   }
 
   const validationResult = AnalysisResultSchema.safeParse(rawParsed);
   if (!validationResult.success) {
-    console.error('[ai-analysis] Zod validation failed:', JSON.stringify(validationResult.error.issues, null, 2));
+    logger.error('[ai-analysis] Zod validation failed:', JSON.stringify(validationResult.error.issues, null, 2));
     throw new Error(
       `Gemini の応答が期待する形式と一致しません: ${validationResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
     );

@@ -7,6 +7,7 @@
  */
 import { createHash } from 'crypto';
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
+import { logger } from './logger';
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -91,21 +92,21 @@ export function getCachedAnalysis(
 
   if (!entry) {
     stats.misses++;
-    console.log(`[ai-cache] MISS hash=${inputHash.slice(0, 12)}...`);
+    logger.debug(`[ai-cache] MISS hash=${inputHash.slice(0, 12)}...`);
     return undefined;
   }
 
   if (Date.now() - entry.createdAt > entry.ttlMs) {
     cache.delete(inputHash);
     stats.misses++;
-    console.log(
+    logger.debug(
       `[ai-cache] EXPIRED hash=${inputHash.slice(0, 12)}...`,
     );
     return undefined;
   }
 
   stats.hits++;
-  console.log(`[ai-cache] HIT hash=${inputHash.slice(0, 12)}...`);
+  logger.debug(`[ai-cache] HIT hash=${inputHash.slice(0, 12)}...`);
   return entry.result;
 }
 
@@ -122,7 +123,7 @@ export function setCachedAnalysis(
     const oldestKey = cache.keys().next().value;
     if (oldestKey !== undefined) {
       cache.delete(oldestKey);
-      console.log(`[ai-cache] EVICTED oldest entry hash=${oldestKey.slice(0, 12)}... (size was ${cache.size + 1})`);
+      logger.debug(`[ai-cache] EVICTED oldest entry hash=${oldestKey.slice(0, 12)}... (size was ${cache.size + 1})`);
     }
   }
   cache.set(inputHash, {
@@ -130,7 +131,7 @@ export function setCachedAnalysis(
     createdAt: Date.now(),
     ttlMs,
   });
-  console.log(
+  logger.debug(
     `[ai-cache] STORED hash=${inputHash.slice(0, 12)}... ttl=${ttlMs}ms`,
   );
 }
@@ -163,5 +164,5 @@ export function clearAnalysisCache(): void {
   const prevSize = cache.size;
   cache = new Map();
   stats = { hits: 0, misses: 0 };
-  console.log(`[ai-cache] CLEARED ${prevSize} entries`);
+  logger.debug(`[ai-cache] CLEARED ${prevSize} entries`);
 }
