@@ -48,6 +48,23 @@ describe('sendWelcomeEmail', () => {
     const payload = mockedLogger.info.mock.calls[0][1];
     expect(payload.organizationName).toBe('Acme');
   });
+
+  it('logs organizationName as undefined when omitted', async () => {
+    await sendWelcomeEmail({ to: 'a@b.com', name: 'Alice' });
+
+    const payload = mockedLogger.info.mock.calls[0][1];
+    expect(payload.organizationName).toBeUndefined();
+  });
+
+  it('handles empty string name and email', async () => {
+    await expect(
+      sendWelcomeEmail({ to: '', name: '' }),
+    ).resolves.toBeUndefined();
+
+    const payload = mockedLogger.info.mock.calls[0][1];
+    expect(payload.to).toBe('');
+    expect(payload.name).toBe('');
+  });
 });
 
 describe('sendTrialExpiringEmail', () => {
@@ -80,6 +97,35 @@ describe('sendTrialExpiringEmail', () => {
     const payload = mockedLogger.info.mock.calls[0][1];
     expect(payload.daysRemaining).toBe(0);
   });
+
+  it('handles negative daysRemaining', async () => {
+    await expect(
+      sendTrialExpiringEmail({
+        to: 'x@y.com',
+        name: 'Dave',
+        trialEndsAt: new Date('2026-03-01T00:00:00Z'),
+        daysRemaining: -5,
+        upgradeUrl: 'https://example.com/upgrade',
+      }),
+    ).resolves.toBeUndefined();
+
+    const payload = mockedLogger.info.mock.calls[0][1];
+    expect(payload.daysRemaining).toBe(-5);
+  });
+
+  it('does not log upgradeUrl in the payload', async () => {
+    await sendTrialExpiringEmail({
+      to: 'c@d.com',
+      name: 'Carol',
+      trialEndsAt: new Date('2026-05-01T00:00:00Z'),
+      daysRemaining: 3,
+      upgradeUrl: 'https://example.com/upgrade',
+    });
+
+    const payload = mockedLogger.info.mock.calls[0][1];
+    // upgradeUrl is accepted as input but not included in the log payload
+    expect(payload).not.toHaveProperty('upgradeUrl');
+  });
 });
 
 describe('sendSubscriptionConfirmEmail', () => {
@@ -111,5 +157,59 @@ describe('sendSubscriptionConfirmEmail', () => {
     expect(payload.plan).toBe('free');
     expect(payload.amount).toBeUndefined();
     expect(payload.nextBillingDate).toBeUndefined();
+  });
+
+  it('handles amount of 0', async () => {
+    await sendSubscriptionConfirmEmail({
+      to: 'g@h.com',
+      name: 'Grace',
+      plan: 'free',
+      amount: 0,
+    });
+
+    const payload = mockedLogger.info.mock.calls[0][1];
+    expect(payload.amount).toBe(0);
+  });
+
+  it('logs the correct label', async () => {
+    await sendSubscriptionConfirmEmail({
+      to: 'a@b.com',
+      name: 'Test',
+      plan: 'pro',
+    });
+
+    const label = mockedLogger.info.mock.calls[0][0];
+    expect(label).toContain('sendSubscriptionConfirmEmail');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-cutting concerns
+// ---------------------------------------------------------------------------
+
+describe('logger isolation between calls', () => {
+  it('each function call logs exactly once', async () => {
+    await sendWelcomeEmail({ to: 'a@b.com', name: 'A' });
+    await sendTrialExpiringEmail({
+      to: 'b@c.com',
+      name: 'B',
+      trialEndsAt: new Date(),
+      daysRemaining: 7,
+      upgradeUrl: 'https://example.com/upgrade',
+    });
+    await sendSubscriptionConfirmEmail({
+      to: 'c@d.com',
+      name: 'C',
+      plan: 'pro',
+    });
+
+    expect(mockedLogger.info).toHaveBeenCalledTimes(3);
+
+    const labels = mockedLogger.info.mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+    expect(labels[0]).toContain('sendWelcomeEmail');
+    expect(labels[1]).toContain('sendTrialExpiringEmail');
+    expect(labels[2]).toContain('sendSubscriptionConfirmEmail');
   });
 });

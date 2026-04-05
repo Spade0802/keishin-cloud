@@ -3,12 +3,17 @@ import {
   normalizeIndustryName,
   getNestedValue,
   INDUSTRY_NAME_ALIASES,
+  INDUSTRY_FIELD_KEYS,
   W_ITEMS_MAPPINGS,
   BASIC_INFO_MAPPINGS,
   FINANCIAL_MAPPINGS,
   TECH_STAFF_MAPPINGS,
   ALL_MAPPINGS,
   type FieldMapping,
+  type DataSource,
+  type FieldSection,
+  type FieldType,
+  type FieldMeta,
 } from '../extraction-field-map';
 
 // ===========================================================================
@@ -314,5 +319,308 @@ describe('normalizeIndustryName - whitespace handling', () => {
     const result = normalizeIndustryName('内装 仕上');
     // No alias for 'internal space' variant; should pass through as-is
     expect(result).toBe('内装 仕上');
+  });
+});
+
+// ===========================================================================
+// BASIC_INFO_MAPPINGS structure validation
+// ===========================================================================
+describe('BASIC_INFO_MAPPINGS structure', () => {
+  it('has expected number of entries', () => {
+    expect(BASIC_INFO_MAPPINGS.length).toBe(4);
+  });
+
+  it('all entries belong to basic_info section', () => {
+    for (const mapping of BASIC_INFO_MAPPINGS) {
+      expect(mapping.section).toBe('basic_info');
+    }
+  });
+
+  it('all entries are string type', () => {
+    for (const mapping of BASIC_INFO_MAPPINGS) {
+      expect(mapping.type).toBe('string');
+    }
+  });
+
+  it('all extractionPaths start with basicInfo.', () => {
+    for (const mapping of BASIC_INFO_MAPPINGS) {
+      expect(mapping.extractionPath).toMatch(/^basicInfo\./);
+    }
+  });
+
+  it('companyName is required', () => {
+    const companyName = BASIC_INFO_MAPPINGS.find(
+      (m) => m.formTarget === 'basicInfo.companyName'
+    );
+    expect(companyName).toBeDefined();
+    expect(companyName!.validation?.required).toBe(true);
+  });
+
+  it('has no duplicate formTarget values', () => {
+    const targets = BASIC_INFO_MAPPINGS.map((m) => m.formTarget);
+    expect(new Set(targets).size).toBe(targets.length);
+  });
+
+  it('has no duplicate extractionPath values', () => {
+    const paths = BASIC_INFO_MAPPINGS.map((m) => m.extractionPath);
+    expect(new Set(paths).size).toBe(paths.length);
+  });
+});
+
+// ===========================================================================
+// FINANCIAL_MAPPINGS structure validation
+// ===========================================================================
+describe('FINANCIAL_MAPPINGS structure', () => {
+  it('has expected entries', () => {
+    expect(FINANCIAL_MAPPINGS.length).toBe(2);
+  });
+
+  it('all entries belong to financial section', () => {
+    for (const mapping of FINANCIAL_MAPPINGS) {
+      expect(mapping.section).toBe('financial');
+    }
+  });
+
+  it('all entries are number type', () => {
+    for (const mapping of FINANCIAL_MAPPINGS) {
+      expect(mapping.type).toBe('number');
+    }
+  });
+
+  it('all numeric fields have min/max validation', () => {
+    for (const mapping of FINANCIAL_MAPPINGS) {
+      expect(mapping.validation).toBeDefined();
+      expect(mapping.validation!.min).toBeDefined();
+      expect(mapping.validation!.max).toBeDefined();
+    }
+  });
+
+  it('validation allows negative values (financial data can be negative)', () => {
+    for (const mapping of FINANCIAL_MAPPINGS) {
+      expect(mapping.validation!.min!).toBeLessThan(0);
+    }
+  });
+
+  it('has no duplicate formTarget values', () => {
+    const targets = FINANCIAL_MAPPINGS.map((m) => m.formTarget);
+    expect(new Set(targets).size).toBe(targets.length);
+  });
+});
+
+// ===========================================================================
+// TECH_STAFF_MAPPINGS structure validation
+// ===========================================================================
+describe('TECH_STAFF_MAPPINGS structure', () => {
+  it('has expected entries', () => {
+    expect(TECH_STAFF_MAPPINGS.length).toBe(2);
+  });
+
+  it('all entries are number type', () => {
+    for (const mapping of TECH_STAFF_MAPPINGS) {
+      expect(mapping.type).toBe('number');
+    }
+  });
+
+  it('all numeric fields have non-negative min', () => {
+    for (const mapping of TECH_STAFF_MAPPINGS) {
+      expect(mapping.validation).toBeDefined();
+      expect(mapping.validation!.min).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('has no duplicate formTarget values', () => {
+    const targets = TECH_STAFF_MAPPINGS.map((m) => m.formTarget);
+    expect(new Set(targets).size).toBe(targets.length);
+  });
+});
+
+// ===========================================================================
+// INDUSTRY_FIELD_KEYS validation
+// ===========================================================================
+describe('INDUSTRY_FIELD_KEYS', () => {
+  it('contains expected keys', () => {
+    expect(INDUSTRY_FIELD_KEYS).toContain('name');
+    expect(INDUSTRY_FIELD_KEYS).toContain('prevCompletion');
+    expect(INDUSTRY_FIELD_KEYS).toContain('currCompletion');
+    expect(INDUSTRY_FIELD_KEYS).toContain('prevPrimeContract');
+    expect(INDUSTRY_FIELD_KEYS).toContain('currPrimeContract');
+    expect(INDUSTRY_FIELD_KEYS).toContain('techStaffValue');
+  });
+
+  it('has exactly 6 keys', () => {
+    expect(INDUSTRY_FIELD_KEYS.length).toBe(6);
+  });
+
+  it('has no duplicates', () => {
+    const unique = new Set(INDUSTRY_FIELD_KEYS);
+    expect(unique.size).toBe(INDUSTRY_FIELD_KEYS.length);
+  });
+});
+
+// ===========================================================================
+// getNestedValue - additional edge cases
+// ===========================================================================
+describe('getNestedValue - additional edge cases', () => {
+  it('returns undefined when intermediate value is undefined', () => {
+    const obj = { a: undefined } as unknown as Record<string, unknown>;
+    expect(getNestedValue(obj, 'a.b')).toBeUndefined();
+  });
+
+  it('handles deeply nested paths (3+ levels)', () => {
+    const obj = { a: { b: { c: { d: { e: 'found' } } } } };
+    expect(getNestedValue(obj, 'a.b.c.d.e')).toBe('found');
+  });
+
+  it('returns the object itself for single-segment paths to nested objects', () => {
+    const nested = { x: 1 };
+    const obj = { child: nested };
+    expect(getNestedValue(obj, 'child')).toBe(nested);
+  });
+
+  it('handles numeric string values without confusion', () => {
+    const obj = { val: '12345' };
+    expect(getNestedValue(obj, 'val')).toBe('12345');
+  });
+
+  it('handles null values at leaf', () => {
+    const obj = { key: null } as Record<string, unknown>;
+    expect(getNestedValue(obj, 'key')).toBeNull();
+  });
+
+  it('handles array values at leaf', () => {
+    const obj = { items: [1, 2, 3] };
+    expect(getNestedValue(obj, 'items')).toEqual([1, 2, 3]);
+  });
+
+  it('can traverse into arrays by numeric index', () => {
+    const obj = { items: ['a', 'b', 'c'] };
+    expect(getNestedValue(obj as unknown as Record<string, unknown>, 'items.1')).toBe('b');
+  });
+
+  it('returns undefined for out-of-bounds array index', () => {
+    const obj = { items: ['a'] };
+    expect(getNestedValue(obj as unknown as Record<string, unknown>, 'items.5')).toBeUndefined();
+  });
+
+  it('handles empty string key segments gracefully', () => {
+    // path "a..b" splits to ['a', '', 'b']
+    const obj = { a: { '': { b: 'found' } } };
+    expect(getNestedValue(obj, 'a..b')).toBe('found');
+  });
+
+  it('handles single-segment path to falsy values', () => {
+    expect(getNestedValue({ a: '' }, 'a')).toBe('');
+    expect(getNestedValue({ a: NaN }, 'a')).toBeNaN();
+  });
+});
+
+// ===========================================================================
+// getNestedValue with all real mapping extractionPaths
+// ===========================================================================
+describe('getNestedValue - resolves all ALL_MAPPINGS extractionPaths', () => {
+  it('resolves every extractionPath from a fully populated object', () => {
+    // Build a mock object that has a value for every extractionPath
+    const mockData: Record<string, unknown> = {};
+
+    for (const mapping of ALL_MAPPINGS) {
+      const parts = mapping.extractionPath.split('.');
+      if (parts.length === 1) {
+        mockData[parts[0]] = mapping.type === 'number' ? 1 : mapping.type === 'boolean' ? true : 'test';
+      } else if (parts.length === 2) {
+        if (!mockData[parts[0]] || typeof mockData[parts[0]] !== 'object') {
+          mockData[parts[0]] = {};
+        }
+        const parent = mockData[parts[0]] as Record<string, unknown>;
+        parent[parts[1]] = mapping.type === 'number' ? 1 : mapping.type === 'boolean' ? true : 'test';
+      }
+    }
+
+    for (const mapping of ALL_MAPPINGS) {
+      const value = getNestedValue(mockData, mapping.extractionPath);
+      expect(value).toBeDefined();
+    }
+  });
+
+  it('returns undefined for all extractionPaths on empty object', () => {
+    for (const mapping of ALL_MAPPINGS) {
+      expect(getNestedValue({}, mapping.extractionPath)).toBeUndefined();
+    }
+  });
+});
+
+// ===========================================================================
+// Type-level validation: FieldMapping types cover expected values
+// ===========================================================================
+describe('ALL_MAPPINGS type coverage', () => {
+  it('uses only valid FieldType values', () => {
+    const validTypes: FieldType[] = ['number', 'boolean', 'string'];
+    for (const mapping of ALL_MAPPINGS) {
+      expect(validTypes).toContain(mapping.type);
+    }
+  });
+
+  it('uses only valid FieldSection values', () => {
+    const validSections: FieldSection[] = ['basic_info', 'financial', 'industry', 'w_items', 'tech_staff'];
+    for (const mapping of ALL_MAPPINGS) {
+      expect(validSections).toContain(mapping.section);
+    }
+  });
+
+  it('validation min is always less than max when both are defined', () => {
+    for (const mapping of ALL_MAPPINGS) {
+      if (mapping.validation?.min !== undefined && mapping.validation?.max !== undefined) {
+        expect(mapping.validation.min).toBeLessThan(mapping.validation.max);
+      }
+    }
+  });
+});
+
+// ===========================================================================
+// DataSource type validation
+// ===========================================================================
+describe('DataSource and FieldMeta types', () => {
+  it('FieldMeta can be constructed with all DataSource values', () => {
+    const sources: DataSource[] = ['direct_pdf', 'derived_from_pdf', 'user_input', null];
+    for (const source of sources) {
+      const meta: FieldMeta = {
+        source,
+        timestamp: Date.now(),
+        userOverridden: false,
+      };
+      expect(meta.source).toBe(source);
+    }
+  });
+
+  it('FieldMeta userOverridden flag works correctly', () => {
+    const meta: FieldMeta = {
+      source: 'user_input',
+      timestamp: 1000,
+      userOverridden: true,
+    };
+    expect(meta.userOverridden).toBe(true);
+    expect(meta.timestamp).toBe(1000);
+  });
+});
+
+// ===========================================================================
+// normalizeIndustryName - aliases that end with 工事
+// ===========================================================================
+describe('normalizeIndustryName - aliases ending with 工事', () => {
+  it('maps aliases that themselves end with 工事 to the correct full name', () => {
+    // These are aliases in the map that already end with 工事
+    // e.g., '内装仕上工事' is NOT in ALIASES (only '内装仕上' and '内装' are)
+    // '水道施設工事' is NOT in ALIASES (only '水道' and '水道施設' are)
+    // Let's verify which aliases end with 工事
+    const aliasesEndingWithKoji = Object.entries(INDUSTRY_NAME_ALIASES).filter(
+      ([alias]) => alias.endsWith('工事')
+    );
+    for (const [alias, fullName] of aliasesEndingWithKoji) {
+      expect(normalizeIndustryName(alias)).toBe(fullName);
+    }
+  });
+
+  it('names ending with 工事 not in aliases pass through unchanged', () => {
+    expect(normalizeIndustryName('特殊工事')).toBe('特殊工事');
+    expect(normalizeIndustryName('宇宙工事')).toBe('宇宙工事');
   });
 });
