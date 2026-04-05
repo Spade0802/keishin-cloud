@@ -1348,6 +1348,61 @@ export function AiAnalysisView({
     }
   }
 
+  // ローディングスケルトン: 分析中に表示
+  if (loading) {
+    return (
+      <div className="space-y-6" role="status" aria-label="AI分析を実行中">
+        {/* スケルトン: サマリー */}
+        <Card className="border-primary/20">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
+              <span className="text-base font-semibold">AI分析を実行中...</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-full animate-pulse rounded bg-muted" />
+            <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
+          </CardContent>
+        </Card>
+
+        {/* スケルトン: 再分類レビュー */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="h-5 w-48 animate-pulse rounded bg-muted" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-lg border p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                  <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                </div>
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* スケルトン: シミュレーション */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="h-5 w-56 animate-pulse rounded bg-muted" />
+          </CardHeader>
+          <CardContent>
+            <div className="h-48 w-full animate-pulse rounded bg-muted" />
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-sm text-muted-foreground">
+          AIが経審データを分析しています。30秒〜1分程度お待ちください...
+        </p>
+      </div>
+    );
+  }
+
   // まだ分析結果がない場合: ボタンを表示
   if (!result) {
     return (
@@ -1367,20 +1422,11 @@ export function AiAnalysisView({
           <Button
             size="lg"
             onClick={handleAnalyze}
-            disabled={loading || readOnly}
+            disabled={readOnly}
             className="px-8"
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                分析中...しばらくお待ちください
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-5 w-5" />
-                AI分析を実行
-              </>
-            )}
+            <Sparkles className="mr-2 h-5 w-5" />
+            AI分析を実行
           </Button>
           {readOnly && (
             <p className="text-xs text-muted-foreground mt-3">

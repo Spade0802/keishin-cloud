@@ -97,28 +97,140 @@ function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
   if (prev === undefined) return null;
   const diff = curr - prev;
   if (diff > 0) return (
-    <span className="inline-flex items-center text-green-600 text-sm font-medium ml-2">
-      <ArrowUpRight className="h-3 w-3" />+{diff}
+    <span className="inline-flex items-center text-green-600 text-sm font-medium ml-2" role="status" aria-label={`${diff}点上昇`}>
+      <ArrowUpRight className="h-3 w-3" aria-hidden="true" />+{diff}
     </span>
   );
   if (diff < 0) return (
-    <span className="inline-flex items-center text-red-600 text-sm font-medium ml-2">
-      <ArrowDownRight className="h-3 w-3" />{diff}
+    <span className="inline-flex items-center text-red-600 text-sm font-medium ml-2" role="status" aria-label={`${Math.abs(diff)}点下降`}>
+      <ArrowDownRight className="h-3 w-3" aria-hidden="true" />{diff}
     </span>
   );
   return (
-    <span className="inline-flex items-center text-muted-foreground text-sm ml-2">
-      <Minus className="h-3 w-3" />±0
+    <span className="inline-flex items-center text-muted-foreground text-sm ml-2" role="status" aria-label="変動なし">
+      <Minus className="h-3 w-3" aria-hidden="true" />±0
     </span>
+  );
+}
+
+/** Visual comparison bar for previous vs current period */
+function PeriodComparisonBar({ label, prev, curr }: { label: string; prev: number; curr: number }) {
+  const maxVal = Math.max(prev, curr, 1);
+  const diff = curr - prev;
+  const improved = diff > 0;
+  const declined = diff < 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span className={`font-mono font-medium ${improved ? 'text-green-600' : declined ? 'text-red-600' : 'text-muted-foreground'}`}
+              aria-label={`差分: ${diff >= 0 ? '+' : ''}${diff}点`}>
+          {diff >= 0 ? '+' : ''}{diff}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 text-[10px]">
+        <span className="w-8 text-right text-muted-foreground">前期</span>
+        <div className="flex-1 h-3 bg-muted/30 rounded overflow-hidden">
+          <div className="h-full bg-muted-foreground/30 rounded" style={{ width: `${(prev / maxVal) * 100}%` }} />
+        </div>
+        <span className="w-12 text-right font-mono text-muted-foreground">{prev}</span>
+      </div>
+      <div className="flex items-center gap-2 text-[10px]">
+        <span className="w-8 text-right font-medium">当期</span>
+        <div className="flex-1 h-3 bg-muted/30 rounded overflow-hidden">
+          <div className={`h-full rounded ${improved ? 'bg-green-500' : declined ? 'bg-red-500' : 'bg-primary/70'}`}
+               style={{ width: `${(curr / maxVal) * 100}%` }} />
+        </div>
+        <span className="w-12 text-right font-mono font-medium">{curr}</span>
+      </div>
+    </div>
+  );
+}
+
+/** W score improvement suggestions based on socialItems */
+function WImprovementTips({ wDetail, socialItems }: { wDetail: WDetail; socialItems?: SocialItems }) {
+  const tips: { message: string; impact: string }[] = [];
+
+  // Check social insurance (w1 deductions)
+  if (socialItems) {
+    const missingInsurance = [];
+    if (!socialItems.healthInsurance) missingInsurance.push('健康保険');
+    if (!socialItems.pensionInsurance) missingInsurance.push('厚生年金');
+    if (!socialItems.employmentInsurance) missingInsurance.push('雇用保険');
+    if (missingInsurance.length > 0) {
+      tips.push({
+        message: `社会保険未加入: ${missingInsurance.join('・')}`,
+        impact: `-${missingInsurance.length * 40}点の減点`,
+      });
+    }
+  } else if (wDetail.w1 < 0) {
+    tips.push({
+      message: '社会保険未加入: 労働福祉の項目で減点あり',
+      impact: `${wDetail.w1}点の減点`,
+    });
+  }
+
+  // Business years (w2)
+  if (socialItems && socialItems.businessYears < 35) {
+    const yearsLeft = 35 - socialItems.businessYears;
+    tips.push({
+      message: `営業年数: あと${yearsLeft}年で満点(60点)`,
+      impact: `現在${socialItems.businessYears}年`,
+    });
+  }
+
+  // Disaster agreement (w3)
+  if (socialItems && !socialItems.disasterAgreement) {
+    tips.push({
+      message: '防災協定: 未締結',
+      impact: '+20点の可能性',
+    });
+  }
+
+  // ISO certifications (w8)
+  if (socialItems) {
+    const missingIso = [];
+    if (!socialItems.iso9001) missingIso.push('ISO9001');
+    if (!socialItems.iso14001) missingIso.push('ISO14001');
+    if (missingIso.length > 0) {
+      tips.push({
+        message: `ISO取得: ${missingIso.join('・')}未取得`,
+        impact: `+${missingIso.length * 5}点の可能性`,
+      });
+    }
+  }
+
+  if (tips.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4" role="region" aria-label="W点改善提案">
+      <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-1">
+        <AlertCircle className="h-4 w-4" aria-hidden="true" />
+        改善ポイント
+      </h4>
+      <ul className="space-y-2">
+        {tips.map((tip, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm">
+            <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden="true" />
+            <div>
+              <span className="text-blue-900">{tip.message}</span>
+              <Badge variant="outline" className="ml-2 text-[10px] py-0 bg-blue-100 text-blue-700 border-blue-300">
+                {tip.impact}
+              </Badge>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
 function ContributionBar({ label, value, maxValue }: { label: string; value: number; maxValue: number }) {
   const pct = Math.max(0, Math.min(100, (value / maxValue) * 100));
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="flex items-center gap-3 text-sm" role="meter" aria-label={`${label}: 寄与点 ${value}`} aria-valuemin={0} aria-valuemax={maxValue} aria-valuenow={value}>
       <div className="w-24 sm:w-36 text-right text-muted-foreground">{label}</div>
-      <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden">
+      <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden" aria-hidden="true">
         <div className="h-full bg-primary/70 rounded" style={{ width: `${pct}%` }} />
       </div>
       <div className="w-16 text-right font-mono font-medium">{value}</div>
@@ -327,6 +439,13 @@ export function ResultView(props: ResultViewProps) {
         ※ 本試算は参考値であり、公式の経営事項審査結果通知書ではありません。
       </p>
 
+      {/* Screen reader summary of key results */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {companyName && `${companyName}の`}経審結果:
+        {industries.map((ind) => `${ind.name} P点=${ind.P}`).join('、')}。
+        Y点={Y}、X2={X2}、W点={W}。
+      </div>
+
       {/* P Score Cards */}
       <TooltipProvider>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -356,6 +475,34 @@ export function ResultView(props: ResultViewProps) {
           ))}
         </div>
       </TooltipProvider>
+
+      {/* P-score period comparison (shown when previous period data exists) */}
+      {industries.some((i) => i.prevP !== undefined) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+              前期比較
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              {industries.filter((i) => i.prevP !== undefined).map((ind) => (
+                <PeriodComparisonBar key={ind.name} label={`${ind.name} P点`} prev={ind.prevP!} curr={ind.P} />
+              ))}
+              {prevY !== undefined && (
+                <PeriodComparisonBar label="Y点（経営状況）" prev={prevY} curr={Y} />
+              )}
+              {prevX2 !== undefined && (
+                <PeriodComparisonBar label="X2（自己資本額等）" prev={prevX2} curr={X2} />
+              )}
+              {prevW !== undefined && (
+                <PeriodComparisonBar label="W点（社会性等）" prev={prevW} curr={W} />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Common Scores Bar */}
       <div className="flex flex-wrap gap-4 justify-center text-center">
@@ -439,7 +586,8 @@ export function ResultView(props: ResultViewProps) {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="業種別P点一覧表">
+                  <caption className="sr-only">業種別の総合評定値（P点）とその内訳一覧</caption>
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
                       <th scope="col" className="py-2 text-left">業種</th>
@@ -551,7 +699,8 @@ export function ResultView(props: ResultViewProps) {
                 <CardTitle className="text-base">Z（技術力評点）</CardTitle>
               </CardHeader>
               <CardContent>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="技術力評点一覧表">
+                  <caption className="sr-only">業種別の技術力評点（Z）とその内訳（Z1: 技術職員、Z2: 元請完工高）</caption>
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
                       <th scope="col" className="py-2 text-left">業種</th>
@@ -584,7 +733,7 @@ export function ResultView(props: ResultViewProps) {
                   <CardTitle className="text-base">W = {W}（社会性等）</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 text-center" role="list" aria-label="W点項目別内訳">
                     {([
                       { key: 'w1' as const, label: '労働福祉' },
                       { key: 'w2' as const, label: '営業年数' },
@@ -594,18 +743,24 @@ export function ResultView(props: ResultViewProps) {
                       { key: 'w6' as const, label: '研究開発' },
                       { key: 'w7' as const, label: '建設機械' },
                       { key: 'w8' as const, label: 'ISO等' },
-                    ]).map(({ key, label }) => (
-                      <div key={key} className="p-2 rounded border">
-                        <div className="text-[10px] text-muted-foreground">{label}</div>
-                        <div className={`text-sm font-bold ${wDetail[key] < 0 ? 'text-red-600' : wDetail[key] > 0 ? 'text-green-600' : ''}`}>
-                          {wDetail[key]}
+                    ]).map(({ key, label }) => {
+                      const val = wDetail[key];
+                      const statusText = val < 0 ? '(減点)' : val > 0 ? '(加点)' : '(変動なし)';
+                      return (
+                        <div key={key} className="p-2 rounded border" role="listitem" aria-label={`${label}: ${val}点 ${statusText}`}>
+                          <div className="text-[10px] text-muted-foreground">{label}</div>
+                          <div className={`text-sm font-bold ${val < 0 ? 'text-red-600' : val > 0 ? 'text-green-600' : ''}`}>
+                            {val}
+                            <span className="sr-only"> {statusText}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="mt-3 text-xs text-muted-foreground text-center">
                     素点合計 = {wDetail.total} → W = floor({wDetail.total} × 1750 / 200) = {W}
                   </div>
+                  <WImprovementTips wDetail={wDetail} socialItems={socialItems} />
                 </CardContent>
               </Card>
             )}
