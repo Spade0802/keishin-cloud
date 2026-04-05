@@ -363,6 +363,43 @@ export default function LandingPage() {
                   会社ごとの期別比較、シミュレーション結果の保存も可能です。（近日公開予定）
                 </AccordionContent>
               </AccordionItem>
+              <AccordionItem value="q7">
+                <AccordionTrigger>PDFのどの書類が必要ですか？</AccordionTrigger>
+                <AccordionContent>
+                  主に以下の書類をご用意ください。
+                  (1) 経審結果通知書（総合評定値通知書）：過去の審査結果との比較に使用します。
+                  (2) 経審申請書類（別紙一〜三、工事経歴書など）：業種別完工高やW項目を自動読み取りします。
+                  (3) 財務諸表（貸借対照表・損益計算書・完成工事原価報告書）：Y点の計算に必要な18項目を自動抽出します。
+                  すべてPDF形式でアップロードでき、OCR機能によりスキャンPDFにも対応しています。
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="q8">
+                <AccordionTrigger>計算結果は正確ですか？</AccordionTrigger>
+                <AccordionContent>
+                  KeishinCloudの計算エンジンは、国土交通省が定める公式の経審計算式に準拠しています。
+                  実在する建設会社の2期分の実績データで検証済みで、P点は完全一致の精度を達成しています。
+                  ただし、本サービスの試算結果はあくまで参考値です。正式な経審結果は登録経営状況分析機関および許可行政庁の審査によりますので、
+                  最終確認は行政書士等の専門家にご相談ください。
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="q9">
+                <AccordionTrigger>データは安全に保管されますか？</AccordionTrigger>
+                <AccordionContent>
+                  はい、セキュリティには万全を期しています。
+                  通信はすべてSSL/TLS暗号化で保護され、保存データもサーバー側で暗号化しています。
+                  簡易シミュレーターではブラウザ内で計算を完結するため、データがサーバーに送信されることはありません。
+                  アカウント登録後のデータ保存機能でも、アクセス権限はアカウント単位で厳密に管理し、他のユーザーからデータが閲覧されることはありません。
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="q10">
+                <AccordionTrigger>無料プランの制限は？</AccordionTrigger>
+                <AccordionContent>
+                  無料プランでは、P点のシミュレーション機能を制限なくお使いいただけます。
+                  データの保存は直近3件まで、PDFアップロードによる自動読み取りは月5回まで、
+                  Excel/PDFエクスポートは月3回までとなっています。
+                  より多くの保存枠や無制限のアップロード・エクスポートが必要な場合は、有料プランをご検討ください。
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
           </div>
         </section>

@@ -72,6 +72,25 @@ export default async function RootLayout({
       <head>
         <link rel="canonical" href="https://keishin.cloud" />
         <link rel="manifest" href="/manifest.json" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'SoftwareApplication',
+              name: 'KeishinCloud',
+              applicationCategory: 'BusinessApplication',
+              operatingSystem: 'Web',
+              description:
+                '建設業の経営事項審査（経審）P点をブラウザで即試算。登録不要・無料で使えるクラウド型経審シミュレーター。',
+              offers: {
+                '@type': 'Offer',
+                price: '0',
+                priceCurrency: 'JPY',
+              },
+            }),
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <SessionProvider session={session}>

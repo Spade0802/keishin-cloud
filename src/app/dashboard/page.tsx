@@ -22,6 +22,9 @@ import {
   TrendingUp,
   CheckCircle,
   ChevronRight,
+  Play,
+  History,
+  Settings,
 } from 'lucide-react';
 import { SignOutButton } from './sign-out-button';
 
@@ -96,6 +99,58 @@ export default async function DashboardPage() {
                 </Link>
               </CardContent>
             </Card>
+          </section>
+
+          {/* クイックアクション */}
+          <section className="mb-10">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Play className="h-5 w-5 text-primary" />
+              クイックアクション
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Link href="/trial">
+                <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 h-full">
+                  <CardContent className="pt-5 pb-4 flex items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Calculator className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">新規シミュレーション</h3>
+                      <p className="text-xs text-muted-foreground">P点を試算する</p>
+                    </div>
+                    <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/dashboard/history">
+                <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 h-full">
+                  <CardContent className="pt-5 pb-4 flex items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <History className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">過去の結果を見る</h3>
+                      <p className="text-xs text-muted-foreground">シミュレーション履歴</p>
+                    </div>
+                    <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/account/settings">
+                <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 h-full">
+                  <CardContent className="pt-5 pb-4 flex items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Settings className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">設定</h3>
+                      <p className="text-xs text-muted-foreground">アカウント・法人情報</p>
+                    </div>
+                    <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
           </section>
 
           {/* 使い方ガイド: 4ステップ */}

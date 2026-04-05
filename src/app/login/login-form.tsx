@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, Loader2 } from 'lucide-react';
+import { Mail, Loader2, Calculator } from 'lucide-react';
 
 export function LoginForm() {
   const router = useRouter();
@@ -50,9 +50,13 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
+      <CardHeader className="text-center space-y-3">
+        <div className="flex items-center justify-center gap-2">
+          <Calculator className="h-7 w-7 text-primary" />
+          <span className="text-xl font-bold tracking-tight">KeishinCloud</span>
+        </div>
         <CardTitle className="text-2xl">ログイン</CardTitle>
-        <p className="text-sm text-muted-foreground mt-2">
+        <p className="text-sm text-muted-foreground">
           ログインするとシミュレーション結果の保存・比較ができます
         </p>
       </CardHeader>
@@ -140,12 +144,16 @@ export function LoginForm() {
           </Button>
         </form>
 
-        <p className="text-sm text-center text-muted-foreground">
-          アカウントをお持ちでない方は{' '}
-          <Link href="/signup" className="text-primary underline underline-offset-4 hover:text-primary/80">
-            新規登録
+        <div className="text-center space-y-2">
+          <p className="text-sm text-muted-foreground">
+            アカウントをお持ちでない方は
+          </p>
+          <Link href="/signup">
+            <Button variant="outline" className="w-full">
+              新規登録はこちら
+            </Button>
           </Link>
-        </p>
+        </div>
       </CardContent>
     </Card>
   );

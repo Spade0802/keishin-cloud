@@ -94,7 +94,7 @@ describe('useAutoSave', () => {
 
     // Only one final write
     const calls = localStorageMock.setItem.mock.calls.filter(
-      ([key]: [string]) => key === `${KEY_PREFIX}debounce-key`,
+      ([key]: [string, string]) => key === `${KEY_PREFIX}debounce-key`,
     );
     expect(calls.length).toBe(1);
 
