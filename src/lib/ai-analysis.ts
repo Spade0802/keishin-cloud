@@ -31,20 +31,40 @@ export async function generatePPointAnalysis(
     let responseText = '';
 
     if (aiConfig.provider === 'gemini-paid' && aiConfig.apiKey) {
-      // ── Gemini Paid API ──
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          responseMimeType: 'application/json' as const,
-          temperature: 0.3,
-          maxOutputTokens: 65536,
-        },
-      });
-      console.log(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
-      const result = await model.generateContent(prompt);
-      responseText = result.response.text() ?? '';
+      // ── Gemini Paid API（429時はVertex AIにフォールバック） ──
+      try {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json' as const,
+            temperature: 0.3,
+            maxOutputTokens: 65536,
+          },
+        });
+        console.log(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
+        const result = await model.generateContent(prompt);
+        responseText = result.response.text() ?? '';
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Too Many Requests')) {
+          console.warn(`[ai-analysis] Gemini Paid rate limited, falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
+          const { VertexAI } = await import('@google-cloud/vertexai');
+          const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
+          const model = vertexAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { temperature: 0.3, maxOutputTokens: 65536, responseMimeType: 'application/json' },
+          });
+          console.log(`[ai-analysis] Retrying with Vertex AI (${modelName}), attempt ${attempt}`);
+          const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          });
+          responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        } else {
+          throw err;
+        }
+      }
     } else {
       // ── Vertex AI ──
       const { VertexAI } = await import('@google-cloud/vertexai');
@@ -88,6 +108,10 @@ export async function generatePPointAnalysis(
   }
 
   const parsed = JSON.parse(jsonText) as AnalysisResult;
+
+  // 新フィールドのデフォルト値（旧モデル出力との互換性）
+  if (!parsed.impactRanking) parsed.impactRanking = [];
+  if (!parsed.checklistItems) parsed.checklistItems = [];
 
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
@@ -149,7 +173,7 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
 
 ## 分析内容
 
-以下の4セクションをJSON形式で出力してください。
+以下の6セクションをJSON形式で出力してください。
 業種名は必ず次の名前を使用してください: ${JSON.stringify(industryNames)}
 
 ### 1. 再分類レビュー（reclassificationReview）
@@ -157,19 +181,34 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
 - **入力データから読み取れる事実のみ**を根拠にすること。
 - 具体的な振替金額が入力データから算出できない場合は「要確認」と書く。
 - 提案ごとに適法性の根拠と必要書類を明記する。
+- **各項目に affectedFields を含めてください。** これは再分類を適用した場合のYInput各フィールドへの差分（千円）です。
+  - 使用可能なフィールド: sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome, currentLiabilities, fixedLiabilities, totalCapital, equity, fixedAssets, retainedEarnings, corporateTax, depreciation, allowanceDoubtful, notesAndAccountsReceivable, constructionPayable, inventoryAndMaterials, advanceReceived
+  - 例: 雑収入12,000千円を完成工事高に振替 → { "sales": 12000, "grossProfit": 12000 }
+  - 例: 60,000千円の資本性借入金認定 → { "equity": 60000, "fixedLiabilities": -60000 }
+  - 金額が不明な場合は空オブジェクト {} を設定してください。
 
 ### 2. シミュレーション（simulationComparison）
+3ケースを出力：
 - Case A: 現状ベース（入力データのスコアをそのまま記載）
-- Case B: 見直し余地がある項目を適用した場合の**方向性**（具体的な点数は算出可能な範囲のみ）
+- Case B: 最適化ケース（見直し余地がある項目を全て適用した場合の上限値）
+- Case C: 保守的ケース（確実に適用できる項目のみ）
+※ Case Aのscoresは入力データの値を正確に使ってください。
 
 ### 3. 項目判定（itemAssessments）
 入力データの各スコア（Y, X2, W各項目）について：
-- confirmed: 現状で問題なし
+- confirmed: 現状で問題なし（そのまま確定してよい）
 - reviewable: 見直し余地あり
-- insufficientBasis: 判断材料不足
+- insufficientBasis: 判断材料不足（点数影響あるが根拠不足）
+- shouldNotDo: 実施すべきでない（虚偽記載・粉飾に該当等）
 
 ### 4. リスク論点（riskPoints）
 入力データから読み取れる異常値・注意点のみ指摘。
+
+### 5. P点改善インパクト順ランキング（impactRanking）
+再分類レビューの各項目を、P点への影響が大きい順にランキング。
+
+### 6. 確認すべき事項チェックリスト（checklistItems）
+経理担当・税理士・行政書士へ確認すべき具体的な事項の一覧。
 
 ## 出力JSON形式
 {
@@ -187,7 +226,8 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
       "wImpact": "W影響",
       "pImpact": "P影響",
       "assessment": "採用余地あり|要確認|非推奨",
-      "risk": "リスク説明"
+      "risk": "リスク説明",
+      "affectedFields": {"sales": 12000, "grossProfit": 12000}
     }
   ],
   "simulationComparison": [
@@ -202,11 +242,23 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
         "w": ${input.W},
         "p": {${industryNames.map((n, i) => `"${n}": ${input.industries[i]?.P ?? 0}`).join(', ')}}
       }
+    },
+    {
+      "label": "Case B",
+      "description": "最適化",
+      "assumptions": {"項目名": "変更内容"},
+      "scores": {"y": 0, "x2": 0, "z": {}, "w": 0, "p": {}}
+    },
+    {
+      "label": "Case C",
+      "description": "保守的",
+      "assumptions": {"項目名": "変更内容"},
+      "scores": {"y": 0, "x2": 0, "z": {}, "w": 0, "p": {}}
     }
   ],
   "itemAssessments": [
     {
-      "category": "confirmed|reviewable|insufficientBasis",
+      "category": "confirmed|reviewable|insufficientBasis|shouldNotDo",
       "item": "項目名",
       "currentPImpact": "入力データの値",
       "revisedPImpact": "見直し後の見込み（不明なら「要確認」）",
@@ -219,6 +271,20 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
       "riskContent": "リスク内容",
       "severity": "高|中|低",
       "response": "対応方針"
+    }
+  ],
+  "impactRanking": [
+    {
+      "rank": 1,
+      "item": "項目名",
+      "pImpact": "P影響（概算）",
+      "comment": "コメント"
+    }
+  ],
+  "checklistItems": [
+    {
+      "item": "確認事項の具体的内容",
+      "target": "確認先（経理・税理士・行政書士等）"
     }
   ],
   "summary": "入力データに基づく全体の分析サマリー（200文字程度）"

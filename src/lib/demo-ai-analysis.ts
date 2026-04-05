@@ -314,4 +314,22 @@ export const demoAnalysisResult: AnalysisResult = {
         '若手技術者の採用・資格取得支援を継続。CPD・CCUS実績の蓄積も並行して推進',
     },
   ],
+
+  impactRanking: [
+    { rank: 1, item: '資本性借入金の認定', pImpact: 'P +5〜8', comment: '要確認（契約要件の充足が前提）' },
+    { rank: 2, item: '雑収入の工事関連部分振替', pImpact: 'P +3〜4', comment: '採用余地あり（証憑次第）' },
+    { rank: 3, item: 'CCUS就業履歴蓄積の確認', pImpact: 'P +0〜5', comment: '要確認（実績があれば即効性あり）' },
+    { rank: 4, item: 'CPD単位取得の確認', pImpact: 'P +0〜3', comment: '要確認（取得実績があれば）' },
+    { rank: 5, item: '減価償却実施額の網羅性確認', pImpact: 'P +0〜1', comment: '要確認（固定資産台帳が必要）' },
+  ],
+
+  checklistItems: [
+    { item: '雑収入の内訳と工事関連性の確認（契約書・精算書）', target: '経理' },
+    { item: '長期借入金の契約条件（資本性借入金該当可否）', target: '税理士' },
+    { item: '支払利息割引料の内訳（手形割引料の有無）', target: '経理' },
+    { item: '減価償却実施額の注記ベース確認（固定資産台帳）', target: '税理士' },
+    { item: 'CPD取得実績の有無（各技術者の証明書）', target: '行政書士' },
+    { item: 'CCUS現場利用の実績有無（事業者ID・利用データ）', target: '行政書士' },
+    { item: 'ISO登録証の有効期限確認', target: '行政書士' },
+  ],
 };

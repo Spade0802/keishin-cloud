@@ -123,43 +123,68 @@ function numField(
   );
 }
 
+// ---- Props ----
+
+interface InputWizardProps {
+  /** Pre-loaded input data from a saved simulation */
+  initialInputData?: Record<string, unknown>;
+  /** Pre-loaded result data from a saved simulation */
+  initialResultData?: Record<string, unknown>;
+  /** Existing simulation ID for update instead of create */
+  simulationId?: string;
+}
+
 // ---- Main Component ----
 
-export function InputWizard() {
-  const [step, setStep] = useState(1);
+export function InputWizard({ initialInputData, initialResultData, simulationId: initialSimulationId }: InputWizardProps = {}) {
+  const [currentSimulationId, setCurrentSimulationId] = useState<string | undefined>(initialSimulationId);
+  const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState(initialResultData ? 5 : 1);
+
+  // Helper to extract string from initial data
+  const init = (key: string, fallback = ''): string => {
+    if (!initialInputData) return fallback;
+    const v = initialInputData[key];
+    return v !== undefined && v !== null ? String(v) : fallback;
+  };
 
   // Step 1: Financial data from Excel
-  const [sales, setSales] = useState('');
-  const [grossProfit, setGrossProfit] = useState('');
-  const [ordinaryProfit, setOrdinaryProfit] = useState('');
-  const [interestExpense, setInterestExpense] = useState('');
-  const [interestDividendIncome, setInterestDividendIncome] = useState('');
-  const [currentLiabilities, setCurrentLiabilities] = useState('');
-  const [fixedLiabilities, setFixedLiabilities] = useState('');
-  const [totalCapital, setTotalCapital] = useState('');
-  const [equity, setEquity] = useState('');
-  const [fixedAssets, setFixedAssets] = useState('');
-  const [retainedEarnings, setRetainedEarnings] = useState('');
-  const [corporateTax, setCorporateTax] = useState('');
-  const [depreciation, setDepreciation] = useState('');
-  const [allowanceDoubtful, setAllowanceDoubtful] = useState('');
-  const [notesAndReceivable, setNotesAndReceivable] = useState('');
-  const [constructionPayable, setConstructionPayable] = useState('');
-  const [inventoryAndMaterials, setInventoryAndMaterials] = useState('');
-  const [advanceReceived, setAdvanceReceived] = useState('');
-  const [fileLoaded, setFileLoaded] = useState(false);
+  const [sales, setSales] = useState(init('sales'));
+  const [grossProfit, setGrossProfit] = useState(init('grossProfit'));
+  const [ordinaryProfit, setOrdinaryProfit] = useState(init('ordinaryProfit'));
+  const [interestExpense, setInterestExpense] = useState(init('interestExpense'));
+  const [interestDividendIncome, setInterestDividendIncome] = useState(init('interestDividendIncome'));
+  const [currentLiabilities, setCurrentLiabilities] = useState(init('currentLiabilities'));
+  const [fixedLiabilities, setFixedLiabilities] = useState(init('fixedLiabilities'));
+  const [totalCapital, setTotalCapital] = useState(init('totalCapital'));
+  const [equity, setEquity] = useState(init('equity'));
+  const [fixedAssets, setFixedAssets] = useState(init('fixedAssets'));
+  const [retainedEarnings, setRetainedEarnings] = useState(init('retainedEarnings'));
+  const [corporateTax, setCorporateTax] = useState(init('corporateTax'));
+  const [depreciation, setDepreciation] = useState(init('depreciation'));
+  const [allowanceDoubtful, setAllowanceDoubtful] = useState(init('allowanceDoubtful'));
+  const [notesAndReceivable, setNotesAndReceivable] = useState(init('notesAndReceivable'));
+  const [constructionPayable, setConstructionPayable] = useState(init('constructionPayable'));
+  const [inventoryAndMaterials, setInventoryAndMaterials] = useState(init('inventoryAndMaterials'));
+  const [advanceReceived, setAdvanceReceived] = useState(init('advanceReceived'));
+  const [fileLoaded, setFileLoaded] = useState(!!initialInputData);
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [previewBS, setPreviewBS] = useState<ParsedRawBS | null>(null);
   const [previewPL, setPreviewPL] = useState<ParsedRawPL | null>(null);
 
   // Step 2: Basic info + industries + X2 data
-  const [basicInfo, setBasicInfo] = useState<BasicInfo>({
-    companyName: '', permitNumber: '', reviewBaseDate: '', periodNumber: '',
+  const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => {
+    if (!initialInputData) return { companyName: '', permitNumber: '', reviewBaseDate: '', periodNumber: '' };
+    const bi = initialInputData.basicInfo as BasicInfo | undefined;
+    return bi ?? { companyName: '', permitNumber: '', reviewBaseDate: '', periodNumber: '' };
   });
-  const [ebitda, setEbitda] = useState('');
-  const [industries, setIndustries] = useState<IndustryInput[]>([
-    { name: '', permitType: '特定', prevCompletion: '', currCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' },
-  ]);
+  const [ebitda, setEbitda] = useState(init('ebitda'));
+  const [industries, setIndustries] = useState<IndustryInput[]>(() => {
+    if (initialInputData?.industries && Array.isArray(initialInputData.industries)) {
+      return initialInputData.industries as IndustryInput[];
+    }
+    return [{ name: '', permitType: '特定', prevCompletion: '', currCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }];
+  });
 
   // Step 3: W items
   const [wDetail, setWDetail] = useState<WDetail | null>(null);
@@ -174,9 +199,9 @@ export function InputWizard() {
   const [keishinPdfMappings, setKeishinPdfMappings] = useState<{ source: string; target: string; value: string | number }[]>([]);
 
   // Step 4: Previous period
-  const [prevData, setPrevData] = useState<PrevPeriodData>({
-    totalCapital: '', operatingCF: '', allowanceDoubtful: '', notesAndReceivable: '',
-    constructionPayable: '', inventoryAndMaterials: '', advanceReceived: '',
+  const [prevData, setPrevData] = useState<PrevPeriodData>(() => {
+    if (initialInputData?.prevData) return initialInputData.prevData as PrevPeriodData;
+    return { totalCapital: '', operatingCF: '', allowanceDoubtful: '', notesAndReceivable: '', constructionPayable: '', inventoryAndMaterials: '', advanceReceived: '' };
   });
   const [prevFileLoading, setPrevFileLoading] = useState(false);
   const [prevFileName, setPrevFileName] = useState<string | null>(null);
@@ -184,12 +209,15 @@ export function InputWizard() {
   const prevFileRef = useRef<HTMLInputElement>(null);
 
   // Result
-  const [result, setResult] = useState<{
+  type ResultType = {
     Y: number; X2: number; X21: number; X22: number; W: number; wTotal: number;
     yResult: YResult; wDetail: WDetail;
     industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number }>;
     bs?: KeishinBS; pl?: KeishinPL;
-  } | null>(null);
+  };
+  const [result, setResult] = useState<ResultType | null>(
+    initialResultData ? initialResultData as ResultType : null
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -369,7 +397,7 @@ export function InputWizard() {
           currCompletion: String(ind.currCompletion),
           prevSubcontract: String(ind.prevPrimeContract),
           currSubcontract: String(ind.currPrimeContract),
-          techStaffValue: '',
+          techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',
         })));
       }
 
@@ -458,10 +486,56 @@ export function InputWizard() {
 
       const bs = previewBS ? buildKeishinBSFromParsed(previewBS) : undefined;
       const pl = previewPL ? buildKeishinPLFromParsed(previewPL) : undefined;
-      setResult({ Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl });
+      const resultObj: ResultType = { Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl };
+      setResult(resultObj);
       setStep(5); // Go to result
+
+      // Auto-save to database
+      const inputDataPayload = {
+        sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome,
+        currentLiabilities, fixedLiabilities, totalCapital, equity, fixedAssets,
+        retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
+        notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
+        ebitda, basicInfo, industries, prevData,
+      };
+
+      saveSimulation(inputDataPayload, resultObj);
     } catch (e) {
       setError(e instanceof Error ? e.message : '計算中にエラーが発生しました。');
+    }
+  }
+
+  async function saveSimulation(inputData: Record<string, unknown>, resultData: ResultType) {
+    setSaving(true);
+    try {
+      const payload = {
+        ...(currentSimulationId ? { id: currentSimulationId } : {}),
+        name: (inputData.basicInfo as BasicInfo)?.companyName || '無題のシミュレーション',
+        period: (inputData.basicInfo as BasicInfo)?.periodNumber || null,
+        inputData,
+        resultData,
+      };
+
+      const method = currentSimulationId ? 'PUT' : 'POST';
+      const res = await fetch('/api/simulations', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        if (!currentSimulationId && saved.id) {
+          setCurrentSimulationId(saved.id);
+          // Update URL without full navigation so the user can share/bookmark
+          window.history.replaceState(null, '', `/trial/${saved.id}`);
+        }
+      }
+    } catch {
+      // Save failure is non-blocking - user still sees the result
+      console.error('シミュレーション保存に失敗しました');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -883,6 +957,32 @@ export function InputWizard() {
           wDetail={result.wDetail}
           bs={result.bs}
           pl={result.pl}
+          yInput={{
+            sales: num(sales), grossProfit: num(grossProfit), ordinaryProfit: num(ordinaryProfit),
+            interestExpense: num(interestExpense), interestDividendIncome: num(interestDividendIncome),
+            currentLiabilities: num(currentLiabilities), fixedLiabilities: num(fixedLiabilities),
+            totalCapital: num(totalCapital), equity: num(equity), fixedAssets: num(fixedAssets),
+            retainedEarnings: num(retainedEarnings), corporateTax: num(corporateTax),
+            depreciation: num(depreciation), allowanceDoubtful: num(allowanceDoubtful),
+            notesAndAccountsReceivable: num(notesAndReceivable),
+            constructionPayable: num(constructionPayable),
+            inventoryAndMaterials: num(inventoryAndMaterials), advanceReceived: num(advanceReceived),
+            prev: {
+              totalCapital: num(prevData.totalCapital), operatingCF: num(prevData.operatingCF),
+              allowanceDoubtful: num(prevData.allowanceDoubtful),
+              notesAndAccountsReceivable: num(prevData.notesAndReceivable),
+              constructionPayable: num(prevData.constructionPayable),
+              inventoryAndMaterials: num(prevData.inventoryAndMaterials),
+              advanceReceived: num(prevData.advanceReceived),
+            },
+          }}
+          ebitda={num(ebitda)}
+          industryCalcData={industries.filter(ind => ind.name).map(ind => ({
+            name: ind.name,
+            avgCompletion: Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2),
+            avgSubcontract: Math.floor((num(ind.prevSubcontract) + num(ind.currSubcontract)) / 2),
+            techStaffValue: num(ind.techStaffValue),
+          }))}
         />
       )}
 
@@ -926,6 +1026,12 @@ export function InputWizard() {
           )}
         </div>
       </div>
+
+      {saving && (
+        <p className="text-xs text-center text-muted-foreground animate-pulse">
+          保存中...
+        </p>
+      )}
 
       <p className="text-xs text-center text-muted-foreground">
         ※ 本試算は参考値であり、公式の経営事項審査結果通知書ではありません。

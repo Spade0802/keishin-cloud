@@ -23,7 +23,7 @@ import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
 import { KeishinPLTable } from '@/components/keishin-pl-table';
 import { AiAnalysisView } from '@/components/ai-analysis-view';
-import type { YResult, KeishinBS, KeishinPL, WDetail } from '@/lib/engine/types';
+import type { YResult, YInput, KeishinBS, KeishinPL, WDetail } from '@/lib/engine/types';
 import type { AnalysisInput, AnalysisResult } from '@/lib/ai-analysis-types';
 
 interface IndustryResult {
@@ -58,6 +58,17 @@ interface ResultViewProps {
   readOnly?: boolean;
   /** AI分析の事前生成済み結果（デモ用） */
   staticAiAnalysis?: AnalysisResult;
+  /** 再分類シミュレーション用のYInput */
+  yInput?: YInput;
+  /** EBITDA（X22計算用） */
+  ebitda?: number;
+  /** 業種別計算データ */
+  industryCalcData?: Array<{
+    name: string;
+    avgCompletion: number;
+    avgSubcontract: number;
+    techStaffValue: number;
+  }>;
 }
 
 function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
@@ -107,6 +118,9 @@ export function ResultView(props: ResultViewProps) {
     prevY, prevX2, prevW,
     readOnly,
     staticAiAnalysis,
+    yInput,
+    ebitda,
+    industryCalcData,
   } = props;
 
   const [yDetailOpen, setYDetailOpen] = useState(false);
@@ -137,8 +151,11 @@ export function ResultView(props: ResultViewProps) {
       wDetail,
       bs: bs as unknown as Record<string, number>,
       pl: pl as unknown as Record<string, number>,
+      yInput,
+      ebitda,
+      industryCalcData,
     };
-  }, [companyName, period, industries, Y, X2, X21, X22, W, wTotal, yResult, wDetail, bs, pl, readOnly, staticAiAnalysis]);
+  }, [companyName, period, industries, Y, X2, X21, X22, W, wTotal, yResult, wDetail, bs, pl, readOnly, staticAiAnalysis, yInput, ebitda, industryCalcData]);
 
   // Calculate P formula breakdown for first industry
   const primaryInd = industries[0];

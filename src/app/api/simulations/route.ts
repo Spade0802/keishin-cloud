@@ -58,3 +58,55 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(created, { status: 201 });
 }
+
+/** PUT /api/simulations — 既存シミュレーション更新 */
+export async function PUT(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { id, name, inputData, resultData, period } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: 'IDが必要です' }, { status: 400 });
+  }
+
+  if (!inputData) {
+    return NextResponse.json({ error: '入力データが必要です' }, { status: 400 });
+  }
+
+  // Verify ownership
+  const [existing] = await db
+    .select({ userId: simulations.userId, organizationId: simulations.organizationId })
+    .from(simulations)
+    .where(eq(simulations.id, id));
+
+  if (!existing) {
+    return NextResponse.json({ error: 'シミュレーションが見つかりません' }, { status: 404 });
+  }
+
+  const orgId = session.user.organizationId;
+  const isOwner =
+    existing.userId === session.user.id ||
+    (orgId && existing.organizationId === orgId);
+
+  if (!isOwner) {
+    return NextResponse.json({ error: '権限がありません' }, { status: 403 });
+  }
+
+  const [updated] = await db
+    .update(simulations)
+    .set({
+      name: name || undefined,
+      period: period || undefined,
+      inputData,
+      resultData,
+      updatedAt: new Date(),
+    })
+    .where(eq(simulations.id, id))
+    .returning();
+
+  return NextResponse.json(updated);
+}

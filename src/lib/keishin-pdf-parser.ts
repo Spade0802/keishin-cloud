@@ -38,6 +38,8 @@ export interface KeishinPdfResult {
     currCompletion: number;
     prevPrimeContract: number;
     currPrimeContract: number;
+    /** 技術職員数値（Z1計算用、業種別の点数） */
+    techStaffValue?: number;
   }>;
   /** W項目（社会性等）*/
   wItems: Partial<SocialItems>;

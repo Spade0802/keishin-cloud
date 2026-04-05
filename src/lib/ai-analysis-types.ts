@@ -20,6 +20,8 @@ export interface ReclassificationItem {
   pImpact: string;
   assessment: '採用余地あり' | '要確認' | '非推奨' | '—';
   risk: string;
+  /** YInput フィールドへの差分（例: { sales: 12000, grossProfit: 12000 }） */
+  affectedFields?: Record<string, number>;
 }
 
 /** シミュレーションケース */
@@ -53,12 +55,28 @@ export interface RiskPoint {
   response: string;
 }
 
+/** P点改善インパクトランキング項目 */
+export interface ImpactRankingItem {
+  rank: number;
+  item: string;
+  pImpact: string;
+  comment: string;
+}
+
+/** 確認すべき事項 */
+export interface ChecklistItem {
+  item: string;
+  target: string; // 確認先（経理・税理士・行政書士等）
+}
+
 /** AI分析結果全体 */
 export interface AnalysisResult {
   reclassificationReview: ReclassificationItem[];
   simulationComparison: SimulationCase[];
   itemAssessments: ItemAssessment[];
   riskPoints: RiskPoint[];
+  impactRanking: ImpactRankingItem[];
+  checklistItems: ChecklistItem[];
   summary: string;
   disclaimer: string;
 }
@@ -101,4 +119,43 @@ export interface AnalysisInput {
   };
   bs?: Record<string, number>;
   pl?: Record<string, number>;
+  /** Y点再計算用のYInput（再分類シミュレーション用） */
+  yInput?: {
+    sales: number;
+    grossProfit: number;
+    ordinaryProfit: number;
+    interestExpense: number;
+    interestDividendIncome: number;
+    currentLiabilities: number;
+    fixedLiabilities: number;
+    totalCapital: number;
+    equity: number;
+    fixedAssets: number;
+    retainedEarnings: number;
+    corporateTax: number;
+    depreciation: number;
+    allowanceDoubtful: number;
+    notesAndAccountsReceivable: number;
+    constructionPayable: number;
+    inventoryAndMaterials: number;
+    advanceReceived: number;
+    prev: {
+      totalCapital: number;
+      operatingCF: number;
+      allowanceDoubtful: number;
+      notesAndAccountsReceivable: number;
+      constructionPayable: number;
+      inventoryAndMaterials: number;
+      advanceReceived: number;
+    };
+  };
+  /** EBITDA（X22計算用） */
+  ebitda?: number;
+  /** 業種別の完工高・元請高（再計算用） */
+  industryCalcData?: Array<{
+    name: string;
+    avgCompletion: number;
+    avgSubcontract: number;
+    techStaffValue: number;
+  }>;
 }
