@@ -29,10 +29,16 @@ async function getGenerativeModel() {
     'jww-dxf-converter';
 
   // DB設定 > 環境変数 > デフォルト の優先順位でモデルを決定
-  let modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  // ※ Vertex AI は Gemini モデルのみ対応。GPT等は無視する。
+  const DEFAULT_MODEL = 'gemini-2.5-flash';
+  let modelName = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   try {
     const aiConfig = await getAIConfig();
-    if (aiConfig.model) modelName = aiConfig.model;
+    if (aiConfig.model && aiConfig.model.startsWith('gemini')) {
+      modelName = aiConfig.model;
+    } else if (aiConfig.model) {
+      console.warn(`Ignoring non-Gemini model "${aiConfig.model}" for Vertex AI, using ${DEFAULT_MODEL}`);
+    }
   } catch {
     // DB未接続時はフォールバック
   }

@@ -15,9 +15,15 @@ const LOCATION = 'asia-northeast1';
 export async function generatePPointAnalysis(
   input: AnalysisInput,
 ): Promise<AnalysisResult> {
-  // DB設定からモデル名を取得（管理画面で変更可能）
+  // DB設定からモデル名を取得（Vertex AI は Gemini のみ対応）
+  const DEFAULT_MODEL = 'gemini-2.5-flash';
   const aiConfig = await getAIConfig();
-  const modelName = aiConfig.model || 'gemini-2.5-flash';
+  let modelName = DEFAULT_MODEL;
+  if (aiConfig.model && aiConfig.model.startsWith('gemini')) {
+    modelName = aiConfig.model;
+  } else if (aiConfig.model) {
+    console.warn(`[ai-analysis] Ignoring non-Gemini model "${aiConfig.model}", using ${DEFAULT_MODEL}`);
+  }
 
   const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
   const model = vertexAI.getGenerativeModel({
