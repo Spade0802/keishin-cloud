@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseExcel } from '@/lib/excel-parser';
+import { extractFinancialDataFromExcel } from '@/lib/gemini-extractor';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,9 +34,27 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer();
-    const result = parseExcel(buffer);
 
-    return NextResponse.json(result);
+    // 1) Gemini AIで高精度抽出を試行
+    const geminiResult = await extractFinancialDataFromExcel(buffer);
+
+    if (geminiResult) {
+      // Gemini成功 → AI抽出結果を返す
+      return NextResponse.json({
+        data: geminiResult.data,
+        warnings: geminiResult.warnings,
+        mappings: [],
+        method: geminiResult.method,
+      });
+    }
+
+    // 2) フォールバック: 従来のキーワードマッチ
+    const fallbackResult = parseExcel(buffer);
+
+    return NextResponse.json({
+      ...fallbackResult,
+      method: 'keyword-match',
+    });
   } catch (e) {
     console.error('Excel parse error:', e);
     return NextResponse.json(

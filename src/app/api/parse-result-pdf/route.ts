@@ -1,26 +1,20 @@
 /**
  * 経審結果通知書PDFパーサー API
  *
- * 総合評定値通知書PDFをDocument AI/OCRで読み取り、
- * Y, X2, X21, X22, W, 業種別X1, Z, P を抽出する。
+ * 総合評定値通知書PDFからY, X2, X21, X22, W, 業種別X1, Z, P を抽出する。
+ *
+ * 抽出方式:
+ * 1. Gemini Vision AI（プライマリ） — 高精度
+ * 2. Document AI + regex フォールバック
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
+import { extractResultPdfWithGemini, type ResultPdfScores } from '@/lib/gemini-extractor';
 
+// Document AI設定（フォールバック用）
 const PROJECT_ID = process.env.GCP_PROJECT_ID || 'jww-dxf-converter';
 const LOCATION = process.env.DOCAI_LOCATION || 'us';
 const PROCESSOR_ID = process.env.DOCAI_PROCESSOR_ID || '660ca751a3b05c46';
-
-interface ExtractedScores {
-  label: string;
-  Y: string;
-  X2: string;
-  X21: string;
-  X22: string;
-  W: string;
-  industries: Array<{ name: string; X1: string; Z: string; P: string }>;
-}
 
 // 業種名マッピング（短縮表記→正式名）
 const INDUSTRY_NAMES: Record<string, string> = {
@@ -33,8 +27,8 @@ const INDUSTRY_NAMES: Record<string, string> = {
   '消': '消防施設', '清': '清掃施設', '解': '解体',
 };
 
-function extractScoresFromText(text: string): ExtractedScores {
-  const result: ExtractedScores = {
+function extractScoresFromText(text: string): ResultPdfScores {
+  const result: ResultPdfScores = {
     label: '',
     Y: '', X2: '', X21: '', X22: '', W: '',
     industries: [],
@@ -67,16 +61,13 @@ function extractScoresFromText(text: string): ExtractedScores {
   if (wMatch) result.W = wMatch[1];
 
   // 業種別スコア（結果通知書のテーブル行パターン）
-  // パターン: 業種名 ... X1値 ... Z値 ... P値
   const lines = text.split('\n');
   for (const line of lines) {
-    // 業種行パターン: 業種コードor名前 + 数値群
     const indMatch = line.match(
       /(?:([一-龥ぁ-んァ-ヴ]{1,6})\s+.*?)?(\d{3,5})\s+.*?(\d{3,5})\s+.*?(\d{3,5})\s*$/
     );
     if (indMatch) {
       const [, name, v1, v2, v3] = indMatch;
-      // P点は通常3-4桁、X1とZも3-4桁
       if (name && parseInt(v3) >= 100 && parseInt(v3) <= 2000) {
         const resolvedName = INDUSTRY_NAMES[name] || name;
         result.industries.push({
@@ -89,8 +80,7 @@ function extractScoresFromText(text: string): ExtractedScores {
     }
   }
 
-  // 結果通知書の標準テーブル形式を追加パース
-  // "業種 | X1 | X2 | Y | Z | W | P" の行パターン
+  // 標準テーブル形式の追加パース
   const tablePattern = /([一-龥ぁ-んァ-ヴー]{1,8})\s+(\d{3,5})\s+(\d{3,4})\s+(\d{3,4})\s+(\d{3,5})\s+(\d{3,4})\s+(\d{3,4})/g;
   let tableMatch;
   while ((tableMatch = tablePattern.exec(text)) !== null) {
@@ -118,10 +108,20 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    let fullText = '';
 
-    // Document AI で OCR
+    // 1) Gemini Vision AIで高精度抽出を試行
+    const geminiResult = await extractResultPdfWithGemini(buffer);
+    if (geminiResult) {
+      return NextResponse.json({
+        scores: geminiResult.scores,
+        method: geminiResult.method,
+      });
+    }
+
+    // 2) フォールバック: Document AI + regex
+    let fullText = '';
     try {
+      const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai');
       const client = new DocumentProcessorServiceClient();
       const processorName = `projects/${PROJECT_ID}/locations/${LOCATION}/processors/${PROCESSOR_ID}`;
       const [result] = await client.processDocument({
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
       });
       fullText = result.document?.text || '';
     } catch (docaiErr) {
-      console.warn('Document AI failed, falling back to empty text:', docaiErr);
+      console.warn('Document AI failed:', docaiErr);
     }
 
     if (!fullText) {
@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       scores,
       textLength: fullText.length,
+      method: 'Document AI',
     });
   } catch (error) {
     console.error('Result PDF parse failed:', error);

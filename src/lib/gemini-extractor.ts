@@ -275,6 +275,335 @@ export async function extractFinancialDataWithGemini(
   }
 }
 
+// ─── Excel → Gemini テキスト抽出 ───
+
+const EXCEL_FINANCIAL_PROMPT = `あなたは日本の建設業の決算書（貸借対照表・損益計算書・完成工事原価報告書）を読み取る専門家です。
+
+以下はExcelファイルから抽出した決算書データのテキストです。各シートのデータをタブ区切りで表示しています。
+
+## ★最重要: 金額の単位
+- **すべての金額を「千円」単位で返してください。**
+- 金額が「円」単位の場合は、**必ず1000で割って**千円に変換してください。
+- 金額が「千円」単位の場合は、そのまま返してください。
+- **判断基準**: ヘッダーに「単位：円」「（円）」と書かれていれば円単位です。数値が非常に大きい（売上高が1億以上）場合も円単位の可能性が高いです。
+
+## その他ルール
+- 数値が読み取れない場合は 0 としてください。
+- マイナスの金額は負の数（例: -1234）で返してください。△表記もマイナスです。
+- 勘定科目の表記揺れ（例:「売上高」と「完成工事高」）は以下のフィールド名に統一してください。
+- totalsの合計値は、データに記載されている合計値をそのまま使ってください。
+- 複数の期のデータがある場合は、**当期（最新期）の数値**を使ってください。
+
+## 出力JSON形式
+
+{
+  "bs": {
+    "currentAssets": { "勘定科目名": 金額(千円), ... },
+    "tangibleFixed": { "勘定科目名": 金額(千円), ... },
+    "intangibleFixed": { "勘定科目名": 金額(千円), ... },
+    "investments": { "勘定科目名": 金額(千円), ... },
+    "currentLiabilities": { "勘定科目名": 金額(千円), ... },
+    "fixedLiabilities": { "勘定科目名": 金額(千円), ... },
+    "equity": { "勘定科目名": 金額(千円), ... },
+    "totals": {
+      "currentAssets": 0,
+      "tangibleFixed": 0,
+      "intangibleFixed": 0,
+      "investments": 0,
+      "fixedAssets": 0,
+      "totalAssets": 0,
+      "currentLiabilities": 0,
+      "fixedLiabilities": 0,
+      "totalLiabilities": 0,
+      "totalEquity": 0
+    }
+  },
+  "pl": {
+    "completedConstruction": 0,
+    "progressConstruction": 0,
+    "totalSales": 0,
+    "costOfSales": 0,
+    "grossProfit": 0,
+    "sgaItems": { "勘定科目名": 金額(千円), ... },
+    "sgaTotal": 0,
+    "operatingProfit": 0,
+    "interestIncome": 0,
+    "dividendIncome": 0,
+    "miscIncome": 0,
+    "interestExpense": 0,
+    "miscExpense": 0,
+    "ordinaryProfit": 0,
+    "specialGain": 0,
+    "specialLoss": 0,
+    "preTaxProfit": 0,
+    "corporateTax": 0,
+    "netIncome": 0
+  },
+  "manufacturing": {
+    "materials": 0,
+    "labor": 0,
+    "expenses": 0,
+    "subcontract": 0,
+    "mfgDepreciation": 0,
+    "wipBeginning": 0,
+    "wipEnding": 0,
+    "totalCost": 0
+  },
+  "sga": {
+    "sgaDepreciation": 0
+  }
+}
+
+## 勘定科目のマッピングヒント
+- 完成工事高 → completedConstruction
+- 兼業事業売上高 → progressConstruction（兼業売上）
+- 完成工事原価 → costOfSales
+- 完成工事総利益 → grossProfit
+- 受取利息 → interestIncome
+- 受取配当金 → dividendIncome
+- 支払利息 → interestExpense
+- 材料費 → materials
+- 労務費 → labor
+- 外注費 → subcontract
+- 経費 → expenses
+- 減価償却費（原価報告書内）→ mfgDepreciation
+- 減価償却費（販管費内）→ sgaDepreciation
+- 期首未成工事支出金 → wipBeginning
+- 期末未成工事支出金 → wipEnding
+
+データを読み取り、上記のJSONを返してください。`;
+
+/**
+ * Excelファイルの全シートをタブ区切りテキストに変換する
+ */
+export function excelToText(buffer: ArrayBuffer): string {
+  // 動的importを避けるため、呼び出し元でXLSXを渡す
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const XLSX = require('xlsx');
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sections: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet, { FS: '\t', RS: '\n' });
+    // 空行だらけのシートはスキップ
+    const nonEmptyLines = csv.split('\n').filter((line: string) => line.replace(/\t/g, '').trim().length > 0);
+    if (nonEmptyLines.length < 3) continue;
+    sections.push(`=== シート: ${sheetName} ===\n${nonEmptyLines.join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+/**
+ * Gemini AI で決算書 Excel からデータを抽出する
+ *
+ * ExcelのシートをテキストとしてGeminiに渡し、PDFと同品質の抽出を行う。
+ * フォールバック: 従来のキーワードマッチ（excel-parser.ts）
+ */
+export async function extractFinancialDataFromExcel(
+  buffer: ArrayBuffer,
+): Promise<{ data: Partial<RawFinancialData>; method: string; warnings: string[] } | null> {
+  const warnings: string[] = [];
+
+  // Gemini利用可能かチェック
+  if (isGeminiAvailable()) {
+    try {
+      const model = await getGenerativeModel();
+      const excelText = excelToText(buffer);
+
+      if (excelText.length < 50) {
+        warnings.push('Excelファイルからデータを読み取れませんでした。');
+        return null;
+      }
+
+      // テキストの長さを制限（トークン上限対策）
+      const truncated = excelText.length > 30000
+        ? excelText.substring(0, 30000) + '\n\n[...以下省略...]'
+        : excelText;
+
+      const prompt = `${EXCEL_FINANCIAL_PROMPT}\n\n--- Excelデータ ---\n${truncated}`;
+
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }],
+          },
+        ],
+      });
+
+      const response = result.response;
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+      if (text) {
+        const parsed = parseJsonResponse<Partial<RawFinancialData>>(text);
+        if (parsed) {
+          autoCorrectUnit(parsed);
+
+          // バリデーション: BS均衡チェック
+          const ta = parsed.bs?.totals?.totalAssets ?? 0;
+          const tl = parsed.bs?.totals?.totalLiabilities ?? 0;
+          const te = parsed.bs?.totals?.totalEquity ?? 0;
+          if (ta > 0 && Math.abs(ta - (tl + te)) > ta * 0.01) {
+            warnings.push(
+              `BS均衡チェック警告: 資産合計(${ta}) ≠ 負債合計(${tl}) + 純資産合計(${te})。手動確認してください。`
+            );
+          }
+
+          return { data: parsed, method: 'Gemini (Excel)', warnings };
+        }
+      }
+
+      warnings.push('Gemini AIでの解析に失敗しました。キーワードマッチにフォールバックします。');
+    } catch (e) {
+      console.error('Gemini Excel extraction failed:', e);
+      warnings.push('Gemini AIでの解析でエラーが発生しました。キーワードマッチにフォールバックします。');
+    }
+  }
+
+  // フォールバック: 従来のキーワードマッチ
+  return null; // 呼び出し元で既存のparseExcel()にフォールバック
+}
+
+// ─── 経審結果通知書 PDF → Gemini 抽出 ───
+
+export interface ResultPdfScores {
+  label: string;
+  Y: string;
+  X2: string;
+  X21: string;
+  X22: string;
+  W: string;
+  industries: Array<{ name: string; X1: string; Z: string; P: string }>;
+}
+
+const RESULT_PDF_PROMPT = `あなたは建設業の経営事項審査（経審）結果通知書を正確に読み取る専門AIです。
+
+このPDFは「総合評定値通知書」（経審の結果通知書）です。
+以下の情報を正確に抽出して、JSONで返してください。
+
+## 抽出すべき項目
+
+1. **label**: 審査対象の期（例: "第58期"、"令和6年3月期"）。見つからなければ空文字。
+2. **Y**: 経営状況分析の評点（Y点）。3〜4桁の数値文字列。
+3. **X2**: 自己資本額及び利益額の評点。3〜4桁の数値文字列。
+4. **X21**: 自己資本額の評点。3〜4桁の数値文字列。
+5. **X22**: 利益額の評点。3〜4桁の数値文字列。
+6. **W**: 社会性等の評点（W点）。3〜4桁の数値文字列。
+7. **industries**: 業種別の評点一覧。各業種について:
+   - **name**: 業種名（例: "電気", "管", "土木"）
+   - **X1**: 完成工事高の評点（X1）。数値文字列。
+   - **Z**: 技術力の評点（Z）。数値文字列。
+   - **P**: 総合評定値（P点）。数値文字列。
+
+## 注意事項
+- 数値は必ず文字列で返してください（例: "1067", "810"）
+- 見つからない項目は空文字 "" を返してください
+- 業種が複数ある場合はすべて含めてください
+- 通知書のテーブル形式を正確に読み取ってください
+- X1, Z, P は業種ごとに異なる値です
+
+## 出力JSON形式
+{
+  "label": "第58期",
+  "Y": "810",
+  "X2": "795",
+  "X21": "810",
+  "X22": "687",
+  "W": "750",
+  "industries": [
+    { "name": "電気", "X1": "1067", "Z": "780", "P": "850" },
+    { "name": "管", "X1": "419", "Z": "620", "P": "520" }
+  ]
+}
+
+PDFの全ページを読み取り、上記のJSONを返してください。`;
+
+/**
+ * Gemini Vision API で経審結果通知書 PDF からスコアを抽出する
+ *
+ * Document AI不要で、Gemini単独で高精度抽出を行う。
+ * 2回並列実行し、合意する値を採用する（コンセンサス方式）。
+ */
+export async function extractResultPdfWithGemini(
+  buffer: Buffer,
+): Promise<{ scores: ResultPdfScores; method: string } | null> {
+  if (!isGeminiAvailable()) return null;
+
+  try {
+    const model = await getGenerativeModel();
+
+    const pdfPart = {
+      inlineData: {
+        mimeType: 'application/pdf' as const,
+        data: buffer.toString('base64'),
+      },
+    };
+
+    // 2回並列でコンセンサス抽出
+    const [res1, res2] = await Promise.allSettled([
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: RESULT_PDF_PROMPT }] }] }),
+      model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: RESULT_PDF_PROMPT }] }] }),
+    ]);
+
+    const text1 = res1.status === 'fulfilled'
+      ? res1.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      : '';
+    const text2 = res2.status === 'fulfilled'
+      ? res2.value.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      : '';
+
+    const parsed1 = parseJsonResponse<ResultPdfScores>(text1);
+    const parsed2 = parseJsonResponse<ResultPdfScores>(text2);
+
+    // どちらか1つでも成功すれば使う、両方あればコンセンサス
+    const scores = consensusResultScores(parsed1, parsed2);
+    if (!scores) {
+      console.warn('Gemini result PDF extraction: both parses failed');
+      return null;
+    }
+
+    console.log('Result PDF Gemini extraction:', JSON.stringify(scores).slice(0, 300));
+    return { scores, method: 'Gemini' };
+  } catch (e) {
+    console.error('Gemini result PDF extraction failed:', e);
+    return null;
+  }
+}
+
+/** 2つのResultPdfScoresからコンセンサスを取る */
+function consensusResultScores(
+  a: ResultPdfScores | null,
+  b: ResultPdfScores | null,
+): ResultPdfScores | null {
+  if (!a && !b) return null;
+  if (!a) return b;
+  if (!b) return a;
+
+  // 数値フィールド: 一致すればそちら、不一致ならaを優先
+  const pickStr = (v1: string, v2: string) => {
+    if (v1 === v2) return v1;
+    // 片方が空ならもう片方を採用
+    if (!v1) return v2;
+    if (!v2) return v1;
+    return v1; // 不一致時はa優先
+  };
+
+  // 業種: より多く取得できた方をベースに
+  const industries = a.industries.length >= b.industries.length ? a.industries : b.industries;
+
+  return {
+    label: pickStr(a.label, b.label),
+    Y: pickStr(a.Y, b.Y),
+    X2: pickStr(a.X2, b.X2),
+    X21: pickStr(a.X21, b.X21),
+    X22: pickStr(a.X22, b.X22),
+    W: pickStr(a.W, b.W),
+    industries,
+  };
+}
+
 // ─── 単位自動補正 ───
 
 /**
