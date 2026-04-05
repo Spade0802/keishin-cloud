@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Loader2,
 } from 'lucide-react';
+import { showToast } from '@/components/ui/toast';
 
 interface OrgBillingInfo {
   id: string;
@@ -96,10 +97,10 @@ export default function AdminBillingPage() {
         await fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || '更新に失敗しました');
+        showToast(data.error || '更新に失敗しました', 'error');
       }
     } catch {
-      alert('エラーが発生しました');
+      showToast('エラーが発生しました', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -121,7 +122,7 @@ export default function AdminBillingPage() {
         await fetchData();
       }
     } catch {
-      alert('エラーが発生しました');
+      showToast('エラーが発生しました', 'error');
     } finally {
       setActionLoading(null);
     }

@@ -64,6 +64,7 @@ export const users = pgTable('users', {
     onDelete: 'set null',
   }),
   role: userRoleEnum('role').default('member').notNull(),
+  disabledAt: timestamp('disabled_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
   index('users_organization_id_idx').on(table.organizationId),

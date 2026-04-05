@@ -57,9 +57,10 @@ export class RateLimiter {
   }
 
   /**
-   * 1 リクエスト分を消費する。制限超過なら false を返す。
+   * 1 リクエスト分を原子的にチェック＆消費する。
+   * 制限超過なら allowed: false を返し、消費しない。
    */
-  consume(key: string): boolean {
+  consume(key: string): CheckResult {
     const now = Date.now();
     const windowStart = now - this.windowMs;
     const timestamps = this.getValidHits(key, windowStart);
@@ -67,12 +68,17 @@ export class RateLimiter {
     if (timestamps.length >= this.maxRequests) {
       // 古いエントリだけ残して保存
       this.hits.set(key, timestamps);
-      return false;
+      const resetAt = timestamps.length > 0
+        ? new Date(timestamps[0] + this.windowMs)
+        : new Date(now + this.windowMs);
+      return { allowed: false, remaining: 0, resetAt };
     }
 
     timestamps.push(now);
     this.hits.set(key, timestamps);
-    return true;
+    const remaining = Math.max(0, this.maxRequests - timestamps.length);
+    const resetAt = new Date(timestamps[0] + this.windowMs);
+    return { allowed: true, remaining, resetAt };
   }
 
   /** ウィンドウ内の有効なヒットだけ返す */
@@ -114,14 +120,3 @@ export const aiAnalysisLimiter = new RateLimiter({
   maxRequests: 10,
 });
 
-/** 汎用 API: 1 IP あたり 1 分 100 リクエスト（将来用） */
-let _apiGeneralLimiter: RateLimiter | null = null;
-export function getApiGeneralLimiter(): RateLimiter {
-  if (!_apiGeneralLimiter) {
-    _apiGeneralLimiter = new RateLimiter({
-      windowMs: 60 * 1000, // 1 分
-      maxRequests: 100,
-    });
-  }
-  return _apiGeneralLimiter;
-}

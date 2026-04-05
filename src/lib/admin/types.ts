@@ -16,6 +16,7 @@ export interface AdminUser {
   organizationName: string;
   role: 'admin' | 'member';
   lastLoginAt: string | null;
+  disabledAt: string | null;
 }
 
 export interface AdminSimulation {

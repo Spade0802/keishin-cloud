@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Shield,
 } from 'lucide-react';
+import { showToast } from '@/components/ui/toast';
 
 interface SubscriptionInfo {
   plan: string;
@@ -66,10 +67,10 @@ export default function BillingPage() {
       if (data.url) {
         window.location.href = data.url;
       } else if (data.bypassed) {
-        alert('テストモード: Stripeポータルは利用できません');
+        showToast('テストモード: Stripeポータルは利用できません', 'warning');
       }
     } catch {
-      alert('エラーが発生しました');
+      showToast('エラーが発生しました', 'error');
     } finally {
       setPortalLoading(false);
     }

@@ -23,31 +23,28 @@ export function withRateLimit(limiter: RateLimiter, keyExtractor: KeyExtractor) 
         );
       }
 
-      const { allowed, remaining, resetAt } = limiter.check(key);
+      // 原子的にチェック＆消費（TOCTOU 防止）
+      const consumeResult = limiter.consume(key);
 
-      if (!allowed) {
+      if (!consumeResult.allowed) {
         return NextResponse.json(
           { error: 'AI分析の利用制限に達しました。しばらくしてから再度お試しください。' },
           {
             status: 429,
             headers: {
               'X-RateLimit-Remaining': '0',
-              'X-RateLimit-Reset': resetAt.toISOString(),
-              'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)),
+              'X-RateLimit-Reset': consumeResult.resetAt.toISOString(),
+              'Retry-After': String(Math.ceil((consumeResult.resetAt.getTime() - Date.now()) / 1000)),
             },
           },
         );
       }
 
-      // 消費
-      limiter.consume(key);
-
       // 本来のハンドラーを実行し、レスポンスヘッダーを付与
       const response = await handler(req);
 
-      const afterCheck = limiter.check(key);
-      response.headers.set('X-RateLimit-Remaining', String(afterCheck.remaining));
-      response.headers.set('X-RateLimit-Reset', afterCheck.resetAt.toISOString());
+      response.headers.set('X-RateLimit-Remaining', String(consumeResult.remaining));
+      response.headers.set('X-RateLimit-Reset', consumeResult.resetAt.toISOString());
 
       return response;
     };

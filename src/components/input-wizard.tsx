@@ -38,6 +38,7 @@ import { buildKeishinBSFromParsed, buildKeishinPLFromParsed } from '@/lib/engine
 import { useAutoSave, useRestoreSave } from '@/lib/hooks/use-auto-save';
 import { useExtractedData } from '@/lib/hooks/use-extracted-data';
 import type { ValidationIssue } from '@/lib/extraction-validator';
+import { showToast } from '@/components/ui/toast';
 
 // ---- Types ----
 
@@ -900,6 +901,15 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       setResult(resultObj);
       setStep(5); // Go to result
 
+      // 計算完了の成功フィードバック
+      const mainIndustry = industryResults[0];
+      showToast(
+        mainIndustry
+          ? `P点計算完了: ${mainIndustry.name} P=${mainIndustry.P}点`
+          : 'P点計算が完了しました',
+        'success',
+      );
+
       // Scroll to top so the user sees the result immediately
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -1332,8 +1342,29 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             <CardHeader><CardTitle className="text-base">続紙：X2用データ（千円）</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
               {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '営業利益＋減価償却費（提出書の続紙に記載）')}
-              <div className="text-xs text-muted-foreground self-end pb-2">
-                ※ X21は「純資産合計」（Step1で入力済み）から自動算出
+              <div className="space-y-1 self-end pb-2">
+                {previewPL && num(depreciation) > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => {
+                      const op = previewPL.operatingProfit ?? 0;
+                      const dep = num(depreciation);
+                      const computed = op + dep;
+                      setEbitda(String(computed));
+                      extractedData.markUserEdited('ebitda');
+                      showToast(`EBITDA 自動計算: 営業利益(${op.toLocaleString()}) + 減価償却費(${dep.toLocaleString()}) = ${computed.toLocaleString()}`, 'success');
+                    }}
+                  >
+                    <Calculator className="mr-1 h-3 w-3" />
+                    自動計算
+                  </Button>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  ※ X21は「純資産合計」（Step1で入力済み）から自動算出
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -92,6 +92,7 @@ export async function getUsers(): Promise<AdminUser[]> {
       name: users.name,
       role: users.role,
       organizationId: users.organizationId,
+      disabledAt: users.disabledAt,
     })
     .from(users)
     .orderBy(desc(users.createdAt));
@@ -114,6 +115,7 @@ export async function getUsers(): Promise<AdminUser[]> {
       organizationName,
       role: row.role,
       lastLoginAt: null, // Sessions table doesn't track last login timestamp directly
+      disabledAt: row.disabledAt?.toISOString() ?? null,
     });
   }
   return result;

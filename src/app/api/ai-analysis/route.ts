@@ -56,19 +56,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // レート制限チェック＋消費を単一 consume() で実行（TOCTOU 防止）
-  const consumed = aiAnalysisLimiter.consume(userId);
-  if (!consumed) {
-    const rateLimitCheck = aiAnalysisLimiter.check(userId);
+  // レート制限チェック＋消費を原子的に実行（TOCTOU 防止）
+  const consumeResult = aiAnalysisLimiter.consume(userId);
+  if (!consumeResult.allowed) {
     return NextResponse.json(
       { error: 'AI分析の利用制限に達しました。しばらくしてから再度お試しください。' },
       {
         status: 429,
         headers: {
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': rateLimitCheck.resetAt.toISOString(),
+          'X-RateLimit-Reset': consumeResult.resetAt.toISOString(),
           'Retry-After': String(
-            Math.ceil((rateLimitCheck.resetAt.getTime() - Date.now()) / 1000),
+            Math.ceil((consumeResult.resetAt.getTime() - Date.now()) / 1000),
           ),
         },
       },
@@ -79,14 +78,13 @@ export async function POST(req: NextRequest) {
   try {
     const result = await generatePPointAnalysis(body);
     setCachedAnalysis(inputHash, result);
-    const afterCheck = aiAnalysisLimiter.check(userId);
     return NextResponse.json(
       { ...result, cached: false },
       {
         headers: {
           'X-Cache': 'MISS',
-          'X-RateLimit-Remaining': String(afterCheck.remaining),
-          'X-RateLimit-Reset': afterCheck.resetAt.toISOString(),
+          'X-RateLimit-Remaining': String(consumeResult.remaining),
+          'X-RateLimit-Reset': consumeResult.resetAt.toISOString(),
         },
       },
     );
