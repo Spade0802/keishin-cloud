@@ -388,3 +388,425 @@ describe('calculateY — A and Y computation', () => {
     expect(result.operatingCFDetail.ordinaryProfit).toBe(input.ordinaryProfit);
   });
 });
+
+// ===========================================================================
+// Real-world financial data: typical small/medium construction company
+// ===========================================================================
+describe('calculateY — real-world financial data', () => {
+  it('small construction company (年商1億円規模)', () => {
+    const input = baseYInput({
+      sales: 100000,          // 1億円
+      grossProfit: 25000,     // 粗利25%
+      ordinaryProfit: 5000,   // 経常利益5%
+      interestExpense: 800,
+      interestDividendIncome: 50,
+      currentLiabilities: 30000,
+      fixedLiabilities: 15000,
+      totalCapital: 60000,
+      equity: 20000,
+      fixedAssets: 18000,
+      retainedEarnings: 15000,
+      corporateTax: 1500,
+      depreciation: 3000,
+      allowanceDoubtful: 500,
+      notesAndAccountsReceivable: 25000,
+      constructionPayable: 12000,
+      inventoryAndMaterials: 3000,
+      advanceReceived: 5000,
+      prev: {
+        totalCapital: 55000,
+        operatingCF: 6000,
+        allowanceDoubtful: 400,
+        notesAndAccountsReceivable: 22000,
+        constructionPayable: 11000,
+        inventoryAndMaterials: 2800,
+        advanceReceived: 4500,
+      },
+    });
+    const result = calculateY(input);
+    // Y should be a reasonable score for a small company
+    expect(result.Y).toBeGreaterThan(400);
+    expect(result.Y).toBeLessThan(1200);
+    // All indicators should be within their clamped ranges
+    expect(result.indicators.x1).toBeGreaterThanOrEqual(-0.3);
+    expect(result.indicators.x1).toBeLessThanOrEqual(5.1);
+  });
+
+  it('medium construction company (年商5億円規模)', () => {
+    const input = baseYInput({
+      sales: 500000,          // 5億円
+      grossProfit: 100000,    // 粗利20%
+      ordinaryProfit: 20000,  // 経常利益4%
+      interestExpense: 3000,
+      interestDividendIncome: 200,
+      currentLiabilities: 120000,
+      fixedLiabilities: 50000,
+      totalCapital: 250000,
+      equity: 80000,
+      fixedAssets: 70000,
+      retainedEarnings: 60000,
+      corporateTax: 6000,
+      depreciation: 10000,
+      allowanceDoubtful: 2000,
+      notesAndAccountsReceivable: 80000,
+      constructionPayable: 40000,
+      inventoryAndMaterials: 15000,
+      advanceReceived: 20000,
+      prev: {
+        totalCapital: 230000,
+        operatingCF: 25000,
+        allowanceDoubtful: 1800,
+        notesAndAccountsReceivable: 75000,
+        constructionPayable: 38000,
+        inventoryAndMaterials: 14000,
+        advanceReceived: 18000,
+      },
+    });
+    const result = calculateY(input);
+    expect(result.Y).toBeGreaterThan(500);
+    expect(result.Y).toBeLessThan(1400);
+    // x3: grossProfit/totalCapAvg should be reasonable
+    const totalCapAvg = (250000 + 230000) / 2;
+    expect(result.indicatorsRaw.x3).toBeCloseTo(
+      (100000 / totalCapAvg) * 100,
+      2
+    );
+  });
+
+  it('struggling company with losses (赤字企業)', () => {
+    const input = baseYInput({
+      sales: 80000,
+      grossProfit: 5000,
+      ordinaryProfit: -3000,
+      interestExpense: 2000,
+      interestDividendIncome: 10,
+      currentLiabilities: 50000,
+      fixedLiabilities: 30000,
+      totalCapital: 70000,
+      equity: -10000,    // 債務超過
+      fixedAssets: 25000,
+      retainedEarnings: -15000,
+      corporateTax: 0,
+      depreciation: 4000,
+      allowanceDoubtful: 3000,
+      notesAndAccountsReceivable: 20000,
+      constructionPayable: 10000,
+      inventoryAndMaterials: 8000,
+      advanceReceived: 1000,
+      prev: {
+        totalCapital: 75000,
+        operatingCF: -5000,
+        allowanceDoubtful: 2500,
+        notesAndAccountsReceivable: 18000,
+        constructionPayable: 11000,
+        inventoryAndMaterials: 7000,
+        advanceReceived: 1500,
+      },
+    });
+    const result = calculateY(input);
+    // Poor financials → low Y score
+    expect(result.Y).toBeGreaterThanOrEqual(0);
+    expect(result.Y).toBeLessThan(600);
+    // Negative equity ratio
+    expect(result.indicatorsRaw.x6).toBeLessThan(0);
+  });
+});
+
+// ===========================================================================
+// All 8 indicators at exact clamping boundaries
+// ===========================================================================
+describe('calculateY — all indicators at clamping boundaries', () => {
+  it('x1 at exact lower bound -0.3', () => {
+    // x1 = (expense - income) / sales * 100 = -0.3
+    // => expense - income = -0.3 * sales / 100
+    const input = baseYInput({
+      interestExpense: 0,
+      interestDividendIncome: 300,
+      sales: 100000,
+    });
+    const result = calculateY(input);
+    // raw = (0 - 300) / 100000 * 100 = -0.3 → exactly at lower bound
+    expect(result.indicatorsRaw.x1).toBeCloseTo(-0.3, 6);
+    expect(result.indicators.x1).toBeCloseTo(-0.3, 6);
+  });
+
+  it('x1 at exact upper bound 5.1', () => {
+    const input = baseYInput({
+      interestExpense: 5100,
+      interestDividendIncome: 0,
+      sales: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x1).toBeCloseTo(5.1, 6);
+    expect(result.indicators.x1).toBeCloseTo(5.1, 6);
+  });
+
+  it('x2 at exact lower bound 0.9', () => {
+    // x2 = (currentLiab + fixedLiab) / (sales / 12) = 0.9
+    // => total liab = 0.9 * sales / 12
+    const sales = 120000;
+    const totalLiab = 0.9 * sales / 12; // = 9000
+    const input = baseYInput({
+      currentLiabilities: totalLiab,
+      fixedLiabilities: 0,
+      sales,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x2).toBeCloseTo(0.9, 6);
+    expect(result.indicators.x2).toBeCloseTo(0.9, 6);
+  });
+
+  it('x2 at exact upper bound 18.0', () => {
+    const sales = 120000;
+    const totalLiab = 18.0 * sales / 12; // = 180000
+    const input = baseYInput({
+      currentLiabilities: totalLiab,
+      fixedLiabilities: 0,
+      sales,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x2).toBeCloseTo(18.0, 6);
+    expect(result.indicators.x2).toBeCloseTo(18.0, 6);
+  });
+
+  it('x3 at lower bound 6.5', () => {
+    // x3 = grossProfit / totalCapAvg * 100 = 6.5
+    const totalCapAvg = 100000;
+    const grossProfit = 6.5 * totalCapAvg / 100; // = 6500
+    const input = baseYInput({
+      grossProfit,
+      totalCapital: totalCapAvg,
+      prev: { ...baseYInput().prev, totalCapital: totalCapAvg },
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x3).toBeCloseTo(6.5, 4);
+    expect(result.indicators.x3).toBeCloseTo(6.5, 4);
+  });
+
+  it('x3 above upper bound 63.6 gets clamped', () => {
+    const input = baseYInput({
+      grossProfit: 70000,
+      totalCapital: 100000,
+      prev: { ...baseYInput().prev, totalCapital: 100000 },
+    });
+    const result = calculateY(input);
+    // raw = 70000/100000*100 = 70 > 63.6
+    expect(result.indicatorsRaw.x3).toBeCloseTo(70.0, 4);
+    expect(result.indicators.x3).toBe(63.6);
+  });
+
+  it('x4 at lower bound -8.5', () => {
+    // x4 = ordinaryProfit / sales * 100 = -8.5
+    const input = baseYInput({
+      ordinaryProfit: -8500,
+      sales: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x4).toBeCloseTo(-8.5, 6);
+    expect(result.indicators.x4).toBeCloseTo(-8.5, 6);
+  });
+
+  it('x4 at upper bound 5.1', () => {
+    const input = baseYInput({
+      ordinaryProfit: 5100,
+      sales: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x4).toBeCloseTo(5.1, 6);
+    expect(result.indicators.x4).toBeCloseTo(5.1, 6);
+  });
+
+  it('x5 at lower bound -76.5', () => {
+    // x5 = equity / fixedAssets * 100 = -76.5
+    const input = baseYInput({
+      equity: -76500,
+      fixedAssets: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x5).toBeCloseTo(-76.5, 6);
+    expect(result.indicators.x5).toBeCloseTo(-76.5, 6);
+  });
+
+  it('x6 at lower bound -68.6', () => {
+    const input = baseYInput({
+      equity: -68600,
+      totalCapital: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x6).toBeCloseTo(-68.6, 6);
+    expect(result.indicators.x6).toBeCloseTo(-68.6, 6);
+  });
+
+  it('x6 at upper bound 68.5', () => {
+    const input = baseYInput({
+      equity: 68500,
+      totalCapital: 100000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x6).toBeCloseTo(68.5, 6);
+    expect(result.indicators.x6).toBeCloseTo(68.5, 6);
+  });
+
+  it('x7 below lower bound -10.0 gets clamped', () => {
+    // x7 = (cf/100000 + prev.operatingCF/100000) / 2
+    // Need both to be very negative
+    const input = baseYInput({
+      ordinaryProfit: -2000000,
+      depreciation: 0,
+      corporateTax: 0,
+      prev: {
+        ...baseYInput().prev,
+        operatingCF: -2000000,
+      },
+    });
+    const result = calculateY(input);
+    expect(result.indicators.x7).toBe(-10.0);
+  });
+
+  it('x8 at lower bound -3.0', () => {
+    const input = baseYInput({
+      retainedEarnings: -300000,
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x8).toBeCloseTo(-3.0, 6);
+    expect(result.indicators.x8).toBeCloseTo(-3.0, 6);
+  });
+
+  it('x8 at upper bound 100.0 gets clamped', () => {
+    const input = baseYInput({
+      retainedEarnings: 20000000, // 200億 → raw = 200
+    });
+    const result = calculateY(input);
+    expect(result.indicatorsRaw.x8).toBeCloseTo(200.0, 4);
+    expect(result.indicators.x8).toBe(100.0);
+  });
+});
+
+// ===========================================================================
+// Zero sales division safety
+// ===========================================================================
+describe('calculateY — zero sales safety', () => {
+  it('zero sales: all sales-dependent indicators are finite', () => {
+    const input = baseYInput({ sales: 0 });
+    const result = calculateY(input);
+    expect(Number.isFinite(result.indicatorsRaw.x1)).toBe(true);
+    expect(Number.isFinite(result.indicatorsRaw.x2)).toBe(true);
+    expect(Number.isFinite(result.indicatorsRaw.x4)).toBe(true);
+    expect(Number.isFinite(result.Y)).toBe(true);
+    expect(Number.isFinite(result.A)).toBe(true);
+  });
+
+  it('zero sales: x2 debt-months is extremely large but clamped', () => {
+    const input = baseYInput({
+      sales: 0,
+      currentLiabilities: 50000,
+      fixedLiabilities: 20000,
+    });
+    const result = calculateY(input);
+    // safeSales=1, so x2 = 70000 / (1/12) = 840000 → clamped to 18.0
+    expect(result.indicators.x2).toBe(18.0);
+  });
+
+  it('negative sales treated same as zero (safeSales=1)', () => {
+    const input = baseYInput({ sales: -1000 });
+    const result = calculateY(input);
+    // sales <= 0 → safeSales = 1
+    expect(Number.isFinite(result.Y)).toBe(true);
+  });
+});
+
+// ===========================================================================
+// Operating CF with various balance sheet changes
+// ===========================================================================
+describe('calculateOperatingCF — various balance sheet changes', () => {
+  it('large receivables increase reduces CF', () => {
+    const input = baseYInput({
+      ordinaryProfit: 10000,
+      depreciation: 5000,
+      corporateTax: 3000,
+      notesAndAccountsReceivable: 50000,
+      prev: {
+        ...baseYInput().prev,
+        notesAndAccountsReceivable: 20000,
+      },
+    });
+    const { cf } = calculateOperatingCF(input);
+    // receivableChange = 50000 - 20000 = +30000 (subtracted from CF)
+    // This large increase should make CF significantly lower
+    expect(cf).toBeLessThan(0);
+  });
+
+  it('large payables increase boosts CF', () => {
+    const input = baseYInput({
+      ordinaryProfit: 5000,
+      depreciation: 2000,
+      corporateTax: 1000,
+      constructionPayable: 50000,
+      prev: {
+        ...baseYInput().prev,
+        constructionPayable: 10000,
+      },
+    });
+    const { cf } = calculateOperatingCF(input);
+    // payableChange = 50000 - 10000 = +40000 (added to CF)
+    expect(cf).toBeGreaterThan(40000);
+  });
+
+  it('inventory build-up reduces CF', () => {
+    const input = baseYInput({
+      ordinaryProfit: 10000,
+      depreciation: 3000,
+      corporateTax: 2000,
+      inventoryAndMaterials: 30000,
+      prev: {
+        ...baseYInput().prev,
+        inventoryAndMaterials: 5000,
+      },
+    });
+    const { cf } = calculateOperatingCF(input);
+    // inventoryChange = 30000 - 5000 = +25000 (subtracted from CF)
+    expect(cf).toBeLessThan(0);
+  });
+
+  it('advance received increase boosts CF', () => {
+    const input = baseYInput({
+      ordinaryProfit: 1000,
+      depreciation: 500,
+      corporateTax: 300,
+      advanceReceived: 20000,
+      prev: {
+        ...baseYInput().prev,
+        advanceReceived: 1000,
+      },
+    });
+    const { cf } = calculateOperatingCF(input);
+    // advanceChange = 20000 - 1000 = +19000 (added to CF)
+    expect(cf).toBeGreaterThan(19000);
+  });
+
+  it('all changes cancel out leaves base CF', () => {
+    const base = baseYInput({
+      ordinaryProfit: 10000,
+      depreciation: 5000,
+      corporateTax: 3000,
+      // All BS items unchanged from prev
+      allowanceDoubtful: 1000,
+      notesAndAccountsReceivable: 15000,
+      constructionPayable: 8000,
+      inventoryAndMaterials: 5000,
+      advanceReceived: 2000,
+      prev: {
+        totalCapital: 75000,
+        operatingCF: 8000,
+        allowanceDoubtful: 1000,
+        notesAndAccountsReceivable: 15000,
+        constructionPayable: 8000,
+        inventoryAndMaterials: 5000,
+        advanceReceived: 2000,
+      },
+    });
+    const { cf } = calculateOperatingCF(base);
+    // All changes are 0, so CF = ordinaryProfit + depreciation - corporateTax
+    expect(cf).toBe(10000 + 5000 - 3000);
+  });
+});

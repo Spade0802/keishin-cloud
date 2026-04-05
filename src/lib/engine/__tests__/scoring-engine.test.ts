@@ -1024,3 +1024,94 @@ describe('calculateX1WithAverage', () => {
     expect(calculateX1WithAverage(0, 1, 1)).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Score table completeness verification
+// ---------------------------------------------------------------------------
+describe('Score table completeness — no gaps, valid coefficients', () => {
+  const tables: { name: string; table: Bracket[] }[] = [
+    { name: 'X1_TABLE', table: X1_TABLE },
+    { name: 'X21_TABLE', table: X21_TABLE },
+    { name: 'X22_TABLE', table: X22_TABLE },
+    { name: 'Z1_TABLE', table: Z1_TABLE },
+    { name: 'Z2_TABLE', table: Z2_TABLE },
+  ];
+
+  for (const { name, table } of tables) {
+    describe(name, () => {
+      it('has at least 2 brackets', () => {
+        expect(table.length).toBeGreaterThanOrEqual(2);
+      });
+
+      it('has no gaps between consecutive brackets (max[N] === min[N+1])', () => {
+        for (let i = 0; i < table.length - 1; i++) {
+          expect(table[i].max).toBe(table[i + 1].min);
+        }
+      });
+
+      it('last bracket ends at Infinity', () => {
+        expect(table[table.length - 1].max).toBe(Infinity);
+      });
+
+      it('brackets are sorted in ascending order by min', () => {
+        for (let i = 1; i < table.length; i++) {
+          expect(table[i].min).toBeGreaterThanOrEqual(table[i - 1].min);
+        }
+      });
+
+      it('all b values are positive (non-zero divisor)', () => {
+        for (const bracket of table) {
+          expect(bracket.b).toBeGreaterThan(0);
+        }
+      });
+
+      it('all a values are non-negative', () => {
+        for (const bracket of table) {
+          expect(bracket.a).toBeGreaterThanOrEqual(0);
+        }
+      });
+
+      it('each bracket min is strictly less than max', () => {
+        for (const bracket of table) {
+          expect(bracket.min).toBeLessThan(bracket.max);
+        }
+      });
+
+      it('lookupScore returns a value for every bracket midpoint', () => {
+        for (const bracket of table) {
+          if (bracket.max === Infinity) {
+            // Test at min for Infinity brackets
+            expect(() => lookupScore(table, bracket.min)).not.toThrow();
+          } else if (bracket.min === -Infinity) {
+            // Test near max for -Infinity brackets
+            expect(() => lookupScore(table, bracket.max - 1)).not.toThrow();
+          } else {
+            const mid = (bracket.min + bracket.max) / 2;
+            expect(() => lookupScore(table, mid)).not.toThrow();
+          }
+        }
+      });
+    });
+  }
+
+  // Specific checks for tables that should start at specific minimums
+  it('X1_TABLE first bracket starts at 0', () => {
+    expect(X1_TABLE[0].min).toBe(0);
+  });
+
+  it('X21_TABLE first bracket starts at -Infinity (covers debt)', () => {
+    expect(X21_TABLE[0].min).toBe(-Infinity);
+  });
+
+  it('X22_TABLE first bracket starts at -Infinity (covers losses)', () => {
+    expect(X22_TABLE[0].min).toBe(-Infinity);
+  });
+
+  it('Z1_TABLE first bracket starts at 0', () => {
+    expect(Z1_TABLE[0].min).toBe(0);
+  });
+
+  it('Z2_TABLE first bracket starts at 0', () => {
+    expect(Z2_TABLE[0].min).toBe(0);
+  });
+});
