@@ -71,6 +71,7 @@ export default async function RootLayout({
     >
       <head>
         <link rel="canonical" href="https://keishin.cloud" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <SessionProvider session={session}>

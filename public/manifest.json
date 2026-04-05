@@ -1,0 +1,9 @@
+{
+  "name": "KeishinCloud",
+  "short_name": "経審",
+  "description": "経営事項審査シミュレーション",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af"
+}
