@@ -8,11 +8,15 @@ export async function POST(req: NextRequest) {
     const wb = generatePScoreExcel(data);
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
+    const companyName = data.companyName ?? 'keishin';
+    const safeFileName = companyName.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, '_');
+    const fileName = `${safeFileName}_result.xlsx`;
+
     return new NextResponse(buf, {
       headers: {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="keishin_result.xlsx"`,
+        'Content-Disposition': `attachment; filename="${fileName}"`,
       },
     });
   } catch (error) {
