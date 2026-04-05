@@ -744,6 +744,137 @@ describe('calculateW', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Edge cases: calculateW with all items at maximum / all at zero
+// ---------------------------------------------------------------------------
+describe('calculateW edge cases', () => {
+  it('all items at maximum values produces expected total and W', () => {
+    const result = calculateW(
+      baseSocialItems({
+        employmentInsurance: true,
+        healthInsurance: true,
+        pensionInsurance: true,
+        constructionRetirementMutualAid: true,
+        retirementSystem: true,
+        nonStatutoryAccidentInsurance: true,
+        youngTechContinuous: true,
+        youngTechNew: true,
+        techStaffCount: 100,
+        youngTechCount: 100,
+        newYoungTechCount: 100,
+        cpdTotalUnits: 3000,
+        skillLevelUpCount: 100,
+        skilledWorkerCount: 100,
+        deductionTargetCount: 0,
+        wlbEruboshi: 4,
+        wlbKurumin: 4,
+        wlbYouth: 2,
+        ccusImplementation: 3,
+        businessYears: 35,
+        civilRehabilitation: false,
+        disasterAgreement: true,
+        suspensionOrder: false,
+        instructionOrder: false,
+        auditStatus: 4,
+        certifiedAccountants: 10,
+        firstClassAccountants: 10,
+        secondClassAccountants: 10,
+        rdExpense2YearAvg: 50000,
+        completionAmount2YearAvg: 100000,
+        constructionMachineCount: 20,
+        iso9001: true,
+        iso14001: true,
+        ecoAction21: true,
+      }),
+    );
+    // w1: 0(ins) +15+15+15 +1(youngCont) +1(youngNew) +10(cpd>=30) +10(skill>=0.15) +5(eruboshi4) +5(kurumin4) +4(youth2) +15(ccus3) = 96
+    expect(result.detail.w1).toBe(96);
+    // w2: 60 (>=35 years, no civil rehab)
+    expect(result.detail.w2).toBe(60);
+    // w3: 20 (disaster agreement)
+    expect(result.detail.w3).toBe(20);
+    // w4: 0 (no orders)
+    expect(result.detail.w4).toBe(0);
+    // w5: 20(audit4) + 10+10+10 = 50
+    expect(result.detail.w5).toBe(50);
+    // w6: 25 (rdRatio = 50%)
+    expect(result.detail.w6).toBe(25);
+    // w7: 15 (capped)
+    expect(result.detail.w7).toBe(15);
+    // w8: 10 (capped)
+    expect(result.detail.w8).toBe(10);
+    expect(result.total).toBe(96 + 60 + 20 + 0 + 50 + 25 + 15 + 10);
+    expect(result.W).toBe(Math.floor((result.total * 1750) / 200));
+  });
+
+  it('all items at zero/false (base case) returns zero total', () => {
+    const result = calculateW(
+      baseSocialItems({
+        employmentInsurance: true,
+        healthInsurance: true,
+        pensionInsurance: true,
+      }),
+    );
+    // All flags off except required insurances → no deductions, no bonuses
+    expect(result.detail.w1).toBe(0);
+    expect(result.detail.w2).toBe(0);
+    expect(result.detail.w3).toBe(0);
+    expect(result.detail.w4).toBe(0);
+    expect(result.detail.w5).toBe(0);
+    expect(result.detail.w6).toBe(0);
+    expect(result.detail.w7).toBe(0);
+    expect(result.detail.w8).toBe(0);
+    expect(result.total).toBe(0);
+    expect(result.W).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: lookupScore at exact bracket boundaries
+// ---------------------------------------------------------------------------
+describe('lookupScore bracket boundary edge cases', () => {
+  it('X1_TABLE at min of first bracket (value=0)', () => {
+    // floor(131*0/10000)+397 = 397
+    expect(lookupScore(X1_TABLE, 0)).toBe(397);
+  });
+
+  it('X1_TABLE at max-1 of last finite bracket (value=99999999)', () => {
+    // Last finite bracket: min=50000000, max=100000000, a=50, b=50000000, c=1898
+    // floor(50*99999999/50000000)+1898 = floor(99.999999)+1898 = 99+1898 = 1997
+    expect(lookupScore(X1_TABLE, 99999999)).toBe(1997);
+  });
+
+  it('X1_TABLE at exact boundary between first and second bracket (value=10000)', () => {
+    // Falls into second bracket: min=10000, max=12000, a=11, b=2000, c=473
+    // floor(11*10000/2000)+473 = floor(55)+473 = 528
+    expect(lookupScore(X1_TABLE, 10000)).toBe(528);
+  });
+
+  it('X21_TABLE at value=0 gives base score 361', () => {
+    expect(lookupScore(X21_TABLE, 0)).toBe(361);
+  });
+
+  it('X22_TABLE at value=0 gives base score 547', () => {
+    expect(lookupScore(X22_TABLE, 0)).toBe(547);
+  });
+
+  it('Z1_TABLE at value=0 gives base score 510', () => {
+    expect(lookupScore(Z1_TABLE, 0)).toBe(510);
+  });
+
+  it('Z2_TABLE at value=0 gives base score 241', () => {
+    expect(lookupScore(Z2_TABLE, 0)).toBe(241);
+  });
+
+  it('X1_TABLE score at value=0 gives minimum score for that table', () => {
+    // value=0 should produce the smallest possible X1 score
+    const scoreAt0 = lookupScore(X1_TABLE, 0);
+    const scoreAt1 = lookupScore(X1_TABLE, 1);
+    expect(scoreAt0).toBeLessThanOrEqual(scoreAt1);
+    expect(scoreAt0).toBe(397);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getEffectiveMultiplier
 // ---------------------------------------------------------------------------
 describe('getEffectiveMultiplier', () => {

@@ -104,6 +104,12 @@
 - [x] FEATURE-2: キーボードショートカット（Ctrl+Enter, Ctrl+S） ✅ Cycle 14
 - [x] FEATURE-3: Auto-save 7日→30日 ✅ 既存修正確認
 
+## Technical Debt
+
+- `src/components/input-wizard.tsx:1` - TODO: PERF-7 - Extract step components to reduce 30+ useState in this file
+- `src/lib/pdf-report.ts:9` - TODO: Embed a Japanese font (e.g., NotoSansJP-Regular.otf) for full CJK support in PDF export
+- `src/lib/pdf-report.ts:459` - TODO: Remove font limitation note once Japanese font embedding is implemented
+
 ## Completed Fixes
 <!-- Completed items move here with timestamp -->
 
