@@ -27,6 +27,7 @@ export function Footer() {
             <h3 className="font-semibold text-sm mb-3">サービス</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/demo" className="hover:text-foreground transition-colors">デモ</Link></li>
+              <li><Link href="/pricing" className="hover:text-foreground transition-colors">料金</Link></li>
               {isLoggedIn && (
                 <>
                   <li><Link href="/trial" className="hover:text-foreground transition-colors">新規試算</Link></li>
@@ -46,8 +47,10 @@ export function Footer() {
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold text-sm mb-3">法的事項</h3>
+            <h3 className="font-semibold text-sm mb-3">サポート</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
+              <li><Link href="/contact" className="hover:text-foreground transition-colors">お問い合わせ</Link></li>
+              <li><Link href="/changelog" className="hover:text-foreground transition-colors">更新履歴</Link></li>
               <li><Link href="/privacy" className="hover:text-foreground transition-colors">プライバシーポリシー</Link></li>
               <li><Link href="/terms" className="hover:text-foreground transition-colors">利用規約</Link></li>
             </ul>

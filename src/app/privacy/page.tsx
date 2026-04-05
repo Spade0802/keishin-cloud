@@ -72,9 +72,20 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">7. お問い合わせ</h2>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">7. データの保管期間</h2>
               <p>
-                個人情報の取り扱いに関するお問い合わせは、本サービスのサポート窓口までご連絡ください。
+                ユーザーがアカウントを削除した場合、個人情報は速やかに削除されます。
+                ただし、法令に基づく保存義務がある場合はこの限りではありません。
+                アクセスログは最大90日間保存されます。
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">8. お問い合わせ</h2>
+              <p>
+                個人情報の取り扱いに関するお問い合わせは、
+                <a href="/contact" className="text-primary underline hover:no-underline">お問い合わせページ</a>
+                よりご連絡ください。
               </p>
             </section>
 

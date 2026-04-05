@@ -57,15 +57,43 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">5. 利用料金</h2>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">5. 利用条件</h2>
+              <ul className="list-disc list-inside space-y-1">
+                <li>本サービスの利用にはGoogleアカウントによる認証が必要です（簡易シミュレーターを除く）。</li>
+                <li>ユーザーは自身のアカウント情報の管理について責任を負います。</li>
+                <li>本サービスは日本国内の建設業許可事業者を主たる利用者として想定しています。</li>
+                <li>利用者は正確な情報を入力するよう努めてください。</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">6. 利用料金</h2>
               <p>
                 本サービスの基本機能は無料で提供します。
                 将来的に有料機能を追加する場合は、事前に案内いたします。
+                有料プランの詳細は<a href="/pricing" className="text-primary underline hover:no-underline">料金ページ</a>をご確認ください。
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">6. 規約の変更</h2>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">7. 準拠法・管轄</h2>
+              <p>
+                本規約は日本法に準拠し、本サービスに関する紛争については、
+                東京地方裁判所を第一審の専属的合意管轄裁判所とします。
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">8. お問い合わせ</h2>
+              <p>
+                本規約に関するお問い合わせは、
+                <a href="/contact" className="text-primary underline hover:no-underline">お問い合わせページ</a>
+                よりご連絡ください。
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">9. 規約の変更</h2>
               <p>
                 本規約は、必要に応じて予告なく変更される場合があります。
                 変更後の規約は本ページに掲載した時点で効力を生じます。
