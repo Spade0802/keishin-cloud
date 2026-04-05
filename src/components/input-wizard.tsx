@@ -292,7 +292,7 @@ function numField(
         {status === 'needs-input' && <span className="text-[9px] text-amber-600 font-normal">要入力</span>}
       </Label>
       <div className="flex items-center gap-1">
-        <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-8" />
+        <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-10 sm:h-8" />
         <span className="text-xs text-muted-foreground whitespace-nowrap w-8">{unit}</span>
       </div>
       {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
@@ -1528,26 +1528,47 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           </p>
 
           {/* Previous period file upload */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">前期決算書をアップロード（任意）</CardTitle></CardHeader>
-            <CardContent>
-              <div
-                onClick={() => prevFileRef.current?.click()}
-                className="cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
-              >
-                <input
-                  ref={prevFileRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv,.pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handlePrevFile(file);
-                    e.target.value = '';
-                  }}
-                />
-                {prevFileLoading ? (
-                  <div className="w-full px-4 py-2">
+          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+            <CardContent className="py-4">
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">前期決算書をアップロード（任意）</span>
+                  {prevFileName && !prevFileError && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CheckCircle className="mr-1 h-3 w-3" />読取済み
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  BS科目から自動マッピングします
+                </p>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer">
+                    <input
+                      ref={prevFileRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePrevFile(file);
+                        e.target.value = '';
+                      }}
+                      disabled={prevFileLoading}
+                    />
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                      prevFileLoading
+                        ? 'bg-muted text-muted-foreground cursor-wait'
+                        : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                    }`}>
+                      <Upload className="h-4 w-4" />
+                      {prevFileLoading ? '解析中...' : prevFileName && !prevFileError ? prevFileName : '決算書を選択'}
+                    </span>
+                  </label>
+                </div>
+                {prevFileLoading && (
+                  <div className="w-full px-2">
                     <ExtractionProgress
                       isActive={prevFileLoading}
                       isComplete={prevFileComplete}
@@ -1555,22 +1576,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                       label="決算書を解析中"
                     />
                   </div>
-                ) : prevFileName && !prevFileError ? (
-                  <div className="flex items-center justify-center gap-2 text-sm text-green-700">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>{prevFileName} から前期データを読み込みました</span>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">前期の決算書（Excel/PDF）をクリックまたはドロップ</p>
-                    <p className="text-xs text-muted-foreground">BS科目から自動マッピングします</p>
-                  </div>
+                )}
+                {prevFileError && (
+                  <p className="text-xs text-destructive">{prevFileError}</p>
                 )}
               </div>
-              {prevFileError && (
-                <p className="mt-2 text-xs text-destructive">{prevFileError}</p>
-              )}
             </CardContent>
           </Card>
 

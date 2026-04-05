@@ -9,6 +9,7 @@ import { Check, Sparkles, Building2, Zap, ArrowRight, X } from 'lucide-react';
 import { PLANS } from '@/lib/stripe';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { showToast } from '@/components/ui/toast';
 
 type Interval = 'month' | 'year';
 
@@ -44,10 +45,10 @@ export default function PricingPage() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error || 'エラーが発生しました');
+        showToast(data.error || 'エラーが発生しました', 'error');
       }
     } catch {
-      alert('エラーが発生しました');
+      showToast('エラーが発生しました', 'error');
     } finally {
       setLoadingPlan(null);
     }

@@ -13,6 +13,13 @@ import { stripe, isBillingBypassed, getStripePriceId } from '@/lib/stripe';
 
 export async function POST(req: NextRequest) {
   try {
+    // CSRF protection: verify Origin header
+    const origin = req.headers.get('origin');
+    const allowedOrigin = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+    if (origin && !allowedOrigin.startsWith(origin) && origin !== allowedOrigin) {
+      return NextResponse.json({ error: '不正なリクエスト元です' }, { status: 403 });
+    }
+
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 });

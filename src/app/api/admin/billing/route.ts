@@ -120,6 +120,13 @@ export async function GET() {
 // ---------------------------------------------------------------------------
 
 export async function PUT(request: Request) {
+  // CSRF protection: verify Origin header
+  const origin = request.headers.get('origin');
+  const allowedOrigin = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+  if (origin && !allowedOrigin.startsWith(origin) && origin !== allowedOrigin) {
+    return NextResponse.json({ error: '不正なリクエスト元です' }, { status: 403 });
+  }
+
   const admin = await requireAdmin();
   if (!admin) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 });

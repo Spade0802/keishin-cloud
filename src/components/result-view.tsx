@@ -325,16 +325,16 @@ export function ResultView(props: ResultViewProps) {
               <div>P = 0.25×<span className="font-bold">{primaryInd.X1}</span> + 0.15×<span className="font-bold">{X2}</span> + 0.20×<span className="font-bold">{Y}</span></div>
               <div className="ml-6">+ 0.25×<span className="font-bold">{primaryInd.Z}</span> + 0.15×<span className="font-bold">{W}</span> = <span className="text-primary font-bold text-lg">{primaryInd.P}</span></div>
               {primaryInd.x1Selected && (
-                <div className="mt-2 text-xs border-t pt-2">
-                  <span className="text-muted-foreground">X1完工高: </span>
+                <div className="mt-2 text-xs border-t pt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+                  <span className="text-muted-foreground">X1完工高:</span>
                   <span className={primaryInd.x1Selected === '2年平均' ? 'text-green-600 font-semibold' : 'text-muted-foreground'}>
                     2年平均 ¥{primaryInd.x1TwoYearAvg?.toLocaleString()}千円
                   </span>
-                  <span className="text-muted-foreground mx-1">vs</span>
+                  <span className="text-muted-foreground">vs</span>
                   <span className={primaryInd.x1Selected === '当期' ? 'text-green-600 font-semibold' : 'text-muted-foreground'}>
                     当期 ¥{primaryInd.x1Current?.toLocaleString()}千円
                   </span>
-                  <Badge variant="outline" className="ml-2 text-[10px] py-0 bg-green-50 text-green-700 border-green-200">
+                  <Badge variant="outline" className="text-[10px] py-0 bg-green-50 text-green-700 border-green-200">
                     採用: {primaryInd.x1Selected}（より大きいため）
                   </Badge>
                 </div>

@@ -740,7 +740,7 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
           <CardTitle className="text-base">W点 合計</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
             {([
               ['W1', detail.w1, '労働福祉'],
               ['W2', detail.w2, '営業年数'],
