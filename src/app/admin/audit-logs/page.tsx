@@ -65,6 +65,10 @@ export default function AdminAuditLogsPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState('');
+  const [userIdFilter, setUserIdFilter] = useState('');
+  const [orgIdFilter, setOrgIdFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -74,6 +78,10 @@ export default function AdminAuditLogsPage() {
       const params = new URLSearchParams();
       params.set('page', page.toString());
       if (actionFilter) params.set('action', actionFilter);
+      if (userIdFilter) params.set('userId', userIdFilter);
+      if (orgIdFilter) params.set('organizationId', orgIdFilter);
+      if (dateFrom) params.set('from', dateFrom);
+      if (dateTo) params.set('to', dateTo);
 
       const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
       if (res.ok) {
@@ -86,7 +94,7 @@ export default function AdminAuditLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, actionFilter]);
+  }, [page, actionFilter, userIdFilter, orgIdFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchData();
@@ -141,21 +149,51 @@ export default function AdminAuditLogsPage() {
         </CardHeader>
         <CardContent>
           {/* フィルター */}
-          <div className="mb-4 flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <select
-                value={actionFilter}
-                onChange={(e) => handleActionFilterChange(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm border rounded-md bg-background"
-              >
-                <option value="">全てのアクション</option>
-                {actionOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+          <div className="mb-4 space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <select
+                  value={actionFilter}
+                  onChange={(e) => handleActionFilterChange(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border rounded-md bg-background"
+                >
+                  <option value="">全てのアクション</option>
+                  {actionOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                placeholder="ユーザーID"
+                value={userIdFilter}
+                onChange={(e) => { setUserIdFilter(e.target.value); setPage(1); }}
+                className="sm:w-48 text-sm"
+              />
+              <Input
+                placeholder="組織ID"
+                value={orgIdFilter}
+                onChange={(e) => { setOrgIdFilter(e.target.value); setPage(1); }}
+                className="sm:w-48 text-sm"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 items-center">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">期間:</label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                className="sm:w-44 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">〜</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                className="sm:w-44 text-sm"
+              />
             </div>
           </div>
 

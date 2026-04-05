@@ -304,8 +304,9 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
               {/* Industry 1 + Qualification 1 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">業種1</Label>
+                  <Label htmlFor={`staff-${s.id}-industry1`} className="text-xs">業種1</Label>
                   <select
+                    id={`staff-${s.id}-industry1`}
                     value={s.industryCode1}
                     onChange={(e) =>
                       updateStaff(s.id, 'industryCode1', e.target.value)
@@ -321,8 +322,9 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">資格区分1</Label>
+                  <Label htmlFor={`staff-${s.id}-qual1`} className="text-xs">資格区分1</Label>
                   <select
+                    id={`staff-${s.id}-qual1`}
                     value={s.qualificationCode1}
                     onChange={(e) =>
                       updateStaff(s.id, 'qualificationCode1', e.target.value)
@@ -338,8 +340,9 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">講習受講1</Label>
+                  <Label htmlFor={`staff-${s.id}-lecture1`} className="text-xs">講習受講1</Label>
                   <select
+                    id={`staff-${s.id}-lecture1`}
                     value={s.lectureFlag1}
                     onChange={(e) =>
                       updateStaff(s.id, 'lectureFlag1', e.target.value)
@@ -355,10 +358,11 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
               {/* Industry 2 + Qualification 2 (optional) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
+                  <Label htmlFor={`staff-${s.id}-industry2`} className="text-xs text-muted-foreground">
                     業種2（任意）
                   </Label>
                   <select
+                    id={`staff-${s.id}-industry2`}
                     value={s.industryCode2}
                     onChange={(e) =>
                       updateStaff(s.id, 'industryCode2', e.target.value)
@@ -374,10 +378,11 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
+                  <Label htmlFor={`staff-${s.id}-qual2`} className="text-xs text-muted-foreground">
                     資格区分2
                   </Label>
                   <select
+                    id={`staff-${s.id}-qual2`}
                     value={s.qualificationCode2}
                     onChange={(e) =>
                       updateStaff(s.id, 'qualificationCode2', e.target.value)
@@ -393,10 +398,11 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
+                  <Label htmlFor={`staff-${s.id}-lecture2`} className="text-xs text-muted-foreground">
                     講習受講2
                   </Label>
                   <select
+                    id={`staff-${s.id}-lecture2`}
                     value={s.lectureFlag2}
                     onChange={(e) =>
                       updateStaff(s.id, 'lectureFlag2', e.target.value)

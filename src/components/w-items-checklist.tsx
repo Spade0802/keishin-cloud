@@ -111,6 +111,8 @@ function CheckboxRow({
   type?: 'positive' | 'negative' | 'penalty';
   autoFilled?: boolean;
 }) {
+  const descriptionId = description ? `cb-desc-${label.replace(/\s+/g, '-')}` : undefined;
+
   const iconColor = type === 'penalty'
     ? checked ? 'text-red-500' : 'text-gray-300'
     : type === 'negative'
@@ -128,6 +130,7 @@ function CheckboxRow({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5 h-4 w-4 rounded border-gray-300"
+        aria-describedby={descriptionId}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -141,7 +144,7 @@ function CheckboxRow({
           {tooltip && <HelpTooltip text={tooltip} />}
         </div>
         {description && (
-          <p className="text-xs text-muted-foreground mt-0.5 ml-6">{description}</p>
+          <p id={descriptionId} className="text-xs text-muted-foreground mt-0.5 ml-6">{description}</p>
         )}
       </div>
     </label>

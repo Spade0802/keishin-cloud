@@ -149,8 +149,11 @@ const INDUSTRY_CODES = [
 function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listId = 'industry-code-listbox';
 
   // Close on outside click
   useEffect(() => {
@@ -172,6 +175,18 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
     );
   }, [search]);
 
+  // Reset highlight when filtered list changes
+  useEffect(() => {
+    setHighlightIndex(-1);
+  }, [filtered]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightIndex < 0 || !listRef.current) return;
+    const items = listRef.current.querySelectorAll('[role="option"]');
+    items[highlightIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [highlightIndex]);
+
   // Display label for selected value
   const displayLabel = useMemo(() => {
     if (!value) return '';
@@ -179,11 +194,49 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
     return match ? `${match.code} - ${match.name}` : value;
   }, [value]);
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setOpen(true);
+        setSearch('');
+        return;
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < filtered.length) {
+          onChange(filtered[highlightIndex].name);
+          setOpen(false);
+          setSearch('');
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setOpen(false);
+        break;
+    }
+  }
+
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" onKeyDown={handleKeyDown}>
       <button
         type="button"
         onClick={() => { setOpen(!open); setSearch(''); }}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
         className="flex items-center justify-between w-full h-8 text-sm border rounded px-2 bg-background hover:bg-muted/50 transition-colors text-left"
       >
         <span className={value ? '' : 'text-muted-foreground'}>{value ? displayLabel : '業種を選択'}</span>
@@ -200,20 +253,25 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-7 text-xs border rounded px-2 bg-background outline-none focus:ring-1 focus:ring-ring"
+              aria-controls={listId}
+              aria-activedescendant={highlightIndex >= 0 ? `industry-option-${filtered[highlightIndex]?.code}` : undefined}
             />
           </div>
-          <div className="max-h-48 overflow-y-auto">
+          <div ref={listRef} id={listId} role="listbox" aria-label="業種一覧" className="max-h-48 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-3 py-2 text-xs text-muted-foreground">該当する業種がありません</div>
             ) : (
-              filtered.map((item) => (
+              filtered.map((item, idx) => (
                 <button
                   key={item.code}
+                  id={`industry-option-${item.code}`}
                   type="button"
+                  role="option"
+                  aria-selected={value === item.name}
                   onClick={() => { onChange(item.name); setOpen(false); setSearch(''); }}
                   className={`w-full text-left px-3 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground transition-colors ${
                     value === item.name ? 'bg-accent/50 font-medium' : ''
-                  }`}
+                  } ${idx === highlightIndex ? 'bg-accent text-accent-foreground' : ''}`}
                 >
                   <span className="font-mono text-muted-foreground mr-1.5">{item.code}</span>
                   {item.name}

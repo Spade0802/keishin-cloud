@@ -83,9 +83,10 @@ export default function PricingPage() {
         )}
 
         {/* Interval Toggle */}
-        <div className="flex items-center justify-center gap-3 mb-10">
+        <div className="flex items-center justify-center gap-3 mb-10" role="group" aria-label="課金間隔">
           <button
             onClick={() => setInterval('month')}
+            aria-pressed={interval === 'month'}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
               interval === 'month'
                 ? 'bg-gray-900 text-white'
@@ -96,6 +97,7 @@ export default function PricingPage() {
           </button>
           <button
             onClick={() => setInterval('year')}
+            aria-pressed={interval === 'year'}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
               interval === 'year'
                 ? 'bg-gray-900 text-white'
