@@ -14,6 +14,7 @@ import {
   boolean,
   pgEnum,
 } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 import type { AdapterAccountType } from 'next-auth/adapters';
 
 // ─── Enums ───
@@ -123,3 +124,59 @@ export const scenarios = pgTable('scenarios', {
   resultData: jsonb('result_data'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
+
+// ─── 企業テーブル ───
+
+export const companies = pgTable('companies', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
+  name: text('name').notNull(),
+  permitNumber: text('permit_number'),
+  prefectureCode: text('prefecture_code'),
+  targetIndustries: jsonb('target_industries').$type<string[]>().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─── 決算期テーブル ───
+
+export const fiscalPeriods = pgTable('fiscal_periods', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .references(() => companies.id, { onDelete: 'cascade' })
+    .notNull(),
+  periodNumber: integer('period_number').notNull(),
+  startDate: text('start_date'),
+  endDate: text('end_date'),
+  status: text('status').default('draft'),
+  rawFinancialData: jsonb('raw_financial_data'),
+  keishinBs: jsonb('keishin_bs'),
+  keishinPl: jsonb('keishin_pl'),
+  yInput: jsonb('y_input'),
+  socialItems: jsonb('social_items'),
+  techStaff: jsonb('tech_staff'),
+  industries: jsonb('industries'),
+  calculationResult: jsonb('calculation_result'),
+  prevPeriodSnapshot: jsonb('prev_period_snapshot'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─── リレーション ───
+
+export const companiesRelations = relations(companies, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [companies.organizationId],
+    references: [organizations.id],
+  }),
+  fiscalPeriods: many(fiscalPeriods),
+}));
+
+export const fiscalPeriodsRelations = relations(fiscalPeriods, ({ one }) => ({
+  company: one(companies, {
+    fields: [fiscalPeriods.companyId],
+    references: [companies.id],
+  }),
+}));
