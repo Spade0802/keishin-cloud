@@ -34,6 +34,13 @@ export const AUDIT_ACTIONS = {
   // 管理者
   ADMIN_SETTINGS_UPDATE: 'admin.settings.update',
   ADMIN_BILLING_UPDATE: 'admin.billing.update',
+  // Stripe Webhook
+  STRIPE_WEBHOOK_RECEIVED: 'stripe.webhook.received',
+  STRIPE_WEBHOOK_FAILED: 'stripe.webhook.failed',
+  STRIPE_CHECKOUT_COMPLETED: 'stripe.checkout.completed',
+  STRIPE_SUBSCRIPTION_UPDATED: 'stripe.subscription.updated',
+  STRIPE_SUBSCRIPTION_DELETED: 'stripe.subscription.deleted',
+  STRIPE_PAYMENT_FAILED: 'stripe.payment.failed',
   // 企業・決算期
   COMPANY_CREATE: 'company.create',
   COMPANY_UPDATE: 'company.update',

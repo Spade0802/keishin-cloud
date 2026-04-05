@@ -19,6 +19,8 @@ import {
   ERR_STRIPE_INVALID_SIGNATURE,
   ERR_STRIPE_WEBHOOK_HANDLER,
 } from '@/lib/error-messages';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { captureException } from '@/lib/error-tracking';
 
 export async function POST(req: NextRequest) {
   if (!stripe) {
@@ -41,6 +43,14 @@ export async function POST(req: NextRequest) {
   }
 
   console.log(`[Stripe Webhook] Received event: ${event.type}`);
+
+  // 全 Webhook イベントを監査ログに記録
+  logAudit({
+    action: AUDIT_ACTIONS.STRIPE_WEBHOOK_RECEIVED,
+    resource: 'stripe_event',
+    resourceId: event.id,
+    details: { eventType: event.type, livemode: event.livemode },
+  });
 
   try {
     switch (event.type) {
@@ -66,6 +76,16 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error(`[Stripe Webhook] Error handling ${event.type}:`, error);
+    logAudit({
+      action: AUDIT_ACTIONS.STRIPE_WEBHOOK_FAILED,
+      resource: 'stripe_event',
+      resourceId: event.id,
+      details: {
+        eventType: event.type,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    captureException(error, { action: 'stripe.webhook', extra: { eventType: event.type, eventId: event.id } });
     return NextResponse.json({ error: ERR_STRIPE_WEBHOOK_HANDLER }, { status: 500 });
   }
 
@@ -102,6 +122,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       updatedAt: new Date(),
     })
     .where(eq(organizations.id, organizationId));
+
+  logAudit({
+    action: AUDIT_ACTIONS.STRIPE_CHECKOUT_COMPLETED,
+    organizationId,
+    resource: 'checkout_session',
+    resourceId: session.id,
+    details: { plan, subscriptionId },
+  });
 
   console.log(`[Stripe Webhook] Checkout completed for org ${organizationId}, plan: ${plan}`);
 }
@@ -162,6 +190,14 @@ async function updateOrgSubscription(orgId: string, subscription: Stripe.Subscri
     })
     .where(eq(organizations.id, orgId));
 
+  logAudit({
+    action: AUDIT_ACTIONS.STRIPE_SUBSCRIPTION_UPDATED,
+    organizationId: orgId,
+    resource: 'subscription',
+    resourceId: subscription.id,
+    details: { status, plan },
+  });
+
   console.log(`[Stripe Webhook] Subscription updated for org ${orgId}: ${status}, plan: ${plan}`);
 }
 
@@ -195,6 +231,14 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     })
     .where(eq(organizations.id, org.id));
 
+  logAudit({
+    action: AUDIT_ACTIONS.STRIPE_SUBSCRIPTION_DELETED,
+    organizationId: org.id,
+    resource: 'subscription',
+    resourceId: subscription.id,
+    details: { customerId },
+  });
+
   console.log(`[Stripe Webhook] Subscription canceled for org ${org.id}`);
 }
 
@@ -213,6 +257,13 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
       updatedAt: new Date(),
     })
     .where(eq(organizations.stripeCustomerId, customerId));
+
+  logAudit({
+    action: AUDIT_ACTIONS.STRIPE_PAYMENT_FAILED,
+    resource: 'invoice',
+    resourceId: invoice.id ?? undefined,
+    details: { customerId },
+  });
 
   console.log(`[Stripe Webhook] Payment failed for customer ${customerId}`);
 }
