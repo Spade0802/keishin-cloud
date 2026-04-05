@@ -18,43 +18,96 @@ import { getAIConfig } from './settings';
 // ─── 設定 ───
 
 const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'asia-northeast1';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
-// ─── Vertex AI クライアント ───
+// ─── GenerativeModel の統一インターフェース ───
+//
+// Vertex AI SDK と Google AI SDK は微妙にAPIが違うため、
+// 共通のインターフェースでラップする。
 
-async function getGenerativeModel() {
+interface UnifiedModel {
+  generateContent(request: {
+    contents: Array<{
+      role: string;
+      parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+    }>;
+  }): Promise<{
+    response: {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+        finishReason?: string;
+      }>;
+    };
+  }>;
+}
+
+async function getGenerativeModel(): Promise<UnifiedModel> {
+  const aiConfig = await getAIConfig().catch(() => ({
+    provider: 'gemini',
+    model: DEFAULT_MODEL,
+    apiKey: undefined,
+  }));
+
+  const modelName =
+    aiConfig.model && aiConfig.model.startsWith('gemini')
+      ? aiConfig.model
+      : DEFAULT_MODEL;
+
+  // ── gemini-paid: Google AI Studio APIキー方式 ──
+  if (aiConfig.provider === 'gemini-paid' && aiConfig.apiKey) {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseMimeType: 'application/json' as const,
+        temperature: 0,
+      },
+    });
+    console.log(`Using Gemini Paid API (${modelName})`);
+    // Google AI SDK のレスポンスを統一形式に変換
+    return {
+      async generateContent(request) {
+        const parts = request.contents[0].parts.map((p) => {
+          if (p.inlineData) {
+            return { inlineData: { mimeType: p.inlineData.mimeType, data: p.inlineData.data } };
+          }
+          return { text: p.text || '' };
+        });
+        const result = await model.generateContent(parts);
+        const text = result.response.text();
+        return {
+          response: {
+            candidates: [{
+              content: { parts: [{ text }] },
+              finishReason: result.response.candidates?.[0]?.finishReason ?? undefined,
+            }],
+          },
+        };
+      },
+    };
+  }
+
+  // ── gemini (free): Vertex AI 方式 ──
   const { VertexAI } = await import('@google-cloud/vertexai');
   const projectId =
     process.env.GOOGLE_CLOUD_PROJECT ||
     process.env.GCLOUD_PROJECT ||
     'jww-dxf-converter';
 
-  // DB設定 > 環境変数 > デフォルト の優先順位でモデルを決定
-  // ※ Vertex AI は Gemini モデルのみ対応。GPT等は無視する。
-  const DEFAULT_MODEL = 'gemini-2.5-flash';
-  let modelName = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  try {
-    const aiConfig = await getAIConfig();
-    if (aiConfig.model && aiConfig.model.startsWith('gemini')) {
-      modelName = aiConfig.model;
-    } else if (aiConfig.model) {
-      console.warn(`Ignoring non-Gemini model "${aiConfig.model}" for Vertex AI, using ${DEFAULT_MODEL}`);
-    }
-  } catch {
-    // DB未接続時はフォールバック
-  }
-
   const vertexAI = new VertexAI({
     project: projectId,
     location: VERTEX_LOCATION,
   });
 
+  console.log(`Using Vertex AI (${modelName})`);
   return vertexAI.getGenerativeModel({
     model: modelName,
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0,
     },
-  });
+  }) as unknown as UnifiedModel;
 }
 
 // ─── 決算書抽出 ───

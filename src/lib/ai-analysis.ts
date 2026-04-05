@@ -1,63 +1,77 @@
 /**
- * Vertex AI Gemini を使った経審P点分析
+ * Gemini を使った経審P点分析
  *
  * 経験豊富な経審コンサルタントの視点で、P点向上のための
  * 合法的な見直し余地を分析するレポートを生成する。
+ *
+ * Vertex AI（無料）と Google AI Studio APIキー（有料）の両方に対応。
  */
-import { VertexAI } from '@google-cloud/vertexai';
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
 import { getAIConfig } from './settings';
 
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'jww-dxf-converter';
 const LOCATION = 'asia-northeast1';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 /** Gemini にリクエストを送り、4セクションの分析レポートを取得する */
 export async function generatePPointAnalysis(
   input: AnalysisInput,
 ): Promise<AnalysisResult> {
-  // DB設定からモデル名を取得（Vertex AI は Gemini のみ対応）
-  const DEFAULT_MODEL = 'gemini-2.5-flash';
   const aiConfig = await getAIConfig();
-  let modelName = DEFAULT_MODEL;
-  if (aiConfig.model && aiConfig.model.startsWith('gemini')) {
-    modelName = aiConfig.model;
-  } else if (aiConfig.model) {
-    console.warn(`[ai-analysis] Ignoring non-Gemini model "${aiConfig.model}", using ${DEFAULT_MODEL}`);
-  }
-
-  const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
-  const model = vertexAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 65536,
-      responseMimeType: 'application/json',
-    },
-  });
+  const modelName =
+    aiConfig.model && aiConfig.model.startsWith('gemini')
+      ? aiConfig.model
+      : DEFAULT_MODEL;
 
   const prompt = buildPrompt(input);
 
   // リトライ付き生成（空レスポンス対策）
   let text = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    });
+    let responseText = '';
 
-    const response = result.response;
-    text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (aiConfig.provider === 'gemini-paid' && aiConfig.apiKey) {
+      // ── Gemini Paid API ──
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json' as const,
+          temperature: 0.3,
+          maxOutputTokens: 65536,
+        },
+      });
+      console.log(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
+      const result = await model.generateContent(prompt);
+      responseText = result.response.text() ?? '';
+    } else {
+      // ── Vertex AI ──
+      const { VertexAI } = await import('@google-cloud/vertexai');
+      const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
+      const model = vertexAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 65536,
+          responseMimeType: 'application/json',
+        },
+      });
+      console.log(`[ai-analysis] Using Vertex AI (${modelName}), attempt ${attempt}`);
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+      responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    }
+
+    text = responseText;
 
     if (text) break;
 
-    const finishReason = response.candidates?.[0]?.finishReason;
-    console.warn(
-      `[ai-analysis] Attempt ${attempt}: empty response, finishReason=${finishReason}`
-    );
+    console.warn(`[ai-analysis] Attempt ${attempt}: empty response`);
 
     if (attempt === 2) {
-      throw new Error(
-        `Gemini からの応答が空でした (finishReason=${finishReason})`
-      );
+      throw new Error('Gemini からの応答が空でした');
     }
   }
 
