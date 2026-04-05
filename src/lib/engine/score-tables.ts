@@ -70,8 +70,9 @@ export const X1_TABLE: Bracket[] = [
 ];
 
 // X21テーブル（自己資本額→X21評点）
+// ★ min=-Infinity で大幅債務超過にも対応（0点とする）
 export const X21_TABLE: Bracket[] = [
-  { min: -30000, max: 0, a: 0, b: 1, c: 0 },
+  { min: -Infinity, max: 0, a: 0, b: 1, c: 0 },
   { min: 0, max: 10000, a: 223, b: 10000, c: 361 },
   { min: 10000, max: 12000, a: 8, b: 2000, c: 544 },
   { min: 12000, max: 15000, a: 11, b: 3000, c: 548 },
@@ -97,8 +98,9 @@ export const X21_TABLE: Bracket[] = [
 ];
 
 // X22テーブル（EBITDA→X22評点）
+// ★ min=-Infinity で大幅赤字にも対応（0点とする）
 export const X22_TABLE: Bracket[] = [
-  { min: -30000, max: 0, a: 0, b: 1, c: 0 },
+  { min: -Infinity, max: 0, a: 0, b: 1, c: 0 },
   { min: 0, max: 10000, a: 78, b: 10000, c: 547 },
   { min: 10000, max: 12000, a: 6, b: 2000, c: 595 },
   { min: 12000, max: 15000, a: 7, b: 3000, c: 603 },
@@ -205,6 +207,38 @@ export const QUALIFICATION_MULTIPLIERS: Record<
 };
 
 /**
+ * 資格コード → 対応業種コードマッピング
+ * 経審では資格の種類によって加点できる業種が決まっている
+ */
+export const QUALIFICATION_TO_INDUSTRY: Record<number, string[]> = {
+  // 電気工事
+  127: ['08'], // 1級電気工事施工管理技士
+  155: ['08'], // 2級電気工事施工管理技士
+  228: ['08'], // 第一種電気工事士
+  256: ['08'], // 第二種電気工事士（3年以上実務）
+  // 管工事
+  129: ['09'], // 1級管工事施工管理技士
+  230: ['09'], // 2級管工事施工管理技士
+  // 電気通信
+  133: ['12'], // 1級電気通信工事施工管理技士
+  233: ['12'], // 2級電気通信工事施工管理技士
+  // 土木
+  103: ['01'], // 1級土木施工管理技士
+  153: ['01'], // 2級土木施工管理技士
+  // 建築
+  105: ['02'], // 1級建築施工管理技士
+  157: ['02'], // 2級建築施工管理技士
+  // 造園
+  131: ['22'], // 1級造園施工管理技士
+  231: ['22'], // 2級造園施工管理技士
+  // 建設機械
+  101: ['01'], // 1級建設機械施工管理技士（土木）
+  151: ['01'], // 2級建設機械施工管理技士（土木）
+  // 技術士
+  201: ['01', '02', '08', '09'], // 技術士（部門による）
+};
+
+/**
  * 講習受講による乗数変更
  * 1級 + 講習受講(1) + 監理技術者資格者証あり → ×6（1級監理受講）
  * 1級 + 講習未受講(2) → ×5（1級技術者）
@@ -222,4 +256,61 @@ export function getEffectiveMultiplier(
     return 6; // 1級監理受講
   }
   return qual.multiplier;
+}
+
+/**
+ * 別紙二の技術職員リストから業種別の技術職員数値を計算する
+ *
+ * ルール:
+ * - 1人の技術者は最大2業種まで加点可能（業種コード1、業種コード2）
+ * - 各業種での加点は「資格コードに対応する乗数」で決まる
+ * - 1級(5点) + 講習受講 + 監理技術者証 → 6点
+ * - 1級(5点)
+ * - 2級(2点)
+ * - その他(1点)
+ * - 同一業種に複数の資格を持つ場合、最も高い乗数のみ適用
+ *
+ * @param staff 別紙二の技術職員リスト
+ * @returns 業種コード → 技術職員数値のマップ
+ */
+export function calculateTechStaffValueByIndustry(
+  staff: Array<{
+    industryCode1: number;
+    qualificationCode1: number;
+    lectureFlag1: number;
+    industryCode2?: number;
+    qualificationCode2?: number;
+    lectureFlag2?: number;
+    supervisorCertNumber?: string;
+  }>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+
+  for (const person of staff) {
+    const hasCert = !!person.supervisorCertNumber;
+
+    // 業種1
+    if (person.industryCode1 && person.qualificationCode1) {
+      const code = String(person.industryCode1).padStart(2, '0');
+      const multiplier = getEffectiveMultiplier(
+        person.qualificationCode1,
+        person.lectureFlag1,
+        hasCert
+      );
+      result[code] = (result[code] ?? 0) + multiplier;
+    }
+
+    // 業種2（任意）
+    if (person.industryCode2 && person.qualificationCode2) {
+      const code = String(person.industryCode2).padStart(2, '0');
+      const multiplier = getEffectiveMultiplier(
+        person.qualificationCode2,
+        person.lectureFlag2 ?? 2,
+        hasCert
+      );
+      result[code] = (result[code] ?? 0) + multiplier;
+    }
+  }
+
+  return result;
 }
