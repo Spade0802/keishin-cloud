@@ -170,7 +170,10 @@ export function ResultView(props: ResultViewProps) {
   // Calculate P formula breakdown for first industry
   const primaryInd = industries[0];
 
+  const [excelLoading, setExcelLoading] = useState(false);
+
   async function handleDownloadExcel() {
+    setExcelLoading(true);
     try {
       const res = await fetch('/api/export-excel', {
         method: 'POST',
@@ -195,6 +198,8 @@ export function ResultView(props: ResultViewProps) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Excel download failed:', err);
+    } finally {
+      setExcelLoading(false);
     }
   }
 
@@ -248,8 +253,12 @@ export function ResultView(props: ResultViewProps) {
         </div>
         {!readOnly && (
           <div className="flex gap-2" data-print-hide>
-            <Button onClick={handleDownloadExcel} variant="outline">
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
+            <Button onClick={handleDownloadExcel} variant="outline" disabled={excelLoading}>
+              {excelLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
               Excel
             </Button>
             <Button onClick={handleDownloadPDF} variant="outline" disabled={pdfLoading}>
@@ -332,11 +341,11 @@ export function ResultView(props: ResultViewProps) {
               )}
             </div>
             <div className="space-y-2">
-              <ContributionBar label={`X1=${primaryInd.X1}`} value={Math.round(0.25 * primaryInd.X1)} maxValue={Math.round(primaryInd.P * 0.35)} />
-              <ContributionBar label={`X2=${X2}`} value={Math.round(0.15 * X2)} maxValue={Math.round(primaryInd.P * 0.35)} />
-              <ContributionBar label={`Y=${Y}`} value={Math.round(0.20 * Y)} maxValue={Math.round(primaryInd.P * 0.35)} />
-              <ContributionBar label={`Z=${primaryInd.Z}`} value={Math.round(0.25 * primaryInd.Z)} maxValue={Math.round(primaryInd.P * 0.35)} />
-              <ContributionBar label={`W=${W}`} value={Math.round(0.15 * W)} maxValue={Math.round(primaryInd.P * 0.35)} />
+              <ContributionBar label={`X1=${primaryInd.X1}`} value={Math.floor(0.25 * primaryInd.X1)} maxValue={Math.floor(primaryInd.P * 0.35)} />
+              <ContributionBar label={`X2=${X2}`} value={Math.floor(0.15 * X2)} maxValue={Math.floor(primaryInd.P * 0.35)} />
+              <ContributionBar label={`Y=${Y}`} value={Math.floor(0.20 * Y)} maxValue={Math.floor(primaryInd.P * 0.35)} />
+              <ContributionBar label={`Z=${primaryInd.Z}`} value={Math.floor(0.25 * primaryInd.Z)} maxValue={Math.floor(primaryInd.P * 0.35)} />
+              <ContributionBar label={`W=${W}`} value={Math.floor(0.15 * W)} maxValue={Math.floor(primaryInd.P * 0.35)} />
             </div>
           </CardContent>
         </Card>

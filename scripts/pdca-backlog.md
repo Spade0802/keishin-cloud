@@ -4,35 +4,35 @@
 
 ## Status
 - Total issues: 82 (P0: 14, P1: 26, P2: 27, P3: 15)
-- Fixed: 0 (in progress by 2 agents)
+- Fixed: 13 (Cycle 1: SEC×6 + DATA×7)
 - Next PDCA cycle: 01:00 JST
 
 ## Priority Queue (P0 → P3)
 
 ### P0 - Critical (Must fix immediately)
 
-- [ ] SEC-1: Hardcoded admin credentials in seed-admin.ts (security) [IN PROGRESS - security agent]
-- [ ] SEC-2: Seed-admin endpoint available in production (security) [IN PROGRESS - security agent]
-- [ ] SEC-3: API routes not in auth middleware matcher (security) [IN PROGRESS - security agent]
-- [ ] DATA-1: Prime contract mapped to subcontract field - corrupts P scores (use-extracted-data.ts:160) [IN PROGRESS - data agent]
+- [x] SEC-1: Hardcoded admin credentials in seed-admin.ts ✅ Cycle 1
+- [x] SEC-2: Seed-admin endpoint available in production ✅ Cycle 1
+- [x] SEC-3: API routes not in auth middleware matcher ✅ Cycle 1
+- [x] DATA-1: Prime contract mapped to subcontract field ✅ Cycle 1
 - [ ] CODE-1: X1 score table non-monotonic anomaly at high brackets (score-tables.ts) - verify against official table
 - [ ] CODE-2: W6 R&D formula incorrect - should use revenue ratio, not fixed amount (p-calculator.ts:123)
 - [ ] CODE-3: No unit tests for scoring engine (entire src/)
 - [ ] PERF-1: 5-15 Gemini API calls per PDF upload (gemini-extractor.ts) - reduce to 3
 - [ ] CODE-4: Webhook silently returns 200 when org update fails (webhooks/stripe/route.ts:122)
-- [ ] UX-1: Step validation only exists for Step 1 - users proceed with empty data (input-wizard.tsx:496)
+- [ ] UX-1: Step validation only exists for Step 1 (input-wizard.tsx:496) [IN PROGRESS - Cycle 2]
 - [ ] CODE-5: Untyped JSON.parse of Gemini AI response - need Zod validation (ai-analysis.ts:110)
-- [ ] DOMAIN-1: W items default insurance=true is dangerous - should start all false (w-items-checklist.tsx:18)
-- [ ] DOMAIN-2: P点端数処理がMath.round - 経審公式はfloor(切り捨て) (result-view.tsx:335)
-- [ ] DOMAIN-3: "下請完工高" terminology wrong - should be "元請完成工事高" (input-wizard.tsx:1230)
+- [ ] DOMAIN-1: W items default insurance=true is dangerous (w-items-checklist.tsx:18) [IN PROGRESS - Cycle 2]
+- [ ] DOMAIN-2: P点端数処理がMath.round (result-view.tsx:335) [IN PROGRESS - Cycle 2]
+- [ ] DOMAIN-3: "下請完工高" terminology wrong (input-wizard.tsx:1230) [IN PROGRESS - Cycle 2]
 
 ### P1 - High (Fix this cycle)
 
-- [ ] SEC-4: Middleware doesn't check admin role (auth.config.ts) [IN PROGRESS - security agent]
-- [ ] SEC-5: Billing bypass when STRIPE_SECRET_KEY unset (stripe.ts:20) [IN PROGRESS - security agent]
-- [ ] SEC-6: Webhook plan metadata not validated (webhooks/stripe/route.ts:77) [IN PROGRESS - security agent]
-- [ ] DATA-2: Validation bypass - invalid W items still flow through (use-extracted-data.ts:172) [IN PROGRESS - data agent]
-- [ ] DATA-3: Cyrillic character in field name causes silent match failure (extraction-field-map.ts:153) [IN PROGRESS - data agent]
+- [x] SEC-4: Middleware admin role check ✅ Cycle 1
+- [x] SEC-5: Billing bypass explicit only ✅ Cycle 1
+- [x] SEC-6: Webhook plan validation ✅ Cycle 1
+- [x] DATA-2: Validation bypass fixed ✅ Cycle 1
+- [x] DATA-3: Cyrillic field name fixed ✅ Cycle 1
 - [ ] DATA-4: permitType always hardcoded to '一般' (use-extracted-data.ts:157)
 - [ ] CODE-6: Stripe null as unknown as Stripe unsafe cast (stripe.ts:15)
 - [ ] CODE-7: Name-based dedup fails for same-name employees (tech-staff-calculator.ts:136)
@@ -109,3 +109,4 @@
 ## PDCA Cycle Log
 | Cycle | Time | Issues Fixed | Commit |
 |-------|------|-------------|--------|
+| 1 | 00:35 | 13 (SEC-1~6, DATA-1~7) | e2f91e7 |

@@ -500,6 +500,20 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         setStepError('完成工事高（売上高）は必須です。0より大きい値を入力してください。');
         return false;
       }
+      const tc = num(totalCapital);
+      if (tc <= 0) {
+        setStepError('総資本（総資産）は必須です。0より大きい値を入力してください。Y点の計算に必要です。');
+        return false;
+      }
+      setStepError(null);
+      return true;
+    }
+    if (current === 2) {
+      const validIndustries = industries.filter((ind) => ind.name && num(ind.currCompletion) > 0);
+      if (validIndustries.length === 0) {
+        setStepError('業種を1つ以上入力してください。業種名と当年度完工高（0より大きい値）が必要です。');
+        return false;
+      }
       setStepError(null);
       return true;
     }
@@ -1223,26 +1237,26 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {numField('前年度完工高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v))}
                     {numField('当年度完工高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v))}
-                    {numField('前年度下請完工高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
-                    {numField('当年度下請完工高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
+                    {numField('前年度元請完成工事高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
+                    {numField('当年度元請完成工事高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
                   </div>
-                  {/* 元請完工高（自動計算）: 完成工事高 - 下請完工高 */}
+                  {/* 下請完工高（自動計算）: 完成工事高 - 元請完成工事高 */}
                   {(num(ind.prevCompletion) > 0 || num(ind.currCompletion) > 0) && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">前期 元請完工高（自動計算）</Label>
+                        <Label className="text-[10px] text-muted-foreground">前期 下請完工高（自動計算）</Label>
                         <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
                           {num(ind.prevCompletion) > 0 ? `¥${(num(ind.prevCompletion) - num(ind.prevSubcontract)).toLocaleString()}千円` : '—'}
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">当期 元請完工高（自動計算）</Label>
+                        <Label className="text-[10px] text-muted-foreground">当期 下請完工高（自動計算）</Label>
                         <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
                           {num(ind.currCompletion) > 0 ? `¥${(num(ind.currCompletion) - num(ind.currSubcontract)).toLocaleString()}千円` : '—'}
                         </div>
                       </div>
                       <div className="col-span-2 self-end text-[10px] text-muted-foreground pb-2">
-                        元請完工高 = 完成工事高 − 下請完工高
+                        下請完工高 = 完成工事高 − 元請完成工事高
                       </div>
                     </div>
                   )}

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, Sparkles, Building2, Zap, ArrowRight, X } from 'lucide-react';
 import { PLANS } from '@/lib/stripe';
+import { Header } from '@/components/header';
+import { Footer } from '@/components/footer';
 
 type Interval = 'month' | 'year';
 
@@ -58,6 +60,8 @@ export default function PricingPage() {
   ];
 
   return (
+    <>
+    <Header />
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-6xl mx-auto px-4 py-16">
         {/* Header */}
@@ -243,5 +247,7 @@ export default function PricingPage() {
         </div>
       </div>
     </div>
+    <Footer />
+    </>
   );
 }

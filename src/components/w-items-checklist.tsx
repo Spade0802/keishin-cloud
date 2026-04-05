@@ -17,9 +17,9 @@ interface WItemsChecklistProps {
 
 function defaultSocialItems(): SocialItems {
   return {
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
+    employmentInsurance: false,
+    healthInsurance: false,
+    pensionInsurance: false,
     constructionRetirementMutualAid: false,
     retirementSystem: false,
     nonStatutoryAccidentInsurance: false,
