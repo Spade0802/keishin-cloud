@@ -56,8 +56,7 @@ export const authConfig: NextAuthConfig = {
         pathname.startsWith('/admin/') ||
         pathname.startsWith('/api/admin/');
       if (isAdminPath && isLoggedIn) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const role = (auth as any)?.user?.role;
+        const role = auth?.user?.role;
         if (role !== 'admin') {
           return Response.redirect(new URL('/dashboard', nextUrl));
         }

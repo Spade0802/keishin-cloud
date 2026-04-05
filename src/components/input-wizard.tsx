@@ -347,18 +347,19 @@ function numField(
   help?: string,
   status?: 'auto-filled' | 'needs-input'
 ) {
+  const fieldId = `numfield-${label.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, '-')}`;
   return (
     <div className={`space-y-1 rounded-md p-1.5 transition-colors ${
       status === 'auto-filled' ? 'bg-green-50 dark:bg-green-950/20 ring-1 ring-green-200 dark:ring-green-800' :
       status === 'needs-input' ? 'bg-amber-50 dark:bg-amber-950/20 ring-1 ring-amber-200 dark:ring-amber-800' : ''
     }`}>
-      <Label className="text-xs font-medium flex items-center gap-1">
+      <Label htmlFor={fieldId} className="text-xs font-medium flex items-center gap-1">
         {label}
         {status === 'auto-filled' && <span className="text-[9px] text-green-600 font-normal">自動</span>}
         {status === 'needs-input' && <span className="text-[9px] text-amber-600 font-normal">要入力</span>}
       </Label>
       <div className="flex items-center gap-1">
-        <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-10 sm:h-8" />
+        <Input id={fieldId} type="number" value={value} onChange={(e) => onChange(e.target.value)} className="text-right text-sm h-10 sm:h-8" />
         <span className="text-xs text-muted-foreground whitespace-nowrap w-8">{unit}</span>
       </div>
       {help && <p className="text-[10px] text-muted-foreground">{help}</p>}

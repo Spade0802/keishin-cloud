@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractResultPdfWithGemini, type ResultPdfScores } from '@/lib/gemini-extractor';
+import { auth } from '@/lib/auth';
 
 // Document AI設定（フォールバック用）
 const PROJECT_ID = process.env.GCP_PROJECT_ID || 'jww-dxf-converter';
@@ -100,6 +101,11 @@ function extractScoresFromText(text: string): ResultPdfScores {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;

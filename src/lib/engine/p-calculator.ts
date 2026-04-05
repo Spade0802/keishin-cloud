@@ -39,7 +39,7 @@ export function calculateP(
   w: number
 ): number {
   const raw = 0.25 * x1 + 0.15 * x2 + 0.2 * y + 0.25 * z + 0.15 * w;
-  return Math.max(6, Math.min(2160, Math.round(raw)));
+  return Math.max(6, Math.min(2160, Math.floor(raw)));
 }
 
 export function calculateX2(x21: number, x22: number): number {

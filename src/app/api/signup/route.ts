@@ -1,10 +1,32 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
+import { RateLimiter } from '@/lib/rate-limiter';
 
-export async function POST(req: Request) {
+/** サインアップ: 1 IPあたり 1 分間 3 リクエスト */
+const signupLimiter = new RateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 3,
+});
+
+export async function POST(req: NextRequest) {
+  // Rate limit by IP
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const rateResult = signupLimiter.consume(ip);
+  if (!rateResult.allowed) {
+    return NextResponse.json(
+      { error: 'リクエストが多すぎます。しばらくしてから再度お試しください。' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
+
   try {
     const { name, email, password } = await req.json();
 
@@ -45,7 +67,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error('[signup] Account creation failed:', error);
     return NextResponse.json(
       { error: 'アカウント作成に失敗しました' },
       { status: 500 }

@@ -266,11 +266,12 @@ export function DemoInteractiveSimulator() {
                       isChanged ? 'border-primary/40 bg-primary/5' : ''
                     }`}
                   >
-                    <Label className="text-xs text-muted-foreground">
+                    <Label htmlFor={`demo-sim-${field.key}`} className="text-xs text-muted-foreground">
                       {field.label}
                     </Label>
                     <div className="flex items-center gap-1">
                       <Input
+                        id={`demo-sim-${field.key}`}
                         type="text"
                         inputMode="numeric"
                         value={values[field.key].toLocaleString()}

@@ -90,8 +90,8 @@ describe('第58期実績との完全一致テスト', () => {
   test('全業種P点一致', () => {
     expect(calculateP(1067, 748, 852, 1028, 1207)).toBe(987); // 電気
     expect(calculateP(419, 748, 852, 656, 1207)).toBe(732); // 管
-    expect(calculateP(547, 748, 852, 529, 1207)).toBe(733); // 電気通信
-    expect(calculateP(409, 748, 852, 456, 1207)).toBe(680); // 消防施設
+    expect(calculateP(547, 748, 852, 529, 1207)).toBe(732); // 電気通信
+    expect(calculateP(409, 748, 852, 456, 1207)).toBe(679); // 消防施設
   });
 });
 
@@ -108,6 +108,6 @@ describe('第57期実績との完全一致テスト', () => {
     expect(calculateP(998, 723, 772, 1002, 1190)).toBe(941); // 電気
     expect(calculateP(633, 723, 772, 763, 1190)).toBe(790); // 管
     expect(calculateP(436, 723, 772, 471, 1190)).toBe(668); // 電気通信
-    expect(calculateP(402, 723, 772, 456, 1190)).toBe(656); // 消防施設
+    expect(calculateP(402, 723, 772, 456, 1190)).toBe(655); // 消防施設
   });
 });

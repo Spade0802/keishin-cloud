@@ -20,6 +20,11 @@ export const config = {
     '/onboarding/:path*',
     '/admin/:path*',
     '/api/admin/:path*',
+    '/api/export-excel/:path*',
+    '/api/parse-pdf/:path*',
+    '/api/parse-excel/:path*',
+    '/api/parse-keishin-pdf/:path*',
+    '/api/parse-result-pdf/:path*',
     '/account/:path*',
   ],
 };
