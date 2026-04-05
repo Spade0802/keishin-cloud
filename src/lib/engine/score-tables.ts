@@ -16,6 +16,18 @@ export interface Bracket {
   c: number;
 }
 
+/**
+ * ブラケット配列から値に該当する区間を検索し、評点を返す。
+ *
+ * 評点 = floor(a * value / b) + c
+ *
+ * 該当区間が見つからない場合はエラーをスローする。
+ *
+ * @param brackets 評点換算テーブル（Bracket 配列、min 昇順）
+ * @param value    千円単位の評価対象値
+ * @returns 換算後の評点（整数）
+ * @throws 該当区間が見つからない場合
+ */
 export function lookupScore(brackets: Bracket[], value: number): number {
   const bracket = brackets.find((b) => value >= b.min && value < b.max);
   if (!bracket) {
@@ -244,10 +256,18 @@ export const QUALIFICATION_TO_INDUSTRY: Record<number, string[]> = {
 };
 
 /**
- * 講習受講による乗数変更
- * 1級 + 講習受講(1) + 監理技術者資格者証あり → ×6（1級監理受講）
- * 1級 + 講習未受講(2) → ×5（1級技術者）
- * 2級/その他 → 講習フラグに関係なくそのまま
+ * 技術職員の有効乗数を返す。
+ *
+ * 講習受講状況と監理技術者資格者証の有無により乗数が変わる。
+ * - 1級資格(multiplier=5) + 講習受講(lectureFlag=1) + 監理資格者証あり → 6
+ * - 1級資格(multiplier=5) + 上記以外 → 5
+ * - 2級/その他 → 資格固有の乗数（講習フラグに関係なし）
+ * - 未知の資格コード → 1
+ *
+ * @param qualificationCode 有資格区分コード（QUALIFICATION_MULTIPLIERS のキー）
+ * @param lectureFlag       講習受講フラグ（1=受講済、2=未受講）
+ * @param hasSupervisorCert 監理技術者資格者証の有無
+ * @returns 有効乗数（1, 2, 5, or 6）
  */
 export function getEffectiveMultiplier(
   qualificationCode: number,

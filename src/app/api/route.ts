@@ -9,12 +9,6 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   const endpoints = [
     {
-      path: '/api/health',
-      method: 'GET',
-      auth: false,
-      description: 'Health check - returns service status, DB connectivity, and version',
-    },
-    {
       path: '/api/auth/*',
       method: 'GET | POST',
       auth: false,
@@ -105,10 +99,40 @@ export async function GET() {
       description: 'Stripe webhook receiver for subscription events',
     },
     {
+      path: '/api/user/profile',
+      method: 'GET',
+      auth: true,
+      description: 'Get the authenticated user\'s profile (id, name, email, role, organization)',
+    },
+    {
+      path: '/api/user/profile',
+      method: 'PATCH',
+      auth: true,
+      description: 'Update the authenticated user\'s display name (body: { name: string })',
+    },
+    {
+      path: '/api/health',
+      method: 'GET',
+      auth: false,
+      description: 'Health check - returns service status, DB connectivity, version, and timestamp',
+    },
+    {
+      path: '/api/admin/users',
+      method: 'GET',
+      auth: true,
+      description: 'List all users (admin role required)',
+    },
+    {
+      path: '/api/admin/users',
+      method: 'PATCH',
+      auth: true,
+      description: 'Change user role or toggle disabled status (admin role required, body: { userId, action, role? })',
+    },
+    {
       path: '/api/admin/*',
       method: 'GET | POST | PUT | DELETE',
       auth: true,
-      description: 'Admin-only endpoints for user/organization/simulation management',
+      description: 'Other admin-only endpoints for organization/simulation management',
     },
     {
       path: '/api/seed-admin',

@@ -31,6 +31,19 @@ export function calculateX1WithAverage(
   return Math.max(curr, twoYearAvg);
 }
 
+/**
+ * 総合評定値（P点）を算出する。
+ *
+ * P = 0.25*X1 + 0.15*X2 + 0.20*Y + 0.25*Z + 0.15*W
+ * 結果は整数に切り捨て、6 以上 2160 以下にクランプされる。
+ *
+ * @param x1 完成工事高評点 X1
+ * @param x2 経営状況分析評点 X2
+ * @param y  経営状況評点 Y
+ * @param z  技術力評点 Z
+ * @param w  社会性等評点 W
+ * @returns P点（6 <= P <= 2160）
+ */
 export function calculateP(
   x1: number,
   x2: number,
@@ -42,14 +55,43 @@ export function calculateP(
   return Math.max(6, Math.min(2160, Math.floor(raw)));
 }
 
+/**
+ * 経営状況分析評点 X2 を算出する。
+ *
+ * X2 = floor((X21 + X22) / 2)
+ *
+ * @param x21 自己資本額評点
+ * @param x22 EBITDA 評点
+ * @returns X2 評点
+ */
 export function calculateX2(x21: number, x22: number): number {
   return Math.floor((x21 + x22) / 2);
 }
 
+/**
+ * 技術力評点 Z を算出する。
+ *
+ * Z = floor(Z1 * 0.8 + Z2 * 0.2)
+ *
+ * @param z1 技術職員数値評点
+ * @param z2 元請完成工事高評点
+ * @returns Z 評点
+ */
 export function calculateZ(z1: number, z2: number): number {
   return Math.floor(z1 * 0.8 + z2 * 0.2);
 }
 
+/**
+ * 社会性等評点 W を算出する。
+ *
+ * W1〜W8 の各項目を合算し、W = floor(total * 1750 / 200) で換算する。
+ * W1: 社会保険・若年技術者・CPD・技能レベル・WLB・CCUS
+ * W2: 営業年数  W3: 防災活動  W4: 法令遵守
+ * W5: 監査・経理  W6: 研究開発費  W7: 建設機械  W8: ISO等
+ *
+ * @param items 社会性等の入力項目
+ * @returns total（素点合計）、W（換算後評点）、detail（W1〜W8 内訳）
+ */
 export function calculateW(items: SocialItems): {
   total: number;
   W: number;
