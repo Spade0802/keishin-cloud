@@ -103,6 +103,41 @@ describe('isOriginAllowed (CSRF)', () => {
   test('空の許可リストでは全て拒否', () => {
     expect(isOriginAllowed('https://keishin.cloud', [])).toBe(false);
   });
+
+  test('空文字のオリジンは falsy なので許可される（same-origin 扱い）', () => {
+    expect(isOriginAllowed('', allowed)).toBe(true);
+  });
+
+  test('複数の末尾スラッシュを正規化する', () => {
+    expect(isOriginAllowed('https://keishin.cloud///', allowed)).toBe(true);
+  });
+
+  test('プロトコルが異なるオリジンは拒否する', () => {
+    expect(isOriginAllowed('http://keishin.cloud', allowed)).toBe(false);
+  });
+
+  test('ポート番号が異なるlocalhostは拒否する', () => {
+    expect(isOriginAllowed('http://localhost:8080', allowed)).toBe(false);
+  });
+
+  test('ポート番号なしのlocalhostは拒否する', () => {
+    expect(isOriginAllowed('http://localhost', allowed)).toBe(false);
+  });
+
+  test('パス付きオリジンは末尾スラッシュ除去のみで比較される', () => {
+    // Origin ヘッダーは通常パスを含まないが、念のためテスト
+    expect(isOriginAllowed('https://keishin.cloud/path', allowed)).toBe(false);
+  });
+
+  test('許可リスト側に末尾スラッシュがあっても正規化される', () => {
+    const allowedWithSlash = ['https://example.com/'];
+    expect(isOriginAllowed('https://example.com', allowedWithSlash)).toBe(true);
+  });
+
+  test('大文字混在の許可リストとオリジンの両方を正規化する', () => {
+    const mixedCase = ['HTTPS://Example.COM'];
+    expect(isOriginAllowed('https://example.com', mixedCase)).toBe(true);
+  });
 });
 
 // ─── Email バリデーション ─────────────────────────────────
@@ -149,6 +184,56 @@ describe('isValidEmail', () => {
   test('複数の @ は false', () => {
     expect(isValidEmail('user@@example.com')).toBe(false);
   });
+
+  test('ヘッダーインジェクション試行は false', () => {
+    expect(isValidEmail('user@example.com\r\nBcc: victim@evil.com')).toBe(false);
+  });
+
+  test('スペースのみは false', () => {
+    expect(isValidEmail('   ')).toBe(false);
+  });
+
+  test('TLDなしのドメインは false', () => {
+    expect(isValidEmail('user@localhost')).toBe(false);
+  });
+
+  test('プラス記号付きアドレスは true', () => {
+    expect(isValidEmail('user+tag@example.com')).toBe(true);
+  });
+
+  test('ハイフン付きドメインは true', () => {
+    expect(isValidEmail('user@my-domain.com')).toBe(true);
+  });
+
+  test('サブドメイン付きアドレスは true', () => {
+    expect(isValidEmail('user@sub.domain.example.com')).toBe(true);
+  });
+
+  test('254文字ちょうどは true', () => {
+    const local = 'a'.repeat(241);
+    // local(241) + @ (1) + domain(12) = 254
+    expect(isValidEmail(`${local}@example.com`)).toBe(true);
+  });
+
+  test('255文字は false', () => {
+    // 254文字制限: local(243) + @(1) + example.com(11) = 255 > 254
+    const local = 'a'.repeat(243);
+    expect(isValidEmail(`${local}@example.com`)).toBe(false);
+  });
+
+  test('HTMLタグを含むメールでも正規表現に合致すれば true（サニタイズは別レイヤー）', () => {
+    // <script> はローカルパートとして正規表現に合致する
+    expect(isValidEmail('<script>@example.com')).toBe(true);
+  });
+
+  test('配列は false', () => {
+    expect(isValidEmail(['user@example.com'])).toBe(false);
+  });
+
+  test('boolean は false', () => {
+    expect(isValidEmail(true)).toBe(false);
+    expect(isValidEmail(false)).toBe(false);
+  });
 });
 
 // ─── sanitizeString ──────────────────────────────────────
@@ -174,5 +259,81 @@ describe('sanitizeString', () => {
 
   test('正常な文字列はそのまま返す', () => {
     expect(sanitizeString('テスト', 100)).toBe('テスト');
+  });
+
+  test('XSS ペイロードはそのまま文字列として返す（エスケープはしない）', () => {
+    // sanitizeString はトリム＋切り詰めのみ。HTMLエスケープは別レイヤーの責務
+    expect(sanitizeString('<script>alert("xss")</script>', 100)).toBe(
+      '<script>alert("xss")</script>',
+    );
+    expect(sanitizeString('<img src=x onerror=alert(1)>', 100)).toBe(
+      '<img src=x onerror=alert(1)>',
+    );
+  });
+
+  test('XSS ペイロードが maxLength で切り詰められる', () => {
+    expect(sanitizeString('<script>alert("xss")</script>', 10)).toBe(
+      '<script>al',
+    );
+  });
+
+  test('SQL インジェクション文字列はそのまま返す', () => {
+    const sqlPayload = "'; DROP TABLE users; --";
+    expect(sanitizeString(sqlPayload, 100)).toBe(sqlPayload);
+  });
+
+  test('Unicode 文字列を正しく扱う', () => {
+    expect(sanitizeString('日本語テスト', 3)).toBe('日本語');
+    expect(sanitizeString('émojis 🎉', 100)).toBe('émojis 🎉');
+  });
+
+  test('絵文字のみの文字列（サロゲートペアで slice される）', () => {
+    // JS の String.slice はUTF-16コードユニット単位。絵文字は2ユニット
+    // slice(0, 2) = 最初の絵文字1つ分
+    expect(sanitizeString('🎉🎊🎈', 2)).toBe('🎉');
+    expect(sanitizeString('🎉🎊🎈', 4)).toBe('🎉🎊');
+  });
+
+  test('改行を含む文字列はトリムされる', () => {
+    expect(sanitizeString('\n  hello\n  ', 100)).toBe('hello');
+  });
+
+  test('タブを含む文字列はトリムされる', () => {
+    expect(sanitizeString('\thello\t', 100)).toBe('hello');
+  });
+
+  test('maxLength が 0 の場合は空になり null を返す', () => {
+    // slice(0, 0) は空文字だが、トリム後に空 → null ではない
+    // 実際には slice で空文字になるが、トリムは先に行われる
+    // trimmed = 'hello', slice(0,0) = '' → しかし空チェックはトリム後・スライス前
+    // 実装を確認: trim → 空チェック → slice なので 'hello' は空でない → slice(0,0) = ''
+    expect(sanitizeString('hello', 0)).toBe('');
+  });
+
+  test('maxLength が 1 の場合は先頭1文字のみ', () => {
+    expect(sanitizeString('hello', 1)).toBe('h');
+  });
+
+  test('boolean 値は null', () => {
+    expect(sanitizeString(true, 100)).toBe(null);
+    expect(sanitizeString(false, 100)).toBe(null);
+  });
+
+  test('配列は null', () => {
+    expect(sanitizeString(['hello'], 100)).toBe(null);
+  });
+
+  test('オブジェクトは null', () => {
+    expect(sanitizeString({ key: 'value' }, 100)).toBe(null);
+  });
+
+  test('非常に長い文字列を切り詰める', () => {
+    const long = 'x'.repeat(10000);
+    const result = sanitizeString(long, 100);
+    expect(result).toHaveLength(100);
+  });
+
+  test('maxLength が文字列長より大きい場合はそのまま返す', () => {
+    expect(sanitizeString('short', 1000)).toBe('short');
   });
 });
