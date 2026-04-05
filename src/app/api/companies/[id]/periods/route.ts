@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { companies, fiscalPeriods } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import type { PrevPeriodSnapshot } from '@/lib/engine/prev-period-snapshot';
 
 /** GET /api/companies/[id]/periods — 決算期一覧（降順） */
 export async function GET(
@@ -82,7 +83,7 @@ export async function POST(
     return NextResponse.json({ error: '期番号は必須です' }, { status: 400 });
   }
 
-  // Check for previous period to build snapshot
+  // Look up the previous period's typed snapshot (auto-built by PUT handler)
   const [prevPeriod] = await db
     .select()
     .from(fiscalPeriods)
@@ -93,16 +94,10 @@ export async function POST(
       )
     );
 
-  const prevPeriodSnapshot = prevPeriod
-    ? {
-        periodNumber: prevPeriod.periodNumber,
-        rawFinancialData: prevPeriod.rawFinancialData,
-        keishinBs: prevPeriod.keishinBs,
-        keishinPl: prevPeriod.keishinPl,
-        yInput: prevPeriod.yInput,
-        calculationResult: prevPeriod.calculationResult,
-      }
-    : null;
+  const prevPeriodSnapshot: PrevPeriodSnapshot | null =
+    prevPeriod?.prevPeriodSnapshot
+      ? (prevPeriod.prevPeriodSnapshot as PrevPeriodSnapshot)
+      : null;
 
   const [created] = await db
     .insert(fiscalPeriods)

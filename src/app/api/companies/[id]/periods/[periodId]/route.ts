@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { companies, fiscalPeriods } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { buildPrevPeriodSnapshot } from '@/lib/engine/prev-period-snapshot';
+import type { KeishinBS } from '@/lib/engine/types';
 
 /** GET /api/companies/[id]/periods/[periodId] — 決算期詳細 */
 export async function GET(
@@ -113,6 +115,26 @@ export async function PUT(
     calculationResult,
   } = body;
 
+  // Build prevPeriodSnapshot when calculationResult is being saved
+  // so the next period can auto-populate prev fields
+  let prevSnapshot = existing.prevPeriodSnapshot;
+  const effectiveBs = keishinBs !== undefined ? keishinBs : existing.keishinBs;
+  const effectiveResult = calculationResult !== undefined ? calculationResult : existing.calculationResult;
+
+  if (effectiveBs && effectiveResult) {
+    const operatingCF =
+      typeof effectiveResult === 'object' &&
+      effectiveResult !== null &&
+      'yResult' in effectiveResult
+        ? (effectiveResult as { yResult: { operatingCF: number } }).yResult
+            .operatingCF
+        : 0;
+    prevSnapshot = buildPrevPeriodSnapshot(
+      effectiveBs as KeishinBS,
+      operatingCF
+    );
+  }
+
   const [updated] = await db
     .update(fiscalPeriods)
     .set({
@@ -127,6 +149,7 @@ export async function PUT(
       techStaff: techStaff !== undefined ? techStaff : existing.techStaff,
       industries: industries !== undefined ? industries : existing.industries,
       calculationResult: calculationResult !== undefined ? calculationResult : existing.calculationResult,
+      prevPeriodSnapshot: prevSnapshot,
       updatedAt: new Date(),
     })
     .where(eq(fiscalPeriods.id, periodId))
