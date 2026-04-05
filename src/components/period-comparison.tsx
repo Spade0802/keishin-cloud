@@ -256,7 +256,8 @@ export function PeriodComparison() {
               <CardTitle className="text-base">共通評点の比較</CardTitle>
             </CardHeader>
             <CardContent>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[320px]">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
                     <th className="py-2 text-left">評点</th>
@@ -284,6 +285,7 @@ export function PeriodComparison() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </CardContent>
           </Card>
 
@@ -293,7 +295,8 @@ export function PeriodComparison() {
               <CardTitle className="text-base">業種別P点の比較</CardTitle>
             </CardHeader>
             <CardContent>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
                     <th className="py-2 text-left">業種</th>
@@ -328,6 +331,7 @@ export function PeriodComparison() {
                   })}
                 </tbody>
               </table>
+              </div>
             </CardContent>
           </Card>
 

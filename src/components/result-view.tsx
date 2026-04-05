@@ -393,44 +393,44 @@ export function ResultView(props: ResultViewProps) {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-bold flex flex-wrap items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             {companyName && <span>{companyName}</span>}
             {period && <span>{period}</span>}
-            {reviewBaseDate && <span className="text-sm text-muted-foreground">審査基準日:{reviewBaseDate}</span>}
+            {reviewBaseDate && <span className="text-xs sm:text-sm text-muted-foreground">審査基準日:{reviewBaseDate}</span>}
           </h2>
           <Badge variant="outline" className="mt-1 bg-yellow-50 text-yellow-700 border-yellow-200">
             試算版
           </Badge>
         </div>
-        <div className="flex gap-2" data-print-hide>
+        <div className="flex flex-wrap gap-2" data-print-hide>
           {!readOnly && (
             <>
-              <Button onClick={handleDownloadExcel} variant="outline" disabled={excelLoading}>
+              <Button onClick={handleDownloadExcel} variant="outline" size="sm" disabled={excelLoading}>
                 {excelLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 ) : (
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4" />
                 )}
-                Excel
+                <span className="hidden sm:inline">Excel</span>
               </Button>
-              <Button onClick={handleDownloadPDF} variant="outline" disabled={pdfLoading}>
+              <Button onClick={handleDownloadPDF} variant="outline" size="sm" disabled={pdfLoading}>
                 {pdfLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 ) : (
-                  <FileText className="mr-2 h-4 w-4" />
+                  <FileText className="mr-1.5 h-4 w-4" />
                 )}
-                PDFエクスポート
+                <span className="hidden sm:inline">PDF</span>
               </Button>
             </>
           )}
-          <Button onClick={handleCopyToClipboard} variant="outline">
-            <ClipboardCopy className="mr-2 h-4 w-4" />
-            クリップボードにコピー
+          <Button onClick={handleCopyToClipboard} variant="outline" size="sm">
+            <ClipboardCopy className="mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">コピー</span>
           </Button>
-          <Button onClick={() => window.print()} variant="outline">
-            <Printer className="mr-2 h-4 w-4" />
-            印刷
+          <Button onClick={() => window.print()} variant="outline" size="sm">
+            <Printer className="mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">印刷</span>
           </Button>
         </div>
       </div>
@@ -448,16 +448,16 @@ export function ResultView(props: ResultViewProps) {
 
       {/* P Score Cards */}
       <TooltipProvider>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           {industries.map((ind) => (
             <Card key={ind.name} className="text-center">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">{ind.name}</CardTitle>
+              <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm text-muted-foreground truncate">{ind.name}</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 sm:px-6">
                 <Tooltip>
                   <TooltipTrigger className="cursor-help inline-flex items-center gap-1">
-                    <div className="text-4xl font-bold text-primary">{ind.P}</div>
+                    <div className="text-3xl sm:text-4xl font-bold text-primary">{ind.P}</div>
                     <Info className="h-4 w-4 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-left">
@@ -486,7 +486,7 @@ export function ResultView(props: ResultViewProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
               {industries.filter((i) => i.prevP !== undefined).map((ind) => (
                 <PeriodComparisonBar key={ind.name} label={`${ind.name} P点`} prev={ind.prevP!} curr={ind.P} />
               ))}
@@ -505,21 +505,21 @@ export function ResultView(props: ResultViewProps) {
       )}
 
       {/* Common Scores Bar */}
-      <div className="flex flex-wrap gap-4 justify-center text-center">
-        <div className="px-4 py-2 rounded-lg bg-muted/50">
-          <div className="text-xs text-muted-foreground">Y点</div>
-          <div className="text-lg font-bold">{Y}</div>
+      <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-4 sm:justify-center text-center">
+        <div className="px-2 sm:px-4 py-2 rounded-lg bg-muted/50">
+          <div className="text-[10px] sm:text-xs text-muted-foreground">Y点</div>
+          <div className="text-base sm:text-lg font-bold">{Y}</div>
           <DiffBadge prev={prevY} curr={Y} />
         </div>
-        <div className="px-4 py-2 rounded-lg bg-muted/50">
-          <div className="text-xs text-muted-foreground">X2</div>
-          <div className="text-lg font-bold">{X2}</div>
+        <div className="px-2 sm:px-4 py-2 rounded-lg bg-muted/50">
+          <div className="text-[10px] sm:text-xs text-muted-foreground">X2</div>
+          <div className="text-base sm:text-lg font-bold">{X2}</div>
           <div className="text-[10px] text-muted-foreground">X21={X21} / X22={X22}</div>
           <DiffBadge prev={prevX2} curr={X2} />
         </div>
-        <div className="px-4 py-2 rounded-lg bg-muted/50">
-          <div className="text-xs text-muted-foreground">W点</div>
-          <div className="text-lg font-bold">{W}</div>
+        <div className="px-2 sm:px-4 py-2 rounded-lg bg-muted/50">
+          <div className="text-[10px] sm:text-xs text-muted-foreground">W点</div>
+          <div className="text-base sm:text-lg font-bold">{W}</div>
           <div className="text-[10px] text-muted-foreground">素点={wTotal}</div>
           <DiffBadge prev={prevW} curr={W} />
         </div>
@@ -532,9 +532,9 @@ export function ResultView(props: ResultViewProps) {
             <CardTitle className="text-base">P点の内訳（{primaryInd.name}）</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm font-mono bg-muted/30 rounded-lg p-4">
-              <div>P = 0.25×<span className="font-bold">{primaryInd.X1}</span> + 0.15×<span className="font-bold">{X2}</span> + 0.20×<span className="font-bold">{Y}</span></div>
-              <div className="ml-6">+ 0.25×<span className="font-bold">{primaryInd.Z}</span> + 0.15×<span className="font-bold">{W}</span> = <span className="text-primary font-bold text-lg">{primaryInd.P}</span></div>
+            <div className="text-xs sm:text-sm font-mono bg-muted/30 rounded-lg p-3 sm:p-4 overflow-x-auto">
+              <div className="whitespace-nowrap">P = 0.25×<span className="font-bold">{primaryInd.X1}</span> + 0.15×<span className="font-bold">{X2}</span> + 0.20×<span className="font-bold">{Y}</span></div>
+              <div className="whitespace-nowrap ml-4 sm:ml-6">+ 0.25×<span className="font-bold">{primaryInd.Z}</span> + 0.15×<span className="font-bold">{W}</span> = <span className="text-primary font-bold text-base sm:text-lg">{primaryInd.P}</span></div>
               {primaryInd.x1Selected && (
                 <div className="mt-2 text-xs border-t pt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
                   <span className="text-muted-foreground">X1完工高:</span>
@@ -699,6 +699,7 @@ export function ResultView(props: ResultViewProps) {
                 <CardTitle className="text-base">Z（技術力評点）</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm" aria-label="技術力評点一覧表">
                   <caption className="sr-only">業種別の技術力評点（Z）とその内訳（Z1: 技術職員、Z2: 元請完工高）</caption>
                   <thead>
@@ -720,6 +721,7 @@ export function ResultView(props: ResultViewProps) {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 <div className="mt-3 text-xs text-muted-foreground">
                   Z = floor(Z1 × 0.8 + Z2 × 0.2)
                 </div>

@@ -45,6 +45,13 @@ import { useAutoSave, useRestoreSave } from '@/lib/hooks/use-auto-save';
 import { useExtractedData } from '@/lib/hooks/use-extracted-data';
 import type { ValidationIssue } from '@/lib/extraction-validator';
 import { showToast } from '@/components/ui/toast';
+import {
+  getFinancialFieldWarning,
+  detectIndustryDuplicate,
+  getIndustryWDefaults,
+  INDUSTRY_W_DEFAULTS,
+  type FieldWarning,
+} from '@/lib/input-wizard-validation';
 
 // ---- Types ----
 
@@ -156,103 +163,8 @@ const INDUSTRY_CODES = [
   { code: '29', name: '解体工事' },
 ] as const;
 
-// ---- Industry-based W-item smart defaults ----
-// Maps industry name patterns to commonly associated W items
-const INDUSTRY_W_DEFAULTS: Record<string, Partial<SocialItems>> = {
-  '土木一式工事': {
-    disasterAgreement: true,
-    constructionMachineCount: 1,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-    constructionRetirementMutualAid: true,
-  },
-  '建築一式工事': {
-    iso9001: true,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-    constructionRetirementMutualAid: true,
-  },
-  '電気工事': {
-    nonStatutoryAccidentInsurance: true,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-  },
-  '管工事': {
-    nonStatutoryAccidentInsurance: true,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-  },
-  '舗装工事': {
-    disasterAgreement: true,
-    constructionMachineCount: 1,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-  },
-  '鋼構造物工事': {
-    iso9001: true,
-    nonStatutoryAccidentInsurance: true,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-  },
-  '解体工事': {
-    nonStatutoryAccidentInsurance: true,
-    employmentInsurance: true,
-    healthInsurance: true,
-    pensionInsurance: true,
-  },
-};
-
-function getIndustryWDefaults(industryNames: string[]): Partial<SocialItems> {
-  const merged: Partial<SocialItems> = {};
-  for (const name of industryNames) {
-    const defaults = INDUSTRY_W_DEFAULTS[name];
-    if (defaults) {
-      for (const [key, value] of Object.entries(defaults)) {
-        const k = key as keyof SocialItems;
-        const existing = merged[k];
-        if (typeof value === 'boolean') {
-          // For booleans, true wins (union of recommendations)
-          if (value || !existing) (merged as Record<string, unknown>)[k] = value;
-        } else if (typeof value === 'number') {
-          // For numbers, take the max
-          (merged as Record<string, unknown>)[k] = Math.max(value, (existing as number) || 0);
-        }
-      }
-    }
-  }
-  return merged;
-}
-
-// ---- Validation helpers for financial inputs ----
-type FieldWarning = { message: string; level: 'warning' | 'info' };
-
-const LARGE_VALUE_THRESHOLD = 10_000_000; // 100億 = 10,000,000千円
-
-function getFinancialFieldWarning(
-  label: string,
-  value: string,
-  opts?: { allowNegative?: boolean; mustBePositive?: boolean }
-): FieldWarning | null {
-  const n = parseFloat(value);
-  if (!value || isNaN(n)) return null;
-
-  if (opts?.mustBePositive && n < 0) {
-    return { message: 'この項目は正の値である必要があります', level: 'warning' };
-  }
-  if (!opts?.allowNegative && n < 0) {
-    return { message: '負の値が入力されています。正しいか確認してください', level: 'warning' };
-  }
-  if (Math.abs(n) > LARGE_VALUE_THRESHOLD) {
-    return { message: '単位確認: 100億円超の値です。千円単位で入力してください', level: 'warning' };
-  }
-  return null;
-}
+// INDUSTRY_W_DEFAULTS, getIndustryWDefaults, getFinancialFieldWarning
+// are imported from @/lib/input-wizard-validation
 
 function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -1012,11 +924,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   // Duplicate industry check when selecting a name
   function updateIndustryWithDuplicateCheck(index: number, field: keyof IndustryInput, value: string) {
-    if (field === 'name' && value) {
-      const isDuplicate = industries.some((ind, i) => i !== index && ind.name === value);
-      if (isDuplicate) {
-        showToast(`「${value}」は既に追加されています。同じ業種を複数登録すると正しく計算されない場合があります。`, 'warning');
-      }
+    if (field === 'name' && detectIndustryDuplicate(industries, index, value)) {
+      showToast(`「${value}」は既に追加されています。同じ業種を複数登録すると正しく計算されない場合があります。`, 'warning');
     }
     updateIndustry(index, field, value);
   }
