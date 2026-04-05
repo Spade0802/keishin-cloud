@@ -74,7 +74,13 @@ export async function POST(req: NextRequest) {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const organizationId = session.metadata?.organizationId;
-  const plan = session.metadata?.plan || 'standard';
+  const rawPlan = session.metadata?.plan || 'standard';
+  const VALID_PLANS = ['standard', 'premium'] as const;
+  const plan = VALID_PLANS.includes(rawPlan as typeof VALID_PLANS[number]) ? rawPlan : 'standard';
+
+  if (rawPlan !== plan) {
+    console.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in checkout metadata, defaulting to "standard"`);
+  }
 
   if (!organizationId) {
     console.error('[Stripe Webhook] No organizationId in checkout session metadata');
@@ -127,7 +133,13 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 }
 
 async function updateOrgSubscription(orgId: string, subscription: Stripe.Subscription) {
-  const plan = subscription.metadata?.plan || 'standard';
+  const VALID_PLANS = ['standard', 'premium'] as const;
+  const rawPlan = subscription.metadata?.plan || 'standard';
+  const plan = VALID_PLANS.includes(rawPlan as typeof VALID_PLANS[number]) ? rawPlan : 'standard';
+
+  if (rawPlan !== plan) {
+    console.warn(`[Stripe Webhook] Invalid plan "${rawPlan}" in subscription metadata, defaulting to "standard"`);
+  }
   const status = mapStripeStatus(subscription.status);
 
   // Stripe v2025: current_period_end is on subscription items, not subscription root

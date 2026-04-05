@@ -3,6 +3,11 @@ import { seedAdmin } from '@/lib/seed-admin';
 import { ERR_UNAUTHORIZED, ERR_ADMIN_INTERNAL } from '@/lib/error-messages';
 
 export async function POST(req: NextRequest) {
+  // Block in production unless explicitly allowed for initial setup
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED_ADMIN !== 'true') {
+    return new NextResponse(null, { status: 404 });
+  }
+
   try {
     const body = await req.json();
 

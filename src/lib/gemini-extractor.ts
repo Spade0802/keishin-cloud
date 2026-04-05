@@ -1441,7 +1441,7 @@ const PROMPT_WITEMS = `あなたは日本の建設業の経営事項審査（経
 - 控除対象者数 → deductionTargetCount (数値)
 
 ### ワークライフバランス
-- えるぼし認定 → wlbEruboши (0=なし, 1=1段階, 2=2段階, 3=3段階, 4=プラチナ)
+- えるぼし認定 → wlbEruboshi (0=なし, 1=1段階, 2=2段階, 3=3段階, 4=プラチナ)
 - くるみん認定 → wlbKurumin (0=なし, 1=くるみん, 2=トライくるみん, 3=プラチナ)
 - ユースエール認定 → wlbYouth (0=なし, 1=あり)
 
@@ -1503,7 +1503,7 @@ const PROMPT_WITEMS = `あなたは日本の建設業の経営事項審査（経
   "skillLevelUpCount": 0,
   "skilledWorkerCount": 0,
   "deductionTargetCount": 0,
-  "wlbEruboши": 0,
+  "wlbEruboshi": 0,
   "wlbKurumin": 0,
   "wlbYouth": 0,
   "ccusImplementation": 0,

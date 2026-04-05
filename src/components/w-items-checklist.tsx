@@ -32,7 +32,7 @@ function defaultSocialItems(): SocialItems {
     skillLevelUpCount: 0,
     skilledWorkerCount: 0,
     deductionTargetCount: 0,
-    wlbEruboши: 0,
+    wlbEruboshi: 0,
     wlbKurumin: 0,
     wlbYouth: 0,
     ccusImplementation: 0,
@@ -428,8 +428,8 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
           </div>
           <SelectRow
             label="えるぼし認定"
-            value={items.wlbEruboши}
-            onChange={(v) => update('wlbEruboши', v)}
+            value={items.wlbEruboshi}
+            onChange={(v) => update('wlbEruboshi', v)}
             options={[
               { value: 0, label: '認定なし' },
               { value: 1, label: '1段階目 (+1点)' },
@@ -438,7 +438,7 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
               { value: 4, label: 'プラチナえるぼし (+5点)' },
             ]}
             tooltip="女性活躍推進法に基づく認定制度。女性の採用・継続就業・管理職比率等の基準を満たした企業に認定"
-            autoFilled={autoFilledFields.has('wlbEruboши')}
+            autoFilled={autoFilledFields.has('wlbEruboshi')}
           />
           <SelectRow
             label="くるみん認定"

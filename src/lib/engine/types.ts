@@ -261,7 +261,7 @@ export interface SocialItems {
   skillLevelUpCount: number;
   skilledWorkerCount: number;
   deductionTargetCount: number;
-  wlbEruboши: number;
+  wlbEruboshi: number;
   wlbKurumin: number;
   wlbYouth: number;
   ccusImplementation: number;

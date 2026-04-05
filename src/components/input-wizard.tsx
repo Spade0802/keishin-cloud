@@ -709,16 +709,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           processed.validationIssues.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
       }
 
-      // Step 2: 基本情報（バリデーション済み）
-      if (processed.basicInfo.companyName) setBasicInfo(prev => ({ ...prev, companyName: processed.basicInfo.companyName }));
-      if (processed.basicInfo.permitNumber) setBasicInfo(prev => ({ ...prev, permitNumber: processed.basicInfo.permitNumber }));
-      if (processed.basicInfo.reviewBaseDate) setBasicInfo(prev => ({ ...prev, reviewBaseDate: processed.basicInfo.reviewBaseDate }));
-      if (processed.basicInfo.periodNumber) setBasicInfo(prev => ({ ...prev, periodNumber: processed.basicInfo.periodNumber }));
+      // Step 2: 基本情報（バリデーション済み） - 単一の setState で更新
+      setBasicInfo(prev => ({ ...prev, ...processed.basicInfo }));
 
       // Step 2: X2データ
-      if (processed.ebitda) setEbitda(String(processed.ebitda));
+      if (processed.ebitda !== undefined && processed.ebitda !== null) setEbitda(String(processed.ebitda));
       // 自己資本額（= 純資産合計）→ Step1のequityにも反映
-      if (processed.equity && !equity) setEquity(String(processed.equity));
+      if (processed.equity !== undefined && processed.equity !== null && !equity) setEquity(String(processed.equity));
 
       // Step 2: 業種別完成工事高（正規化済み業種名）
       if (processed.industries.length > 0) {
@@ -747,7 +744,6 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       setKeishinPdfError(e instanceof Error ? e.message : '提出書PDFの解析に失敗しました');
     } finally {
       setKeishinPdfProcessing(false);
-      setKeishinPdfComplete(false);
     }
   }
 

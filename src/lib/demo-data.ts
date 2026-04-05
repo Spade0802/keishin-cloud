@@ -79,7 +79,7 @@ const demoSocialItems: SocialItems = {
   skillLevelUpCount: 5,
   skilledWorkerCount: 15,
   deductionTargetCount: 0,
-  wlbEruboши: 0,
+  wlbEruboshi: 0,
   wlbKurumin: 1,
   wlbYouth: 0,
   ccusImplementation: 1,

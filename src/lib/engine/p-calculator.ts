@@ -69,10 +69,10 @@ export function calculateW(items: SocialItems): {
   }
 
   // WLB（女性活躍推進法）
-  if (items.wlbEruboши >= 4) w1 += 5;
-  else if (items.wlbEruboши >= 3) w1 += 3;
-  else if (items.wlbEruboши >= 2) w1 += 2;
-  else if (items.wlbEruboши >= 1) w1 += 1;
+  if (items.wlbEruboshi >= 4) w1 += 5;
+  else if (items.wlbEruboshi >= 3) w1 += 3;
+  else if (items.wlbEruboshi >= 2) w1 += 2;
+  else if (items.wlbEruboshi >= 1) w1 += 1;
 
   // くるみん
   if (items.wlbKurumin >= 4) w1 += 5;

@@ -150,7 +150,7 @@ export const W_ITEMS_MAPPINGS: FieldMapping[] = [
   { extractionPath: 'wItems.deductionTargetCount', formTarget: 'deductionTargetCount', section: 'w_items', type: 'number', label: '控除対象者数', validation: { min: 0, max: 10000 } },
 
   // WLB
-  { extractionPath: 'wItems.wlbEruboши', formTarget: 'wlbEruboши', section: 'w_items', type: 'number', label: 'えるぼし認定', validation: { min: 0, max: 4 } },
+  { extractionPath: 'wItems.wlbEruboshi', formTarget: 'wlbEruboshi', section: 'w_items', type: 'number', label: 'えるぼし認定', validation: { min: 0, max: 4 } },
   { extractionPath: 'wItems.wlbKurumin', formTarget: 'wlbKurumin', section: 'w_items', type: 'number', label: 'くるみん認定', validation: { min: 0, max: 4 } },
   { extractionPath: 'wItems.wlbYouth', formTarget: 'wlbYouth', section: 'w_items', type: 'number', label: 'ユースエール認定', validation: { min: 0, max: 2 } },
 

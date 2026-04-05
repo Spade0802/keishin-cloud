@@ -50,6 +50,19 @@ export const authConfig: NextAuthConfig = {
         return false; // Auth.js が自動的に signIn ページへリダイレクト
       }
 
+      // /admin paths: require admin role
+      const isAdminPath =
+        pathname === '/admin' ||
+        pathname.startsWith('/admin/') ||
+        pathname.startsWith('/api/admin/');
+      if (isAdminPath && isLoggedIn) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const role = (auth as any)?.user?.role;
+        if (role !== 'admin') {
+          return Response.redirect(new URL('/dashboard', nextUrl));
+        }
+      }
+
       // onboarding: 未認証 → ログインへ
       if (isOnboarding && !isLoggedIn) {
         return false;

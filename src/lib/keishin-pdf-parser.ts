@@ -781,7 +781,7 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
 
   // W3: WLB認定
   const eruM = text.match(/女性活躍推進法[^\d]*([\d])/);
-  if (eruM) { w.wlbEruboши = parseInt(eruM[1]); result.mappings.push({ source: '別紙三', target: 'W/女性活躍', value: eruM[1] }); }
+  if (eruM) { w.wlbEruboshi = parseInt(eruM[1]); result.mappings.push({ source: '別紙三', target: 'W/女性活躍', value: eruM[1] }); }
 
   const kuruM = text.match(/次世代育成支援[^\d]*([\d])/);
   if (kuruM) { w.wlbKurumin = parseInt(kuruM[1]); result.mappings.push({ source: '別紙三', target: 'W/くるみん', value: kuruM[1] }); }
@@ -980,7 +980,7 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
             skillLevelUpCount: '技能レベル向上者数',
             skilledWorkerCount: '技能者数',
             deductionTargetCount: '控除対象者数',
-            wlbEruboши: 'えるぼし',
+            wlbEruboshi: 'えるぼし',
             wlbKurumin: 'くるみん',
             wlbYouth: 'ユースエール',
             ccusImplementation: 'CCUS活用',

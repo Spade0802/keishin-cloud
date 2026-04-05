@@ -584,7 +584,7 @@ function buildSocialWSheet(
     youngTechNew: '新規若年技術者',
     cpd: 'CPD単位',
     skillLevelUp: '技能レベル向上',
-    wlbEruboши: 'えるぼし認定',
+    wlbEruboshi: 'えるぼし認定',
     wlbKurumin: 'くるみん認定',
     wlbYouth: 'ユースエール認定',
     ccusImplementation: 'CCUS活用',

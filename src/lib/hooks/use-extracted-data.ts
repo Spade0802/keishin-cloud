@@ -124,12 +124,12 @@ export function useExtractedData(): UseExtractedDataReturn {
 
     const now = Date.now();
 
-    // 基本情報
+    // 基本情報（バリデーション済みを優先、未検証フィールドは raw から補完）
     const basicInfo = {
-      companyName: data.basicInfo.companyName || '',
-      permitNumber: data.basicInfo.permitNumber || '',
-      reviewBaseDate: data.basicInfo.reviewBaseDate || '',
-      periodNumber: data.basicInfo.periodNumber || '',
+      companyName: validation.validatedBasicInfo.companyName ?? data.basicInfo.companyName ?? '',
+      permitNumber: validation.validatedBasicInfo.permitNumber ?? data.basicInfo.permitNumber ?? '',
+      reviewBaseDate: validation.validatedBasicInfo.reviewBaseDate ?? data.basicInfo.reviewBaseDate ?? '',
+      periodNumber: validation.validatedBasicInfo.periodNumber ?? data.basicInfo.periodNumber ?? '',
     };
     for (const [key, value] of Object.entries(basicInfo)) {
       if (value) {
@@ -140,11 +140,11 @@ export function useExtractedData(): UseExtractedDataReturn {
     }
 
     // 財務データ
-    if (data.equity) {
+    if (data.equity !== undefined && data.equity !== null) {
       autoFilledFields.add('equity');
       newFieldMeta.equity = { source: 'direct_pdf', timestamp: now, userOverridden: false };
     }
-    if (data.ebitda) {
+    if (data.ebitda !== undefined && data.ebitda !== null) {
       autoFilledFields.add('ebitda');
       newFieldMeta.ebitda = { source: 'direct_pdf', timestamp: now, userOverridden: false };
     }
@@ -157,8 +157,8 @@ export function useExtractedData(): UseExtractedDataReturn {
         permitType: '一般' as const,
         prevCompletion: String(ind.prevCompletion),
         currCompletion: String(ind.currCompletion),
-        prevSubcontract: String(ind.prevPrimeContract),
-        currSubcontract: String(ind.currPrimeContract),
+        prevSubcontract: String(ind.prevCompletion - ind.prevPrimeContract),
+        currSubcontract: String(ind.currCompletion - ind.currPrimeContract),
         techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',
       };
     });
@@ -168,12 +168,12 @@ export function useExtractedData(): UseExtractedDataReturn {
     }
 
     // W項目（バリデーション済み）
-    // 基本は data.wItems を使い、バリデーション済みの値で上書き
-    const wItems: Partial<SocialItems> = { ...data.wItems };
+    // validatedWItems をベースにし、バリデーション対象外のフィールドのみ raw から補完
+    const wItems: Partial<SocialItems> = { ...validation.validatedWItems };
 
-    // バリデーション済みの値をマージ（バリデーション通過した値のみ）
-    for (const [key, value] of Object.entries(validation.validatedWItems)) {
-      if (value !== undefined && value !== null) {
+    // バリデーション対象外のフィールドを raw から補完
+    for (const [key, value] of Object.entries(data.wItems ?? {})) {
+      if (!(key in wItems) && value !== undefined && value !== null) {
         (wItems as Record<string, unknown>)[key] = value;
       }
     }

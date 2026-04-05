@@ -14,10 +14,13 @@ export const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-03-31.basil' })
   : (null as unknown as Stripe);
 
-/** テスト/開発環境では課金チェックをバイパスする */
+/** テスト/開発環境では課金チェックをバイパスする（明示的な BYPASS_BILLING=true のみ） */
 export function isBillingBypassed(): boolean {
   if (process.env.BYPASS_BILLING === 'true') return true;
-  if (!process.env.STRIPE_SECRET_KEY) return true;
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error('[Stripe] STRIPE_SECRET_KEY is not set and BYPASS_BILLING is not true. Billing will NOT be bypassed.');
+    return false;
+  }
   return false;
 }
 
