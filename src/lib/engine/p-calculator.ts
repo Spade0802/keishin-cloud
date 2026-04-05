@@ -41,7 +41,7 @@ export function calculateW(items: SocialItems): {
   if (items.nonStatutoryAccidentInsurance) w1 += 15;
 
   // 若年技術職員の継続的な育成及び確保
-  if (items.youngTechContinuous && items.techStaffCount > 0) {
+  if (items.youngTechContinuous && Number.isFinite(items.techStaffCount) && items.techStaffCount > 0) {
     const ratio = items.youngTechCount / items.techStaffCount;
     if (ratio >= 0.15) w1 += 1;
   }
@@ -51,7 +51,7 @@ export function calculateW(items: SocialItems): {
   }
 
   // CPD単位（技術職員1人あたり）
-  if (items.techStaffCount > 0) {
+  if (Number.isFinite(items.techStaffCount) && items.techStaffCount > 0) {
     const cpdPerPerson = items.cpdTotalUnits / items.techStaffCount;
     if (cpdPerPerson >= 30) w1 += 10;
     else if (cpdPerPerson >= 15) w1 += 5;
@@ -60,7 +60,7 @@ export function calculateW(items: SocialItems): {
   }
 
   // 技能レベル向上者数
-  if (items.techStaffCount > 0) {
+  if (Number.isFinite(items.techStaffCount) && items.techStaffCount > 0) {
     const skillRatio = items.skillLevelUpCount / items.techStaffCount;
     if (skillRatio >= 0.15) w1 += 10;
     else if (skillRatio >= 0.10) w1 += 7;

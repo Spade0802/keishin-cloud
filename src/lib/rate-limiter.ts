@@ -115,7 +115,13 @@ export const aiAnalysisLimiter = new RateLimiter({
 });
 
 /** 汎用 API: 1 IP あたり 1 分 100 リクエスト（将来用） */
-export const apiGeneralLimiter = new RateLimiter({
-  windowMs: 60 * 1000, // 1 分
-  maxRequests: 100,
-});
+let _apiGeneralLimiter: RateLimiter | null = null;
+export function getApiGeneralLimiter(): RateLimiter {
+  if (!_apiGeneralLimiter) {
+    _apiGeneralLimiter = new RateLimiter({
+      windowMs: 60 * 1000, // 1 分
+      maxRequests: 100,
+    });
+  }
+  return _apiGeneralLimiter;
+}

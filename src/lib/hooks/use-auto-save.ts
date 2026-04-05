@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 const KEY_PREFIX = 'keishin-wizard-';
-const EXPIRY_DAYS = 7;
+const EXPIRY_DAYS = 30;
 
 interface SavedEntry<T> {
   data: T;

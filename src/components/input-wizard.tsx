@@ -243,7 +243,7 @@ function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: 
         <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-1" />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-64 rounded-md border bg-popover shadow-lg">
+        <div className="absolute z-50 mt-1 w-full sm:w-64 rounded-md border bg-popover shadow-lg max-h-60 overflow-y-auto">
           <div className="p-1.5">
             <input
               ref={inputRef}
@@ -891,6 +891,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const resultObj: ResultType = { Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl };
       setResult(resultObj);
       setStep(5); // Go to result
+
+      // Scroll to top so the user sees the result immediately
+      window.scrollTo({ top: 0, behavior: 'smooth' });
 
       // Clear localStorage auto-save on successful calculation
       clearAutoSave();

@@ -7,76 +7,13 @@
  * Vertex AI（無料）と Google AI Studio APIキー（有料）の両方に対応。
  */
 import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
-import { getAIConfig } from './settings';
-
-const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'jww-dxf-converter';
-const LOCATION = 'asia-northeast1';
-const DEFAULT_MODEL = 'gemini-2.5-flash';
-
-// ── モデルインスタンスキャッシュ（毎リクエストの再生成を防止） ──
-type CachedModelEntry = {
-  provider: string;
-  apiKey: string | undefined;
-  modelName: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  model: any;
-};
-let cachedGeminiPaid: CachedModelEntry | null = null;
-let cachedVertexAI: CachedModelEntry | null = null;
-
-function getGeminiPaidModel(apiKey: string, modelName: string) {
-  if (
-    cachedGeminiPaid &&
-    cachedGeminiPaid.apiKey === apiKey &&
-    cachedGeminiPaid.modelName === modelName
-  ) {
-    return cachedGeminiPaid.model;
-  }
-  // dynamic import is cached by the module system after first call
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseMimeType: 'application/json' as const,
-      temperature: 0.3,
-      maxOutputTokens: 65536,
-    },
-  });
-  cachedGeminiPaid = { provider: 'gemini-paid', apiKey, modelName, model };
-  return model;
-}
-
-function getVertexAIModel(modelName: string) {
-  if (
-    cachedVertexAI &&
-    cachedVertexAI.modelName === modelName
-  ) {
-    return cachedVertexAI.model;
-  }
-  const { VertexAI } = require('@google-cloud/vertexai');
-  const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
-  const model = vertexAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 65536,
-      responseMimeType: 'application/json',
-    },
-  });
-  cachedVertexAI = { provider: 'vertex', apiKey: undefined, modelName, model };
-  return model;
-}
+import { getGeminiModel, isRateLimitError } from './gemini-client';
 
 /** Gemini にリクエストを送り、4セクションの分析レポートを取得する */
 export async function generatePPointAnalysis(
   input: AnalysisInput,
 ): Promise<AnalysisResult> {
-  const aiConfig = await getAIConfig();
-  const modelName =
-    aiConfig.model && aiConfig.model.startsWith('gemini')
-      ? aiConfig.model
-      : DEFAULT_MODEL;
+  const { provider, modelName, model, getVertexModel } = await getGeminiModel();
 
   const prompt = buildPrompt(input);
 
@@ -85,20 +22,19 @@ export async function generatePPointAnalysis(
   for (let attempt = 1; attempt <= 2; attempt++) {
     let responseText = '';
 
-    if (aiConfig.provider === 'gemini-paid' && aiConfig.apiKey) {
+    if (provider === 'gemini-paid') {
       // ── Gemini Paid API（429時はVertex AIにフォールバック） ──
       try {
-        const model = getGeminiPaidModel(aiConfig.apiKey, modelName);
         console.log(`[ai-analysis] Using Gemini Paid API (${modelName}), attempt ${attempt}`);
         const result = await model.generateContent(prompt);
         responseText = result.response.text() ?? '';
       } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Too Many Requests')) {
+        if (isRateLimitError(err)) {
+          const errMsg = err instanceof Error ? err.message : String(err);
           console.warn(`[ai-analysis] Gemini Paid rate limited, falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
-          const model = getVertexAIModel(modelName);
+          const vertexModel = getVertexModel();
           console.log(`[ai-analysis] Retrying with Vertex AI (${modelName}), attempt ${attempt}`);
-          const result = await model.generateContent({
+          const result = await vertexModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
           });
           responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
@@ -108,7 +44,6 @@ export async function generatePPointAnalysis(
       }
     } else {
       // ── Vertex AI ──
-      const model = getVertexAIModel(modelName);
       console.log(`[ai-analysis] Using Vertex AI (${modelName}), attempt ${attempt}`);
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
