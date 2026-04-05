@@ -246,7 +246,8 @@ async function ocrWithDocumentAI(buffer: Buffer): Promise<DocumentAIResult | nul
 
 // ─── ユーティリティ ───
 
-function parseNum(s: string): number {
+/** @internal exported for testing */
+export function parseNum(s: string): number {
   const cleaned = s
     .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(/[,\s　]/g, '')
@@ -259,8 +260,8 @@ function parseNum(s: string): number {
   return isNaN(val) ? 0 : val;
 }
 
-/** キーワード後の数値を抽出（改行をまたいで検索） */
-function findNumberAfter(text: string, keyword: string | RegExp, maxChars = 300): number {
+/** キーワード後の数値を抽出（改行をまたいで検索） @internal exported for testing */
+export function findNumberAfter(text: string, keyword: string | RegExp, maxChars = 300): number {
   let idx: number;
   if (typeof keyword === 'string') {
     idx = text.indexOf(keyword);
@@ -276,8 +277,8 @@ function findNumberAfter(text: string, keyword: string | RegExp, maxChars = 300)
   return parseNum(m[0]);
 }
 
-/** キーワード後の「数値+単位」パターンを抽出（改行をまたぐ対応） */
-function findValueWithUnit(text: string, keyword: string, unit: string, maxChars = 400): number {
+/** キーワード後の「数値+単位」パターンを抽出（改行をまたぐ対応） @internal exported for testing */
+export function findValueWithUnit(text: string, keyword: string, unit: string, maxChars = 400): number {
   const idx = text.indexOf(keyword);
   if (idx === -1) return 0;
   const after = text.slice(idx, idx + maxChars);
@@ -309,7 +310,8 @@ const INDUSTRY_NAME_MAP: Record<string, string> = {
   '清掃施設工事': '清掃', '解体工事': '解体',
 };
 
-function normalizeIndustryName(name: string): string {
+/** @internal exported for testing */
+export function normalizeIndustryName(name: string): string {
   const trimmed = name.trim().replace(/\s+/g, '');
   if (INDUSTRY_NAME_MAP[trimmed]) return INDUSTRY_NAME_MAP[trimmed];
   // 「工事」を除去してみる

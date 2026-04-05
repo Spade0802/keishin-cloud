@@ -35,6 +35,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '無効なプランです' }, { status: 400 });
     }
 
+    if (!['month', 'year'].includes(interval)) {
+      return NextResponse.json({ error: '無効な課金間隔です' }, { status: 400 });
+    }
+
     // 課金バイパスモード: 即座にアクティブにする
     if (isBillingBypassed()) {
       const user = await db

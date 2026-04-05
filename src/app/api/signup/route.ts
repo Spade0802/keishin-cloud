@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       {
         status: 429,
         headers: {
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateResult.resetAt.toISOString(),
           'Retry-After': String(Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
         },
       },
@@ -33,6 +35,15 @@ export async function POST(req: NextRequest) {
     if (!email || !password || !name) {
       return NextResponse.json(
         { error: '名前、メールアドレス、パスワードは必須です' },
+        { status: 400 }
+      );
+    }
+
+    // Basic email format validation
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+      return NextResponse.json(
+        { error: 'メールアドレスの形式が正しくありません' },
         { status: 400 }
       );
     }
@@ -66,7 +77,15 @@ export async function POST(req: NextRequest) {
       password: hashedPassword,
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { success: true },
+      {
+        headers: {
+          'X-RateLimit-Remaining': String(rateResult.remaining),
+          'X-RateLimit-Reset': rateResult.resetAt.toISOString(),
+        },
+      },
+    );
   } catch (error) {
     console.error('[signup] Account creation failed:', error);
     return NextResponse.json(
