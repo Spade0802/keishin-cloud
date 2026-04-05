@@ -220,13 +220,16 @@ function SelectRow({
 export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklistProps) {
   const [items, setItems] = useState<SocialItems>(defaultSocialItems);
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
-  const appliedRef = useRef(false);
+  /** 前回反映した externalItems の JSON を保持し、同一データの再適用を防ぐ */
+  const appliedHashRef = useRef<string>('');
 
-  // 外部からの初期値反映
+  // 外部からの初期値反映（externalItems が実質的に変わった場合のみ再適用）
   useEffect(() => {
     if (!externalItems || Object.keys(externalItems).length === 0) return;
-    if (appliedRef.current) return;
-    appliedRef.current = true;
+
+    const hash = JSON.stringify(externalItems);
+    if (appliedHashRef.current === hash) return;
+    appliedHashRef.current = hash;
 
     const filled = new Set<string>();
     for (const [key, value] of Object.entries(externalItems)) {
@@ -236,6 +239,7 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
     }
     setAutoFilledFields(filled);
     setItems((prev) => ({ ...prev, ...externalItems }));
+    console.log('[WItemsChecklist] Applied external items:', filled.size, 'fields');
   }, [externalItems]);
 
   const update = useCallback(<K extends keyof SocialItems>(key: K, value: SocialItems[K]) => {

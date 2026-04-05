@@ -35,6 +35,8 @@ import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from
 import type { KeishinPdfResult } from '@/lib/keishin-pdf-parser';
 import { buildKeishinBSFromParsed, buildKeishinPLFromParsed } from '@/lib/engine/parsed-to-keishin';
 import { useAutoSave, useRestoreSave } from '@/lib/hooks/use-auto-save';
+import { useExtractedData } from '@/lib/hooks/use-extracted-data';
+import type { ValidationIssue } from '@/lib/extraction-validator';
 
 // ---- Types ----
 
@@ -381,6 +383,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [keishinPdfError, setKeishinPdfError] = useState<string | null>(null);
   const [keishinPdfMappings, setKeishinPdfMappings] = useState<{ source: string; target: string; value: string | number }[]>([]);
   const [keishinPdfComplete, setKeishinPdfComplete] = useState(false);
+  // 抽出データ管理（バリデーション・データソース追跡）
+  const extractedData = useExtractedData();
+  const [extractionWarnings, setExtractionWarnings] = useState<ValidationIssue[]>([]);
 
   // Step 4: Previous period
   const [prevData, setPrevData] = useState<PrevPeriodData>(() => {
@@ -694,46 +699,43 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       }
       const data: KeishinPdfResult = await res.json();
 
-      // Step 2: 基本情報
-      if (data.basicInfo.companyName) setBasicInfo(prev => ({ ...prev, companyName: data.basicInfo.companyName }));
-      if (data.basicInfo.permitNumber) setBasicInfo(prev => ({ ...prev, permitNumber: data.basicInfo.permitNumber }));
-      if (data.basicInfo.reviewBaseDate) setBasicInfo(prev => ({ ...prev, reviewBaseDate: data.basicInfo.reviewBaseDate }));
+      // 抽出データをバリデーション＆処理
+      const processed = extractedData.processExtraction(data);
+
+      // バリデーション警告を保存
+      setExtractionWarnings(processed.validationIssues);
+      if (processed.validationIssues.length > 0) {
+        console.log('[Keishin PDF] Validation issues:', processed.validationIssues.length,
+          processed.validationIssues.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
+      }
+
+      // Step 2: 基本情報（バリデーション済み）
+      if (processed.basicInfo.companyName) setBasicInfo(prev => ({ ...prev, companyName: processed.basicInfo.companyName }));
+      if (processed.basicInfo.permitNumber) setBasicInfo(prev => ({ ...prev, permitNumber: processed.basicInfo.permitNumber }));
+      if (processed.basicInfo.reviewBaseDate) setBasicInfo(prev => ({ ...prev, reviewBaseDate: processed.basicInfo.reviewBaseDate }));
+      if (processed.basicInfo.periodNumber) setBasicInfo(prev => ({ ...prev, periodNumber: processed.basicInfo.periodNumber }));
 
       // Step 2: X2データ
-      if (data.ebitda) setEbitda(String(data.ebitda));
+      if (processed.ebitda) setEbitda(String(processed.ebitda));
       // 自己資本額（= 純資産合計）→ Step1のequityにも反映
-      if (data.equity && !equity) setEquity(String(data.equity));
+      if (processed.equity && !equity) setEquity(String(processed.equity));
 
-      // Step 2: 業種別完成工事高
-      if (data.industries.length > 0) {
-        setIndustries(data.industries.map(ind => ({
-          name: ind.name,
-          permitType: '一般' as const,
-          prevCompletion: String(ind.prevCompletion),
-          currCompletion: String(ind.currCompletion),
-          prevSubcontract: String(ind.prevPrimeContract),
-          currSubcontract: String(ind.currPrimeContract),
-          techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',
-        })));
+      // Step 2: 業種別完成工事高（正規化済み業種名）
+      if (processed.industries.length > 0) {
+        setIndustries(processed.industries);
       }
 
-      // Step 3: W項目（技術職員数・営業年数もマージ）
-      const wItems: Partial<SocialItems> = { ...data.wItems };
-      if (data.techStaffCount > 0 && !wItems.techStaffCount) {
-        wItems.techStaffCount = data.techStaffCount;
-      }
-      if (data.businessYears > 0 && !wItems.businessYears) {
-        wItems.businessYears = data.businessYears;
-      }
-      if (Object.keys(wItems).length > 0) {
-        setExternalWItems(wItems);
-        console.log('[Keishin PDF] W items extracted:', Object.keys(wItems).length, 'items', JSON.stringify(wItems));
+      // Step 3: W項目（バリデーション済み、techStaffCount・businessYearsもマージ済み）
+      if (Object.keys(processed.wItems).length > 0) {
+        setExternalWItems(processed.wItems);
+        console.log('[Keishin PDF] W items extracted:', Object.keys(processed.wItems).length, 'items',
+          JSON.stringify(processed.wItems));
       }
 
       // Step 3: 技術職員リストをTechStaffPanelに渡す
-      if (data.staffList && data.staffList.length > 0) {
-        setExtractedStaff(data.staffList);
-        console.log('[Keishin PDF] Staff list extracted:', data.staffList.length, 'entries');
+      if (processed.staffList && processed.staffList.length > 0) {
+        setExtractedStaff(processed.staffList);
+        console.log('[Keishin PDF] Staff list extracted:', processed.staffList.length, 'entries');
       }
 
       setKeishinPdfMappings(data.mappings || []);
@@ -1152,6 +1154,23 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </CardContent>
           </Card>
 
+          {/* Step 2 バリデーション警告（基本情報・業種・財務） */}
+          {extractionWarnings.filter(w => w.severity === 'warning' || w.severity === 'error').filter(
+            w => w.field.startsWith('basicInfo') || w.field.startsWith('industry') || w.field === 'equity' || w.field === 'ebitda' || w.field === 'industries'
+          ).length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+              <p className="text-xs font-medium text-amber-800">抽出データの確認事項</p>
+              {extractionWarnings.filter(w => w.severity === 'warning' || w.severity === 'error').filter(
+                w => w.field.startsWith('basicInfo') || w.field.startsWith('industry') || w.field === 'equity' || w.field === 'ebitda' || w.field === 'industries'
+              ).map((issue, i) => (
+                <div key={i} className="text-xs text-amber-700 flex items-start gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 bg-amber-500" />
+                  <span><strong>{issue.label}</strong>: {issue.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <Card>
             <CardHeader><CardTitle className="text-base">基本情報</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1393,6 +1412,30 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 件自動反映しました。値を確認・修正してください。
               </span>
             </div>
+          )}
+
+          {/* バリデーション警告表示 */}
+          {extractionWarnings.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-amber-700 hover:underline flex items-center gap-1.5">
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                抽出データの確認事項（{extractionWarnings.length}件）
+              </summary>
+              <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                {extractionWarnings.map((issue, i) => (
+                  <div key={i} className={`text-xs flex items-start gap-1.5 ${
+                    issue.severity === 'error' ? 'text-red-700' :
+                    issue.severity === 'warning' ? 'text-amber-700' : 'text-blue-700'
+                  }`}>
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${
+                      issue.severity === 'error' ? 'bg-red-500' :
+                      issue.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                    }`} />
+                    <span><strong>{issue.label}</strong>: {issue.message}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
 
           <WItemsChecklist onWCalculated={handleWCalculated} externalItems={externalWItems} />
