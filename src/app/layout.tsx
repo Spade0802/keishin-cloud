@@ -40,16 +40,17 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'KeishinCloud — 経審P点シミュレーション',
     description:
-      '建設業の経審P点をブラウザで即試算。登録不要・無料。',
+      '建設業の経営事項審査（経審）P点をブラウザで即試算。全29業種対応・登録不要・無料で使えるクラウド型シミュレーター。',
     type: 'website',
     locale: 'ja_JP',
     siteName: 'KeishinCloud',
+    url: 'https://keishin.cloud',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'KeishinCloud — 経審P点シミュレーション',
     description:
-      '建設業の経審P点をブラウザで即試算。登録不要・無料。',
+      '建設業の経営事項審査（経審）P点をブラウザで即試算。全29業種対応・登録不要・無料で使えるクラウド型シミュレーター。',
   },
   robots: {
     index: true,

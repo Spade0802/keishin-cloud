@@ -25,6 +25,7 @@ import {
   Zap,
   ArrowRight,
   CheckCircle2,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -51,13 +52,13 @@ export default function LandingPage() {
               </p>
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link href="/login">
-                  <Button size="lg" className="text-base px-8 py-6">
+                  <Button size="lg" className="text-base px-8 py-6 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
                     <Calculator className="mr-2 h-5 w-5" />
-                    登録して始める
+                    無料で登録して始める
                   </Button>
                 </Link>
                 <Link href="/demo">
-                  <Button variant="outline" size="lg" className="text-base px-8 py-6">
+                  <Button variant="ghost" size="lg" className="text-base px-8 py-6 text-muted-foreground hover:text-foreground">
                     デモを見る
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -71,17 +72,17 @@ export default function LandingPage() {
         </section>
 
         {/* Social Proof / Stats */}
-        <section className="border-y bg-muted/30">
+        <section className="border-y bg-muted/30" aria-label="サービスの特長">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4" role="list">
               {[
-                { label: '無料で始められる', value: '¥0〜' },
-                { label: '登録不要', value: '即試算' },
-                { label: '対応業種', value: '全29業種' },
-                { label: 'インストール', value: '不要' },
+                { label: '無料で始められる', value: '¥0〜', ariaLabel: '料金は0円から無料で始められます' },
+                { label: '登録不要', value: '即試算', ariaLabel: '登録不要で即座に試算できます' },
+                { label: '対応業種', value: '全29業種', ariaLabel: '全29業種に対応しています' },
+                { label: 'インストール', value: '不要', ariaLabel: 'インストール不要でブラウザから利用できます' },
               ].map((stat) => (
-                <div key={stat.label} className="text-center">
-                  <div className="text-2xl font-bold sm:text-3xl">{stat.value}</div>
+                <div key={stat.label} className="text-center" role="listitem" aria-label={stat.ariaLabel}>
+                  <div className="text-2xl font-bold sm:text-3xl" aria-hidden="true">{stat.value}</div>
                   <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                 </div>
               ))}
@@ -222,7 +223,7 @@ export default function LandingPage() {
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold">3ステップで簡単試算</h2>
             </div>
-            <div className="grid gap-8 md:grid-cols-3">
+            <div className="grid gap-8 md:grid-cols-3 relative">
               {[
                 {
                   step: '1',
@@ -242,9 +243,15 @@ export default function LandingPage() {
                   description:
                     '全業種のP点と内訳を即座に確認。改善シミュレーションで対策を検討。',
                 },
-              ].map((step) => (
-                <div key={step.step} className="text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-bold mb-4">
+              ].map((step, index) => (
+                <div key={step.step} className="text-center relative">
+                  {/* Connector arrow between steps (visible on md+) */}
+                  {index < 2 && (
+                    <div className="hidden md:flex absolute top-6 -right-4 z-10 items-center justify-center w-8 h-8 -translate-y-1/2">
+                      <ChevronRight className="h-6 w-6 text-primary/40" />
+                    </div>
+                  )}
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-bold mb-4 shadow-md ring-4 ring-primary/10">
                     {step.step}
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
@@ -254,8 +261,8 @@ export default function LandingPage() {
             </div>
             <div className="mt-12 text-center">
               <Link href="/login">
-                <Button size="lg">
-                  登録して始める
+                <Button size="lg" className="shadow-lg shadow-primary/25">
+                  無料で登録して始める
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -270,7 +277,12 @@ export default function LandingPage() {
               <h2 className="text-3xl font-bold">従来ツールとの比較</h2>
             </div>
             <div className="mx-auto max-w-3xl">
-              <div className="overflow-x-auto">
+              {/* Mobile scroll hint */}
+              <p className="text-xs text-muted-foreground text-center mb-2 flex items-center justify-center gap-1 md:hidden">
+                <ArrowRight className="h-3 w-3" />
+                横にスクロールして比較できます
+              </p>
+              <div className="overflow-x-auto rounded-lg border md:border-0">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
@@ -413,11 +425,17 @@ export default function LandingPage() {
             <p className="mt-4 text-muted-foreground">
               無料で登録して、決算書の数値を入力するだけで全業種のP点を即試算。
             </p>
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/login">
-                <Button size="lg" className="text-base px-8 py-6">
+                <Button size="lg" className="text-base px-8 py-6 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
                   <Calculator className="mr-2 h-5 w-5" />
-                  登録して始める
+                  無料で登録して始める
+                </Button>
+              </Link>
+              <Link href="/demo">
+                <Button variant="ghost" size="lg" className="text-base px-8 py-6 text-muted-foreground hover:text-foreground">
+                  デモを見る
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </div>
