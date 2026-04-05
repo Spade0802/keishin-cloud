@@ -5,6 +5,8 @@
  * 一箇所に集約する。モデルインスタンスはキャッシュされる。
  */
 
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { VertexAI } from '@google-cloud/vertexai';
 import { getAIConfig } from './settings';
 
 const PROJECT =
@@ -18,17 +20,8 @@ const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 /** Gemini SDK のモデルオブジェクトの共通インターフェース */
 export interface GenerativeModelLike {
-  generateContent(request: unknown): Promise<{
-    response: {
-      text: () => string;
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string }>;
-        };
-        finishReason?: string;
-      }>;
-    };
-  }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  generateContent(request: any): Promise<any>;
 }
 
 // ── キャッシュ ──
@@ -43,6 +36,12 @@ type CachedModelEntry = {
 let cachedGeminiPaid: CachedModelEntry | null = null;
 let cachedVertexAI: CachedModelEntry | null = null;
 
+/** テスト用: モデルキャッシュをリセットする */
+export function _resetModelCache() {
+  cachedGeminiPaid = null;
+  cachedVertexAI = null;
+}
+
 // ── ファクトリ関数（内部） ──
 
 function getGeminiPaidModel(apiKey: string, modelName: string) {
@@ -53,7 +52,6 @@ function getGeminiPaidModel(apiKey: string, modelName: string) {
   ) {
     return cachedGeminiPaid.model;
   }
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -71,7 +69,6 @@ function getVertexAIModel(modelName: string) {
   if (cachedVertexAI && cachedVertexAI.modelName === modelName) {
     return cachedVertexAI.model;
   }
-  const { VertexAI } = require('@google-cloud/vertexai');
   const vertexAI = new VertexAI({ project: PROJECT, location: LOCATION });
   const model = vertexAI.getGenerativeModel({
     model: modelName,
