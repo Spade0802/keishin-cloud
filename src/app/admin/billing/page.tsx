@@ -339,6 +339,75 @@ export default function AdminBillingPage() {
           </div>
         </CardContent>
       </Card>
+      {/* Trial Period Management */}
+      {(() => {
+        const trialOrgs = orgs.filter((o) => o.subscriptionStatus === 'trialing' && o.trialEndsAt);
+        if (trialOrgs.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                トライアル期間管理
+              </CardTitle>
+              <CardDescription>
+                現在トライアル中の法人と残り日数を表示します。
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {trialOrgs
+                  .sort((a, b) => new Date(a.trialEndsAt!).getTime() - new Date(b.trialEndsAt!).getTime())
+                  .map((org) => {
+                    const endDate = new Date(org.trialEndsAt!);
+                    const now = new Date();
+                    const remainingMs = endDate.getTime() - now.getTime();
+                    const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+                    const isExpiringSoon = remainingDays <= 3;
+                    const isExpired = remainingDays === 0;
+
+                    return (
+                      <div
+                        key={org.id}
+                        className={`flex items-center justify-between rounded-lg border p-3 ${
+                          isExpired
+                            ? 'border-red-200 bg-red-50'
+                            : isExpiringSoon
+                              ? 'border-amber-200 bg-amber-50'
+                              : 'border-blue-200 bg-blue-50'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-medium text-sm">{org.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {org.permitNumber || '許可番号なし'} / ユーザー数: {org.userCount}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground">
+                            終了日: {endDate.toLocaleDateString('ja-JP')}
+                          </div>
+                          <Badge
+                            className={
+                              isExpired
+                                ? 'bg-red-100 text-red-700 border-red-200'
+                                : isExpiringSoon
+                                  ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                  : 'bg-blue-100 text-blue-700 border-blue-200'
+                            }
+                          >
+                            {isExpired ? '期限切れ' : `残り${remainingDays}日`}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Invoice / Subscription Event History */}
       <Card>
         <CardHeader>

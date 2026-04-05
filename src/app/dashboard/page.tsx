@@ -167,7 +167,7 @@ export default async function DashboardPage() {
               <Lightbulb className="h-5 w-5 text-primary" />
               便利な機能
             </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FeatureCard
                 href="/verification"
                 icon={<CheckCircle className="h-5 w-5" />}
@@ -185,6 +185,12 @@ export default async function DashboardPage() {
                 icon={<BarChart3 className="h-5 w-5" />}
                 title="再分類分析"
                 description="会計処理パターンごとのP点比較で最適解を発見"
+              />
+              <FeatureCard
+                href="/batch"
+                icon={<Building2 className="h-5 w-5" />}
+                title="一括シミュレーション"
+                description="複数法人のP点を一括試算・比較（準備中）"
               />
             </div>
           </section>

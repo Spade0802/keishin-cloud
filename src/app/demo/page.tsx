@@ -14,7 +14,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Calculator, ArrowRight, FileSpreadsheet, Building2, Users, Shuffle } from 'lucide-react';
+import { Calculator, ArrowRight, FileSpreadsheet, Building2, Users, Shuffle, Sliders } from 'lucide-react';
 import {
   demoResult,
   demoBasicInfo,
@@ -24,6 +24,7 @@ import {
   demoPL,
 } from '@/lib/demo-data';
 import { demoAnalysisResult } from '@/lib/demo-ai-analysis';
+import { DemoInteractiveSimulator } from '@/components/demo-interactive-simulator';
 
 export default function DemoPage() {
   return (
@@ -35,7 +36,7 @@ export default function DemoPage() {
           <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-sm text-amber-800 text-center sm:text-left">
-                これはデモ表示です。実際にデータを入力して試算するには登録してください。
+                サンプルデータで自由にお試しいただけます。ご自身のデータで試算するには登録してください。
               </p>
               <Link href="/login" className="shrink-0">
                 <Button size="sm" className="whitespace-nowrap">
@@ -59,6 +60,23 @@ export default function DemoPage() {
               読み取り専用で、すべての結果画面を閲覧できます。
             </p>
           </div>
+
+          {/* Interactive Trial Simulator */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Sliders className="h-5 w-5" />
+                インタラクティブ試算
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                登録不要でP点シミュレーションを体験できます。
+                サンプル会社のデータを自由に変更して、P点の変動をリアルタイムで確認してください。
+              </p>
+            </CardHeader>
+            <CardContent>
+              <DemoInteractiveSimulator />
+            </CardContent>
+          </Card>
 
           {/* Input Summary Accordion */}
           <Card>

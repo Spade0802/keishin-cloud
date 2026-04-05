@@ -343,6 +343,11 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                       </option>
                     ))}
                   </select>
+                  {s.qualificationCode1 && QUALIFICATION_MULTIPLIERS[parseInt(s.qualificationCode1)] && (
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {QUALIFICATION_MULTIPLIERS[parseInt(s.qualificationCode1)].name}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`staff-${s.id}-lecture1`} className="text-xs">講習受講1</Label>
@@ -401,6 +406,11 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                       </option>
                     ))}
                   </select>
+                  {s.qualificationCode2 && QUALIFICATION_MULTIPLIERS[parseInt(s.qualificationCode2)] && (
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {QUALIFICATION_MULTIPLIERS[parseInt(s.qualificationCode2)].name}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`staff-${s.id}-lecture2`} className="text-xs text-muted-foreground">
