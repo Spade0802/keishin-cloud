@@ -519,6 +519,28 @@ describe('calculateW', () => {
       );
       expect(result.detail.w2).toBe(-60);
     });
+
+    it('boundary: exactly 5 years gives 0 (not in formula range)', () => {
+      expect(calculateW(baseSocialItems({ businessYears: 5 })).detail.w2).toBe(0);
+    });
+
+    it('boundary: exactly 6 years gives (6-5)*2 = 2', () => {
+      expect(calculateW(baseSocialItems({ businessYears: 6 })).detail.w2).toBe(2);
+    });
+
+    it('boundary: exactly 35 years gives 60 (cap)', () => {
+      expect(calculateW(baseSocialItems({ businessYears: 35 })).detail.w2).toBe(60);
+    });
+
+    it('boundary: exactly 36 years gives 60 (above cap, still 60)', () => {
+      expect(calculateW(baseSocialItems({ businessYears: 36 })).detail.w2).toBe(60);
+    });
+
+    it('civil rehabilitation overrides even high business years', () => {
+      expect(
+        calculateW(baseSocialItems({ civilRehabilitation: true, businessYears: 50 })).detail.w2
+      ).toBe(-60);
+    });
   });
 
   describe('disaster agreement (w3)', () => {
@@ -574,6 +596,24 @@ describe('calculateW', () => {
       ).toBe(14);
     });
 
+    it('gives 8 for audit status 2', () => {
+      expect(
+        calculateW(baseSocialItems({ auditStatus: 2 })).detail.w5
+      ).toBe(8);
+    });
+
+    it('gives 4 for audit status 1', () => {
+      expect(
+        calculateW(baseSocialItems({ auditStatus: 1 })).detail.w5
+      ).toBe(4);
+    });
+
+    it('gives 0 for audit status 0', () => {
+      expect(
+        calculateW(baseSocialItems({ auditStatus: 0 })).detail.w5
+      ).toBe(0);
+    });
+
     it('adds accountants correctly', () => {
       const result = calculateW(
         baseSocialItems({
@@ -584,6 +624,19 @@ describe('calculateW', () => {
         })
       );
       expect(result.detail.w5).toBe(6); // 2+3+1
+    });
+
+    it('combines audit status + all accountant types', () => {
+      const result = calculateW(
+        baseSocialItems({
+          auditStatus: 4,
+          certifiedAccountants: 2,
+          firstClassAccountants: 1,
+          secondClassAccountants: 3,
+        })
+      );
+      // 20 (audit) + 2 + 1 + 3 = 26
+      expect(result.detail.w5).toBe(26);
     });
   });
 
@@ -650,6 +703,24 @@ describe('calculateW', () => {
       expect(
         calculateW(baseSocialItems({ constructionMachineCount: 0 })).detail.w7
       ).toBe(0);
+    });
+
+    it('boundary: exactly 15 machines gives 15 (cap)', () => {
+      expect(
+        calculateW(baseSocialItems({ constructionMachineCount: 15 })).detail.w7
+      ).toBe(15);
+    });
+
+    it('boundary: exactly 16 machines gives 15 (over cap)', () => {
+      expect(
+        calculateW(baseSocialItems({ constructionMachineCount: 16 })).detail.w7
+      ).toBe(15);
+    });
+
+    it('boundary: exactly 14 machines gives 14 (under cap)', () => {
+      expect(
+        calculateW(baseSocialItems({ constructionMachineCount: 14 })).detail.w7
+      ).toBe(14);
     });
   });
 

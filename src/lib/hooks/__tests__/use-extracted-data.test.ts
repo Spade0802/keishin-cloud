@@ -171,6 +171,75 @@ describe('useExtractedData', () => {
     expect(result.current.getFieldSource('equity')).toBeNull();
   });
 
+  it('processExtraction: equity = 0 はゼロ値でも自動入力される', () => {
+    const { result } = renderHook(() => useExtractedData());
+
+    let processed: ReturnType<typeof result.current.processExtraction>;
+    act(() => {
+      processed = result.current.processExtraction(makeResult({ equity: 0 }));
+    });
+
+    // equity = 0 は null/undefined ではないので autoFilled に含まれる
+    expect(processed!.equity).toBe(0);
+    expect(processed!.autoFilledFields.has('equity')).toBe(true);
+  });
+
+  it('processExtraction: 空の staffList は autoFilled に含まれない', () => {
+    const { result } = renderHook(() => useExtractedData());
+
+    let processed: ReturnType<typeof result.current.processExtraction>;
+    act(() => {
+      processed = result.current.processExtraction(makeResult({ staffList: [] }));
+    });
+
+    expect(processed!.staffList).toEqual([]);
+    expect(processed!.autoFilledFields.has('staffList')).toBe(false);
+  });
+
+  it('processExtraction: staffList undefined でも正常動作', () => {
+    const { result } = renderHook(() => useExtractedData());
+
+    let processed: ReturnType<typeof result.current.processExtraction>;
+    act(() => {
+      processed = result.current.processExtraction(makeResult({ staffList: undefined }));
+    });
+
+    expect(processed!.staffList).toBeUndefined();
+    expect(processed!.autoFilledFields.has('staffList')).toBe(false);
+  });
+
+  it('processExtraction: wItems にバリデーション対象外の値がマージされる', () => {
+    const { result } = renderHook(() => useExtractedData());
+
+    let processed: ReturnType<typeof result.current.processExtraction>;
+    act(() => {
+      processed = result.current.processExtraction(
+        makeResult({
+          wItems: {
+            businessYears: 25,
+            disasterAgreement: true,
+          },
+        }),
+      );
+    });
+
+    // wItems にマージされていることを確認
+    expect(processed!.wItems.disasterAgreement).toBe(true);
+  });
+
+  it('processExtraction: techStaffCount がトップレベルからマージされる', () => {
+    const { result } = renderHook(() => useExtractedData());
+
+    let processed: ReturnType<typeof result.current.processExtraction>;
+    act(() => {
+      processed = result.current.processExtraction(
+        makeResult({ techStaffCount: 10, wItems: {} }),
+      );
+    });
+
+    expect(processed!.wItems.techStaffCount).toBe(10);
+  });
+
   it('subcontract は completion - primeContract で計算される', () => {
     const { result } = renderHook(() => useExtractedData());
 
