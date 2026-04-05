@@ -33,6 +33,8 @@ const ResultView = dynamic(() => import('@/components/result-view').then(mod => 
   loading: () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
 });
 import { ExtractionProgress } from '@/components/extraction-progress';
+import { OnboardingCallout } from '@/components/onboarding-guide';
+import { HelpPanel } from '@/components/help-panel';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW, calculateX1WithAverage } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -311,31 +313,40 @@ const STEPS = [
   { num: 2, title: '提出書データ', icon: Building2 },
   { num: 3, title: '技術職員・社会性', icon: Users },
   { num: 4, title: '前期データ確認', icon: ClipboardCheck },
+  { num: 5, title: '結果', icon: Calculator },
 ];
 
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, onNavigate }: { current: number; onNavigate: (step: number) => void }) {
+  const stepsToShow = current >= 5 ? STEPS : STEPS.slice(0, 4);
   return (
-    <div className="flex items-center justify-center gap-1 sm:gap-2 mb-8">
-      {STEPS.map((step, i) => {
+    <nav aria-label="ステップ進行" className="flex items-center justify-center gap-1 sm:gap-2 mb-8">
+      {stepsToShow.map((step, i) => {
         const Icon = step.icon;
         const isActive = step.num === current;
         const isDone = step.num < current;
+        const canClick = isDone;
         return (
           <div key={step.num} className="flex items-center">
-            <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs sm:text-sm ${
-              isActive ? 'bg-primary text-primary-foreground' :
-              isDone ? 'bg-green-100 text-green-700' :
-              'bg-muted/50 text-muted-foreground'
-            }`}>
+            <button
+              type="button"
+              disabled={!canClick}
+              onClick={() => canClick && onNavigate(step.num)}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
+                isActive ? 'bg-primary text-primary-foreground' :
+                isDone ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer' :
+                'bg-muted/50 text-muted-foreground cursor-default'
+              }`}
+              aria-current={isActive ? 'step' : undefined}
+            >
               {isDone ? <CheckCircle className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">Step{step.num}: {step.title}</span>
               <span className="sm:hidden">{step.num}</span>
-            </div>
-            {i < STEPS.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground mx-1" />}
+            </button>
+            {i < stepsToShow.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground mx-1" />}
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -1146,7 +1157,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         </div>
       )}
 
-      {step <= 4 && <StepIndicator current={step} />}
+      {<StepIndicator current={step} onNavigate={(s) => { setStepError(null); setStepErrorField(null); setStep(s); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }} />}
 
       {/* Step 1: Upload + Financial */}
       {step === 1 && (
@@ -1157,6 +1168,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           </p>
 
           {/* 当期 / 前期 アップロードエリア */}
+          <OnboardingCallout id="upload" text="ここにPDFまたはExcelをアップロードしてください">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 当期決算書 */}
             <div className="space-y-2">
@@ -1201,6 +1213,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               )}
             </div>
           </div>
+          </OnboardingCallout>
 
           {/* BS/PLプレビュー */}
           {(previewBS || previewPL) && (
@@ -1489,6 +1502,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </CardContent>
           </Card>
 
+          <OnboardingCallout id="industry" text="業種を選択して完工高を入力してください">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">別紙一：業種別完成工事高（千円）</CardTitle>
@@ -1605,6 +1619,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               <Button variant="outline" size="sm" onClick={addIndustry}>+ 業種を追加</Button>
             </CardContent>
           </Card>
+          </OnboardingCallout>
         </div>
       )}
 
@@ -1930,6 +1945,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </Button>
           )}
           {step === 4 && (
+            <OnboardingCallout id="calculate" text="全ての入力が完了したら試算実行ボタンを押してください">
             <Button size="lg" onClick={handleCalculate} disabled={calculating} className="px-12">
               {calculating ? (
                 <>
@@ -1943,6 +1959,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 </>
               )}
             </Button>
+            </OnboardingCallout>
           )}
         </div>
       </div>
@@ -1964,6 +1981,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       <p className="text-xs text-center text-muted-foreground">
         ※ 本試算は参考値であり、公式の経営事項審査結果通知書ではありません。
       </p>
+
+      <HelpPanel currentStep={step} />
     </div>
   );
 }
