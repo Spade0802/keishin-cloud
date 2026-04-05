@@ -81,13 +81,16 @@ export function calculateY(input: YInput): YResult {
     (input.totalCapital + input.prev.totalCapital) / 2
   );
 
+  // sales=0のガード（OCR失敗等で売上が0の場合NaN/Infinityを防止）
+  const safeSales = input.sales > 0 ? input.sales : 1;
+
   const raw = {
     x1:
-      ((input.interestExpense - input.interestDividendIncome) / input.sales) *
+      ((input.interestExpense - input.interestDividendIncome) / safeSales) *
       100,
-    x2: (input.currentLiabilities + input.fixedLiabilities) / (input.sales / 12),
+    x2: (input.currentLiabilities + input.fixedLiabilities) / (safeSales / 12),
     x3: (input.grossProfit / totalCapAvg) * 100,
-    x4: (input.ordinaryProfit / input.sales) * 100,
+    x4: (input.ordinaryProfit / safeSales) * 100,
     x5: (input.equity / input.fixedAssets) * 100,
     x6: (input.equity / input.totalCapital) * 100,
     x7: (cf / 100000 + input.prev.operatingCF / 100000) / 2,
