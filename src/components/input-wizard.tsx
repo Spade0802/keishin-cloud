@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Save,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { FileUpload } from '@/components/file-upload';
 import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/components/file-upload';
@@ -111,6 +112,7 @@ interface WizardSaveData {
   wTotal: number;
   wScore: number;
   currentSocialItems?: SocialItems;
+  notes?: string;
 }
 
 const WIZARD_SAVE_KEY = 'input-data';
@@ -511,6 +513,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [stepErrorField, setStepErrorField] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
+  const [notes, setNotes] = useState(init('notes'));
 
   // Ref for scrolling to top on step change
   const wizardTopRef = useRef<HTMLDivElement>(null);
@@ -524,14 +527,14 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     currentLiabilities, fixedLiabilities, totalCapital, fixedAssets,
     retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
     notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
-    wTotal, wScore, currentSocialItems,
+    wTotal, wScore, currentSocialItems, notes,
   }), [
     step, basicInfo, industries, equity, ebitda, prevData,
     sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome,
     currentLiabilities, fixedLiabilities, totalCapital, fixedAssets,
     retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
     notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
-    wTotal, wScore, currentSocialItems,
+    wTotal, wScore, currentSocialItems, notes,
   ]);
 
   // Don't auto-save when wizard is empty or showing results, or when loaded from props
@@ -578,6 +581,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setWTotal(savedData.wTotal);
     setWScore(savedData.wScore);
     if (savedData.currentSocialItems) setCurrentSocialItems(savedData.currentSocialItems);
+    if (savedData.notes) setNotes(savedData.notes);
     if (savedData.sales) setFileLoaded(true);
     setRestoreBannerDismissed(true);
   }
@@ -1025,7 +1029,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         currentLiabilities, fixedLiabilities, totalCapital, equity, fixedAssets,
         retainedEarnings, corporateTax, depreciation, allowanceDoubtful,
         notesAndReceivable, constructionPayable, inventoryAndMaterials, advanceReceived,
-        ebitda, basicInfo, industries, prevData,
+        ebitda, basicInfo, industries, prevData, notes,
       };
 
       saveSimulation(inputDataPayload, resultObj);
@@ -1117,6 +1121,16 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       updateIndustry(index, 'techStaffValue', String(autoVal));
     }
   }
+
+  // Re-calculate handler: go back to Step 1 with all data pre-filled
+  const handleRecalculate = useCallback(() => {
+    setResult(null);
+    setStep(1);
+    setFileLoaded(true); // Mark as loaded so fields stay visible
+    requestAnimationFrame(() => {
+      wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -1931,6 +1945,94 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               <p className="mt-1 text-xs">前回の試算データがDB内にある場合、前期データは自動で引き継がれます。ここでは確認・修正のみ行ってください。</p>
             </CardContent>
           </Card>
+
+          {/* Data Validation Summary */}
+          {(() => {
+            const sections: { name: string; warnings: string[] }[] = [];
+
+            // Step 1: Financial data
+            const finWarnings: string[] = [];
+            if (!sales || num(sales) <= 0) finWarnings.push('完成工事高（売上高）が未入力');
+            if (!totalCapital || num(totalCapital) <= 0) finWarnings.push('総資本（総資産）が未入力');
+            if (!equity) finWarnings.push('自己資本が未入力');
+            if (!ordinaryProfit) finWarnings.push('経常利益が未入力');
+            if (num(totalCapital) > 0 && num(equity) > num(totalCapital)) finWarnings.push('自己資本が総資本を超えています');
+            sections.push({ name: 'Step 1: 決算書データ', warnings: finWarnings });
+
+            // Step 2: Industry data
+            const indWarnings: string[] = [];
+            const validIndustries = industries.filter((ind) => ind.name);
+            if (validIndustries.length === 0) {
+              indWarnings.push('業種が未登録');
+            } else {
+              validIndustries.forEach((ind) => {
+                if (num(ind.currCompletion) <= 0) indWarnings.push(`${ind.name}: 当期完工高が未入力`);
+              });
+            }
+            if (!ebitda && num(ebitda) === 0) indWarnings.push('EBITDA（利払前税引前償却前利益）が未入力');
+            sections.push({ name: 'Step 2: 業種・提出書', warnings: indWarnings });
+
+            // Step 3: W items
+            const wWarnings: string[] = [];
+            if (wTotal === 0 && wScore === 0) wWarnings.push('社会性(W)項目が未入力（全て0点）');
+            sections.push({ name: 'Step 3: 技術職員・社会性', warnings: wWarnings });
+
+            // Step 4: Previous period
+            const prevWarnings: string[] = [];
+            if (!prevData.totalCapital) prevWarnings.push('前期 総資本が未入力');
+            sections.push({ name: 'Step 4: 前期データ', warnings: prevWarnings });
+
+            const totalWarnings = sections.reduce((s, sec) => s + sec.warnings.length, 0);
+            const hasWarnings = totalWarnings > 0;
+
+            return (
+              <Card className={hasWarnings ? 'border-amber-300 bg-amber-50/50' : 'border-green-300 bg-green-50/50'}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    {hasWarnings ? (
+                      <AlertCircle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 text-green-600" aria-hidden="true" />
+                    )}
+                    入力データ検証サマリー
+                    <Badge variant="outline" className={hasWarnings ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-green-100 text-green-700 border-green-300'}>
+                      {hasWarnings ? `警告あり（${totalWarnings}件）` : '問題なし'}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {sections.map((sec) => (
+                      <div key={sec.name} className="flex items-start gap-2 text-sm">
+                        {sec.warnings.length === 0 ? (
+                          <CheckCircle className="h-4 w-4 text-green-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        )}
+                        <div>
+                          <span className="font-medium">{sec.name}</span>
+                          {sec.warnings.length === 0 ? (
+                            <span className="ml-2 text-green-700 text-xs">問題なし</span>
+                          ) : (
+                            <ul className="mt-1 space-y-0.5">
+                              {sec.warnings.map((w, i) => (
+                                <li key={i} className="text-xs text-amber-700">{w}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {hasWarnings && (
+                    <p className="mt-3 text-xs text-amber-600">
+                      警告がある状態でも試算は実行できます。未入力の項目は0として計算されます。
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
       )}
 
@@ -1979,6 +2081,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             techStaffValue: num(ind.techStaffValue),
           }))}
           socialItems={currentSocialItems}
+          notes={notes}
+          onNotesChange={setNotes}
+          onRecalculate={handleRecalculate}
         />
       )}
 

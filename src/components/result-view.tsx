@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,8 @@ import {
   Printer,
   Info,
   ClipboardCopy,
+  RefreshCw,
+  StickyNote,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -91,6 +93,12 @@ interface ResultViewProps {
   }>;
   /** 社会性項目（シミュレーション用） */
   socialItems?: SocialItems;
+  /** メモ（テキスト注釈） */
+  notes?: string;
+  /** メモ変更時のコールバック */
+  onNotesChange?: (notes: string) => void;
+  /** 再計算ボタン押下時のコールバック（Step 1に戻る） */
+  onRecalculate?: () => void;
 }
 
 function DiffBadge({ prev, curr }: { prev?: number; curr: number }) {
@@ -225,6 +233,30 @@ function WImprovementTips({ wDetail, socialItems }: { wDetail: WDetail; socialIt
   );
 }
 
+/** P-score benchmark badge */
+function PScoreBenchmark({ score }: { score: number }) {
+  let label: string;
+  let colorClass: string;
+  if (score >= 900) {
+    label = '最優良';
+    colorClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+  } else if (score >= 700) {
+    label = '優良';
+    colorClass = 'bg-blue-100 text-blue-800 border-blue-300';
+  } else if (score >= 500) {
+    label = '標準的';
+    colorClass = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  } else {
+    label = '改善の余地あり';
+    colorClass = 'bg-red-100 text-red-800 border-red-300';
+  }
+  return (
+    <Badge variant="outline" className={`text-[10px] py-0 mt-1 ${colorClass}`}>
+      {label}
+    </Badge>
+  );
+}
+
 function ContributionBar({ label, value, maxValue }: { label: string; value: number; maxValue: number }) {
   const pct = Math.max(0, Math.min(100, (value / maxValue) * 100));
   return (
@@ -256,6 +288,9 @@ export function ResultView(props: ResultViewProps) {
     ebitda,
     industryCalcData,
     socialItems,
+    notes,
+    onNotesChange,
+    onRecalculate,
   } = props;
 
   // AI分析用の入力データを構築
@@ -432,6 +467,12 @@ export function ResultView(props: ResultViewProps) {
             <Printer className="mr-1.5 h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">印刷</span>
           </Button>
+          {onRecalculate && (
+            <Button onClick={onRecalculate} variant="default" size="sm" aria-label="データを引き継いで再計算">
+              <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">再計算</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -469,6 +510,7 @@ export function ResultView(props: ResultViewProps) {
                   </TooltipContent>
                 </Tooltip>
                 <div className="text-xs text-muted-foreground mt-1">P点</div>
+                <PScoreBenchmark score={ind.P} />
                 {ind.prevP !== undefined && <DiffBadge prev={ind.prevP} curr={ind.P} />}
               </CardContent>
             </Card>
@@ -821,6 +863,30 @@ export function ResultView(props: ResultViewProps) {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Notes / Memo section */}
+      {onNotesChange && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <StickyNote className="h-4 w-4" aria-hidden="true" />
+              メモ
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
+              placeholder="シミュレーション結果に関するメモを入力..."
+              value={notes ?? ''}
+              onChange={(e) => onNotesChange(e.target.value)}
+              aria-label="シミュレーションメモ"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              メモは自動保存されます。
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
