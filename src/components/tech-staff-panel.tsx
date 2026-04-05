@@ -125,7 +125,6 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
 
     if (mapped.length > 0) {
       setStaff(mapped);
-      console.log(`[TechStaffPanel] Auto-populated ${mapped.length} staff from PDF extraction`);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalStaff]);

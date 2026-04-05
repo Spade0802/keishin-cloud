@@ -11,6 +11,7 @@
  */
 
 import type { RawFinancialData } from './engine/types';
+import { logger } from './logger';
 
 /** 補完結果 */
 export interface EnrichmentResult {
@@ -242,7 +243,7 @@ export function enrichFinancialData(
   }
 
   if (enrichedFields.length > 0) {
-    console.log(`[enrichFinancialData] Enriched ${enrichedFields.length} fields:`, enrichedFields);
+    logger.info(`[enrichFinancialData] Enriched ${enrichedFields.length} fields:`, enrichedFields);
   }
 
   return { data: d, enrichedFields, warnings };

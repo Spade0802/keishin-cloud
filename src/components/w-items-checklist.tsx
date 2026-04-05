@@ -259,7 +259,6 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
     }
     setAutoFilledFields(filled);
     setItems((prev) => ({ ...prev, ...externalItems }));
-    console.log('[WItemsChecklist] Applied external items:', filled.size, 'fields');
   }, [externalItems]);
 
   const update = useCallback(<K extends keyof SocialItems>(key: K, value: SocialItems[K]) => {

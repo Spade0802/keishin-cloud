@@ -13,6 +13,7 @@
 
 import type { RawFinancialData } from './engine/types';
 import { extractFinancialDataWithGemini, isGeminiAvailable, autoCorrectUnit } from './gemini-extractor';
+import { logger } from './logger';
 
 interface ParseResult {
   data: Partial<RawFinancialData>;
@@ -254,7 +255,7 @@ async function ocrWithDocumentAI(buffer: Buffer): Promise<DocAIResult | null> {
 
     return { fullText, pageTexts, formFields: allFields };
   } catch (e) {
-    console.error('Document AI error:', e);
+    logger.error('Document AI error:', e);
     return null;
   }
 }
@@ -1020,10 +1021,10 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   // ─── Step 0: Gemini Vision API で一次抽出を試行 ───
   if (isGeminiAvailable()) {
     try {
-      console.log(`Gemini extraction starting for PDF (${(buffer.length / 1024 / 1024).toFixed(1)}MB)`);
+      logger.info(`Gemini extraction starting for PDF (${(buffer.length / 1024 / 1024).toFixed(1)}MB)`);
       const geminiResult = await extractFinancialDataWithGemini(buffer);
       if (geminiResult) {
-        console.log('Gemini extraction succeeded, merging data...');
+        logger.info('Gemini extraction succeeded, merging data...');
         // Gemini の結果を data にマージ
         mergeGeminiFinancialData(geminiResult.data, data, mappings);
         const geminiCount = mappings.filter(m => m.source.startsWith('Gemini:')).length;
@@ -1033,18 +1034,18 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
           );
           return { data, warnings, mappings, ocrUsed: true, rawText: '[Gemini Vision API で抽出]' };
         } else {
-          console.warn('Gemini returned data but 0 mappings were created');
+          logger.warn('Gemini returned data but 0 mappings were created');
         }
       } else {
-        console.warn('Gemini returned null — empty response or parse failure');
+        logger.warn('Gemini returned null — empty response or parse failure');
         warnings.push('Gemini AI抽出で結果が得られませんでした。従来の方法で解析します。');
       }
     } catch (e) {
-      console.error('Gemini extraction failed, falling back to legacy methods:', e);
+      logger.error('Gemini extraction failed, falling back to legacy methods:', e);
       warnings.push('Gemini AI抽出に失敗しました。従来の方法で解析します。');
     }
   } else {
-    console.warn('Gemini not available (no credentials/project env vars)');
+    logger.warn('Gemini not available (no credentials/project env vars)');
   }
 
   // ─── Step 1: テキスト抽出を試行（pdfjs-dist） ───
@@ -1084,7 +1085,7 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
         }
       }
     } catch (e) {
-      console.error('Document AI failed, falling back:', e);
+      logger.error('Document AI failed, falling back:', e);
     }
   }
 

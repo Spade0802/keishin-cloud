@@ -55,7 +55,7 @@ export default function BillingPage() {
     fetch('/api/stripe/subscription')
       .then((r) => r.json())
       .then(setSub)
-      .catch(console.error)
+      .catch(() => { /* fetch error handled by null check below */ })
       .finally(() => setLoading(false));
   }, []);
 

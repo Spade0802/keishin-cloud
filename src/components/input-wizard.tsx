@@ -817,7 +817,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       // バリデーション警告を保存（部分抽出警告を含む）
       const allWarnings = [...partialWarnings, ...processed.validationIssues];
       setExtractionWarnings(allWarnings);
-      if (allWarnings.length > 0) {
+      if (allWarnings.length > 0 && process.env.NODE_ENV !== 'production') {
         console.log('[Keishin PDF] Validation issues:', allWarnings.length,
           allWarnings.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
       }
@@ -845,14 +845,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       // Step 3: W項目（バリデーション済み、techStaffCount・businessYearsもマージ済み）
       if (Object.keys(processed.wItems).length > 0) {
         setExternalWItems(processed.wItems);
-        console.log('[Keishin PDF] W items extracted:', Object.keys(processed.wItems).length, 'items',
-          JSON.stringify(processed.wItems));
       }
 
       // Step 3: 技術職員リストをTechStaffPanelに渡す
       if (processed.staffList && processed.staffList.length > 0) {
         setExtractedStaff(processed.staffList);
-        console.log('[Keishin PDF] Staff list extracted:', processed.staffList.length, 'entries');
       }
 
       setKeishinPdfMappings(data.mappings || []);
