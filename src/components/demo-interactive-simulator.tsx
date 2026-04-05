@@ -409,7 +409,7 @@ export function DemoInteractiveSimulator() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-2 sm:gap-3 text-center text-xs">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 text-center text-xs">
             {[
               { label: 'X1', value: currentResult?.X1 },
               { label: 'X2', value: currentResult?.x2 },
@@ -442,7 +442,7 @@ export function DemoInteractiveSimulator() {
               onClick={() => handlePreset(preset)}
             >
               <span className="text-xs font-semibold">{preset.name}</span>
-              <span className="text-[10px] opacity-70">{preset.description}</span>
+              <span className="text-xs opacity-70">{preset.description}</span>
             </Button>
           ))}
         </div>
@@ -544,12 +544,14 @@ export function DemoInteractiveSimulator() {
                         id={`demo-sim-${field.key}`}
                         type="text"
                         inputMode="numeric"
+                        min={0}
                         value={values[field.key].toLocaleString()}
                         onChange={(e) => handleChange(field.key, e.target.value)}
                         className="h-10 sm:h-8 text-sm font-mono w-full"
                         aria-label={field.label}
+                        aria-describedby={`demo-sim-${field.key}-unit`}
                       />
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      <span id={`demo-sim-${field.key}-unit`} className="text-xs text-muted-foreground whitespace-nowrap">
                         {field.unit}
                       </span>
                     </div>

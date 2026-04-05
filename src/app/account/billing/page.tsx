@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,10 @@ import {
   ExternalLink,
   ArrowUpRight,
   Shield,
+  RefreshCw,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/toast';
+import { logger } from '@/lib/logger';
 
 interface SubscriptionInfo {
   plan: string;
@@ -49,15 +51,53 @@ export default function BillingPage() {
   const success = searchParams.get('success') === 'true';
   const [sub, setSub] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const LOADING_TIMEOUT_MS = 10_000;
+
+  const fetchSubscription = useCallback(() => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+    setSub(null);
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+      logger.error('サブスクリプション取得がタイムアウトしました', { timeoutMs: LOADING_TIMEOUT_MS });
+      setError('読み込みがタイムアウトしました。ネットワーク接続を確認してください。');
+      setLoading(false);
+    }, LOADING_TIMEOUT_MS);
+
+    fetch('/api/stripe/subscription', { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        clearTimeout(timeout);
+        setSub(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        clearTimeout(timeout);
+        if (err.name === 'AbortError') return;
+        logger.error('サブスクリプション情報の取得に失敗しました', { error: err.message });
+        setError('情報の取得に失敗しました。もう一度お試しください。');
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
-    fetch('/api/stripe/subscription')
-      .then((r) => r.json())
-      .then(setSub)
-      .catch(() => { /* fetch error handled by null check below */ })
-      .finally(() => setLoading(false));
-  }, []);
+    fetchSubscription();
+    return () => abortRef.current?.abort();
+  }, [fetchSubscription]);
 
   async function openPortal() {
     setPortalLoading(true);
@@ -69,7 +109,8 @@ export default function BillingPage() {
       } else if (data.bypassed) {
         showToast('テストモード: Stripeポータルは利用できません', 'warning');
       }
-    } catch {
+    } catch (err) {
+      logger.error('Stripeポータルセッションの作成に失敗しました', { error: err });
       showToast('エラーが発生しました', 'error');
     } finally {
       setPortalLoading(false);
@@ -78,16 +119,40 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center text-muted-foreground">
-        読み込み中...
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
+        <div className="h-8 w-48 rounded bg-muted animate-pulse" />
+        <div className="rounded-lg border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+            <div className="h-6 w-16 rounded-full bg-muted animate-pulse" />
+          </div>
+          <div className="space-y-3">
+            <div className="h-6 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="rounded-lg border p-6 space-y-3">
+          <div className="h-5 w-24 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-full rounded bg-muted animate-pulse" />
+          <div className="h-2 w-full rounded-full bg-muted animate-pulse" />
+        </div>
+        <div className="h-10 w-full rounded bg-muted animate-pulse" />
       </div>
     );
   }
 
-  if (!sub) {
+  if (error || !sub) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center text-muted-foreground">
-        情報を取得できませんでした
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
+        <AlertTriangle className="h-10 w-10 text-muted-foreground mx-auto" />
+        <p className="text-muted-foreground">
+          {error || '情報を取得できませんでした'}
+        </p>
+        <Button onClick={fetchSubscription} variant="outline" size="sm">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          再読み込み
+        </Button>
       </div>
     );
   }

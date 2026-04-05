@@ -77,7 +77,7 @@ export default function PricingPage() {
         </div>
 
         {canceled && (
-          <div className="max-w-md mx-auto mb-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
+          <div role="alert" className="max-w-md mx-auto mb-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
             チェックアウトがキャンセルされました。お好きなタイミングで再度お申し込みください。
           </div>
         )}
@@ -105,7 +105,7 @@ export default function PricingPage() {
             }`}
           >
             年払い
-            <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 text-[10px]">
+            <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 text-[10px]" aria-label="年払いで最大16%お得">
               最大16%お得
             </Badge>
           </button>
@@ -158,7 +158,7 @@ export default function PricingPage() {
                             <p className="text-xs text-muted-foreground mt-1">
                               年額 {price.toLocaleString()}円（税抜）
                             </p>
-                            <Badge variant="secondary" className="mt-1 bg-green-100 text-green-700 text-[10px]">
+                            <Badge variant="secondary" className="mt-1 bg-green-100 text-green-700 text-[10px]" aria-label={`年払いで月払いより${savingsPercent}%お得`}>
                               月払いより{savingsPercent}%お得
                             </Badge>
                           </>
@@ -170,7 +170,7 @@ export default function PricingPage() {
                   {/* CTA */}
                   <Button
                     onClick={() => handleSubscribe(plan.id)}
-                    disabled={loadingPlan !== null}
+                    disabled={loadingPlan === plan.id}
                     className={`w-full ${
                       isPopular
                         ? 'bg-blue-600 hover:bg-blue-700'
@@ -181,7 +181,7 @@ export default function PricingPage() {
                     variant={plan.id === 'free' ? 'outline' : 'default'}
                   >
                     {loadingPlan === plan.id ? (
-                      '処理中...'
+                      `${plan.nameJa}を処理中...`
                     ) : plan.id === 'free' ? (
                       <>無料で始める</>
                     ) : (
