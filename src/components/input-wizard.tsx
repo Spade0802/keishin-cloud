@@ -27,7 +27,11 @@ import { FinancialPreview } from '@/components/financial-preview';
 import { WItemsChecklist } from '@/components/w-items-checklist';
 import { TechStaffPanel } from '@/components/tech-staff-panel';
 import type { IndustryTechValue } from '@/components/tech-staff-panel';
-import { ResultView } from '@/components/result-view';
+import dynamic from 'next/dynamic';
+const ResultView = dynamic(() => import('@/components/result-view').then(mod => ({ default: mod.ResultView })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
+});
 import { ExtractionProgress } from '@/components/extraction-progress';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW, calculateX1WithAverage } from '@/lib/engine/p-calculator';
@@ -779,15 +783,39 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       // 抽出データをバリデーション＆処理
       const processed = extractedData.processExtraction(data);
 
-      // バリデーション警告を保存
-      setExtractionWarnings(processed.validationIssues);
-      if (processed.validationIssues.length > 0) {
-        console.log('[Keishin PDF] Validation issues:', processed.validationIssues.length,
-          processed.validationIssues.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
+      // DATA-9: Check for partial extraction and collect warnings
+      const partialWarnings: ValidationIssue[] = [];
+      const hasBasicInfo = !!(processed.basicInfo.companyName || processed.basicInfo.permitNumber);
+      const hasFinancials = processed.equity !== undefined && processed.equity !== null;
+      const hasIndustries = processed.industries.length > 0;
+
+      if (!hasBasicInfo) {
+        partialWarnings.push({ field: 'basicInfo', label: '基本情報', severity: 'warning', message: '会社名・許可番号が抽出できませんでした。手動で入力してください。', originalValue: null });
+      }
+      if (!hasFinancials) {
+        partialWarnings.push({ field: 'equity', label: '財務データ', severity: 'warning', message: '自己資本額が抽出できませんでした。手動で入力してください。', originalValue: null });
+      }
+      if (!hasIndustries) {
+        partialWarnings.push({ field: 'industries', label: '業種データ', severity: 'warning', message: '業種別完成工事高が抽出できませんでした。手動で入力してください。', originalValue: null });
+      }
+
+      // バリデーション警告を保存（部分抽出警告を含む）
+      const allWarnings = [...partialWarnings, ...processed.validationIssues];
+      setExtractionWarnings(allWarnings);
+      if (allWarnings.length > 0) {
+        console.log('[Keishin PDF] Validation issues:', allWarnings.length,
+          allWarnings.map(i => `[${i.severity}] ${i.field}: ${i.message}`).join(', '));
+      }
+
+      // Show toast for partial extraction
+      if (partialWarnings.length > 0) {
+        showToast(`${partialWarnings.length}項目が抽出できませんでした。該当箇所を手動で入力してください。`, 'warning');
       }
 
       // Step 2: 基本情報（バリデーション済み） - 単一の setState で更新
-      setBasicInfo(prev => ({ ...prev, ...processed.basicInfo }));
+      if (hasBasicInfo) {
+        setBasicInfo(prev => ({ ...prev, ...processed.basicInfo }));
+      }
 
       // Step 2: X2データ
       if (processed.ebitda !== undefined && processed.ebitda !== null) setEbitda(String(processed.ebitda));
@@ -818,7 +846,34 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       setKeishinPdfComplete(true);
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
-      setKeishinPdfError(e instanceof Error ? e.message : '提出書PDFの解析に失敗しました');
+      const errorMsg = e instanceof Error ? e.message : '提出書PDFの解析に失敗しました';
+      // DATA-9: Partial extraction error recovery
+      // If the API returned partial data before the error, try to use it
+      if (e instanceof Error && (e as Error & { partialData?: KeishinPdfResult }).partialData) {
+        const partialData = (e as Error & { partialData?: KeishinPdfResult }).partialData!;
+        try {
+          const processed = extractedData.processExtraction(partialData);
+          setExtractionWarnings([
+            { field: '_global', label: 'PDF解析', severity: 'warning', message: `一部のデータのみ抽出されました: ${errorMsg}`, originalValue: null },
+            ...processed.validationIssues,
+          ]);
+          if (processed.basicInfo.companyName || processed.basicInfo.permitNumber) {
+            setBasicInfo(prev => ({ ...prev, ...processed.basicInfo }));
+          }
+          if (processed.equity !== undefined && processed.equity !== null) setEquity(String(processed.equity));
+          if (processed.ebitda !== undefined && processed.ebitda !== null) setEbitda(String(processed.ebitda));
+          if (processed.industries.length > 0) setIndustries(processed.industries);
+          if (Object.keys(processed.wItems).length > 0) setExternalWItems(processed.wItems);
+          if (processed.staffList && processed.staffList.length > 0) setExtractedStaff(processed.staffList);
+          setKeishinPdfLoaded(true);
+          setKeishinPdfComplete(true);
+          showToast('一部のデータのみ抽出されました。不足項目を手動で入力してください。', 'warning');
+        } catch {
+          setKeishinPdfError(errorMsg);
+        }
+      } else {
+        setKeishinPdfError(errorMsg);
+      }
     } finally {
       setKeishinPdfProcessing(false);
     }
@@ -1012,6 +1067,25 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       updateIndustry(index, 'techStaffValue', String(autoVal));
     }
   }
+
+  // FEATURE-2: Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ctrl+Enter → trigger calculation (only on step 4, the last step before results)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && step === 4) {
+        e.preventDefault();
+        handleCalculate();
+      }
+      // Ctrl+S → trigger auto-save (prevent browser save dialog)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && step <= 4) {
+        e.preventDefault();
+        showToast('データは自動保存されています', 'success');
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   return (
     <div className="space-y-6">

@@ -339,6 +339,115 @@ export default function AdminBillingPage() {
           </div>
         </CardContent>
       </Card>
+      {/* Invoice / Subscription Event History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>サブスクリプション履歴</CardTitle>
+          <CardDescription>
+            法人ごとのプラン変更・契約イベントを表示します。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 pr-4 font-medium">法人名</th>
+                  <th className="pb-2 pr-4 font-medium">イベント</th>
+                  <th className="pb-2 pr-4 font-medium">プラン</th>
+                  <th className="pb-2 font-medium">日付</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orgs.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                      履歴データがありません
+                    </td>
+                  </tr>
+                )}
+                {orgs
+                  .filter((o) => o.plan !== 'free' || o.stripeSubscriptionId)
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map((org) => {
+                    const events: Array<{ type: string; label: string; date: string }> = [];
+
+                    // Registration event
+                    events.push({
+                      type: 'registered',
+                      label: '法人登録',
+                      date: org.createdAt,
+                    });
+
+                    // Subscription activation
+                    if (org.subscriptionStatus === 'active' || org.subscriptionStatus === 'trialing') {
+                      events.push({
+                        type: 'activated',
+                        label: org.subscriptionStatus === 'trialing' ? 'トライアル開始' : 'サブスクリプション有効化',
+                        date: org.createdAt,
+                      });
+                    }
+
+                    // Next billing date
+                    if (org.currentPeriodEnd) {
+                      events.push({
+                        type: 'renewal',
+                        label: '次回更新予定',
+                        date: org.currentPeriodEnd,
+                      });
+                    }
+
+                    // Trial end
+                    if (org.trialEndsAt) {
+                      events.push({
+                        type: 'trial_end',
+                        label: 'トライアル終了予定',
+                        date: org.trialEndsAt,
+                      });
+                    }
+
+                    // Canceled
+                    if (org.subscriptionStatus === 'canceled') {
+                      events.push({
+                        type: 'canceled',
+                        label: '解約',
+                        date: org.currentPeriodEnd || org.createdAt,
+                      });
+                    }
+
+                    return events.map((event, i) => (
+                      <tr key={`${org.id}-${event.type}-${i}`} className="border-b last:border-0">
+                        <td className="py-2.5 pr-4 font-medium">{org.name}</td>
+                        <td className="py-2.5 pr-4">
+                          <Badge
+                            variant="outline"
+                            className={
+                              event.type === 'activated'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : event.type === 'canceled'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : event.type === 'trial_end'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : ''
+                            }
+                          >
+                            {event.label}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          {PLAN_LABELS[org.plan] || org.plan}
+                        </td>
+                        <td className="py-2.5 whitespace-nowrap text-xs">
+                          {new Date(event.date).toLocaleDateString('ja-JP')}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

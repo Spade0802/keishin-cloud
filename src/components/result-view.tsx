@@ -107,7 +107,7 @@ function ContributionBar({ label, value, maxValue }: { label: string; value: num
   const pct = Math.max(0, Math.min(100, (value / maxValue) * 100));
   return (
     <div className="flex items-center gap-3 text-sm">
-      <div className="w-36 text-right text-muted-foreground">{label}</div>
+      <div className="w-24 sm:w-36 text-right text-muted-foreground">{label}</div>
       <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden">
         <div className="h-full bg-primary/70 rounded" style={{ width: `${pct}%` }} />
       </div>
