@@ -7,6 +7,30 @@
 
 import type { SocialItems, WDetail } from './types';
 
+/**
+ * 激変緩和措置（経審の完成工事高 X1 用）
+ *
+ * 経審では完成工事高について、当期・2年平均・3年平均のうち
+ * 最も有利な（大きい）値を採用できる。
+ *
+ * @param curr  当期完成工事高
+ * @param prev  前期完成工事高
+ * @param prevPrev  前々期完成工事高（任意）
+ * @returns 採用される完成工事高（最大値）
+ */
+export function calculateX1WithAverage(
+  curr: number,
+  prev: number,
+  prevPrev?: number,
+): number {
+  const twoYearAvg = Math.floor((curr + prev) / 2);
+  if (prevPrev !== undefined && prevPrev !== null) {
+    const threeYearAvg = Math.floor((curr + prev + prevPrev) / 3);
+    return Math.max(curr, twoYearAvg, threeYearAvg);
+  }
+  return Math.max(curr, twoYearAvg);
+}
+
 export function calculateP(
   x1: number,
   x2: number,

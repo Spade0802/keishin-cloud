@@ -13,7 +13,7 @@
 
 import type { RawFinancialData, SocialItems } from './engine/types';
 import type { KeishinPdfResult } from './keishin-pdf-parser';
-import { getAIConfig } from './settings';
+import { getGeminiModel, isRateLimitError } from './gemini-client';
 // splitPdfPages, getPdfPageCount no longer needed after API call optimization
 import { calculateTechStaffValues, type ExtractedStaffMember } from './engine/tech-staff-calculator';
 
@@ -48,15 +48,11 @@ export class GeminiExtractionError extends Error {
   }
 }
 
-// ─── 設定 ───
-
-const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'asia-northeast1';
-const DEFAULT_MODEL = 'gemini-2.5-flash';
-
 // ─── GenerativeModel の統一インターフェース ───
 //
 // Vertex AI SDK と Google AI SDK は微妙にAPIが違うため、
 // 共通のインターフェースでラップする。
+// モデル取得は gemini-client.ts の共有ファクトリを使用する。
 
 interface UnifiedModel {
   generateContent(request: {
@@ -75,31 +71,11 @@ interface UnifiedModel {
 }
 
 async function getGenerativeModel(): Promise<UnifiedModel> {
-  const aiConfig = await getAIConfig().catch(() => ({
-    provider: 'gemini',
-    model: DEFAULT_MODEL,
-    apiKey: undefined,
-  }));
+  const gemini = await getGeminiModel();
 
-  const modelName =
-    aiConfig.model && aiConfig.model.startsWith('gemini')
-      ? aiConfig.model
-      : DEFAULT_MODEL;
-
-  // ── gemini-paid: Google AI Studio APIキー方式 ──
-  if (aiConfig.provider === 'gemini-paid' && aiConfig.apiKey) {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(aiConfig.apiKey);
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig: {
-        responseMimeType: 'application/json' as const,
-        temperature: 0,
-      },
-    });
-    console.log(`Using Gemini Paid API (${modelName})`);
-    // Google AI SDK のレスポンスを統一形式に変換
-    // 429 (クォータ超過) 時は Vertex AI にフォールバック
+  if (gemini.provider === 'gemini-paid') {
+    console.log(`Using Gemini Paid API (${gemini.modelName})`);
+    const model = gemini.model;
     return {
       async generateContent(request) {
         const parts = request.contents[0].parts.map((p) => {
@@ -120,18 +96,11 @@ async function getGenerativeModel(): Promise<UnifiedModel> {
             },
           };
         } catch (err: unknown) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Too Many Requests')) {
+          if (isRateLimitError(err)) {
+            const errMsg = err instanceof Error ? err.message : String(err);
             console.warn(`[gemini-paid] Rate limited (429), falling back to Vertex AI: ${errMsg.slice(0, 200)}`);
-            // Vertex AI にフォールバック
-            const { VertexAI } = await import('@google-cloud/vertexai');
-            const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || 'jww-dxf-converter';
-            const vertexAI = new VertexAI({ project: projectId, location: VERTEX_LOCATION });
-            const vertexModel = vertexAI.getGenerativeModel({
-              model: modelName,
-              generationConfig: { responseMimeType: 'application/json', temperature: 0 },
-            }) as unknown as UnifiedModel;
-            console.log(`[gemini-paid→vertex-ai] Retrying with Vertex AI (${modelName})`);
+            const vertexModel = gemini.getVertexModel() as unknown as UnifiedModel;
+            console.log(`[gemini-paid→vertex-ai] Retrying with Vertex AI (${gemini.modelName})`);
             return vertexModel.generateContent(request);
           }
           throw err;
@@ -140,26 +109,9 @@ async function getGenerativeModel(): Promise<UnifiedModel> {
     };
   }
 
-  // ── gemini (free): Vertex AI 方式 ──
-  const { VertexAI } = await import('@google-cloud/vertexai');
-  const projectId =
-    process.env.GOOGLE_CLOUD_PROJECT ||
-    process.env.GCLOUD_PROJECT ||
-    'jww-dxf-converter';
-
-  const vertexAI = new VertexAI({
-    project: projectId,
-    location: VERTEX_LOCATION,
-  });
-
-  console.log(`Using Vertex AI (${modelName})`);
-  return vertexAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0,
-    },
-  }) as unknown as UnifiedModel;
+  // Vertex AI 方式
+  console.log(`Using Vertex AI (${gemini.modelName})`);
+  return gemini.model as unknown as UnifiedModel;
 }
 
 // ─── 決算書抽出 ───

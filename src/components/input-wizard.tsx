@@ -1,3 +1,4 @@
+// TODO: PERF-7 - Extract step components to reduce 30+ useState in this file
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -29,7 +30,7 @@ import type { IndustryTechValue } from '@/components/tech-staff-panel';
 import { ResultView } from '@/components/result-view';
 import { ExtractionProgress } from '@/components/extraction-progress';
 import { calculateY } from '@/lib/engine/y-calculator';
-import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
+import { calculateP, calculateX2, calculateZ, calculateW, calculateX1WithAverage } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
 import type { YInput, YResult, WDetail, SocialItems, KeishinBS, KeishinPL } from '@/lib/engine/types';
 import type { KeishinPdfResult } from '@/lib/keishin-pdf-parser';
@@ -45,6 +46,8 @@ interface IndustryInput {
   permitType: '特定' | '一般';
   prevCompletion: string;
   currCompletion: string;
+  /** 前々期完成工事高（激変緩和措置の3年平均用、任意） */
+  prevPrevCompletion: string;
   prevSubcontract: string;
   currSubcontract: string;
   techStaffValue: string;
@@ -418,7 +421,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     if (initialInputData?.industries && Array.isArray(initialInputData.industries)) {
       return initialInputData.industries as IndustryInput[];
     }
-    return [{ name: '', permitType: '特定', prevCompletion: '', currCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }];
+    return [{ name: '', permitType: '特定', prevCompletion: '', currCompletion: '', prevPrevCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }];
   });
 
   // Step 3: W items
@@ -463,7 +466,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   type ResultType = {
     Y: number; X2: number; X21: number; X22: number; W: number; wTotal: number;
     yResult: YResult; wDetail: WDetail;
-    industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number; x1TwoYearAvg: number; x1Current: number; x1Selected: '2年平均' | '当期' }>;
+    industries: Array<{ name: string; X1: number; Z: number; Z1: number; Z2: number; P: number; x1TwoYearAvg: number; x1Current: number; x1Selected: '2年平均' | '当期' | '3年平均' }>;
     bs?: KeishinBS; pl?: KeishinPL;
   };
   const [result, setResult] = useState<ResultType | null>(
@@ -821,7 +824,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   }
 
   function addIndustry() {
-    setIndustries([...industries, { name: '', permitType: '一般', prevCompletion: '', currCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }]);
+    setIndustries([...industries, { name: '', permitType: '一般', prevCompletion: '', currCompletion: '', prevPrevCompletion: '', prevSubcontract: '', currSubcontract: '', techStaffValue: '' }]);
   }
 
   function removeIndustry(i: number) {
@@ -872,10 +875,15 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const industryResults = industries
         .filter((ind) => ind.name)
         .map((ind) => {
-          const avgComp = Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2);
           const currComp = num(ind.currCompletion);
-          const adoptedComp = Math.max(avgComp, currComp);
-          const x1Selected: '2年平均' | '当期' = avgComp >= currComp ? '2年平均' : '当期';
+          const prevComp = num(ind.prevCompletion);
+          const prevPrevComp = num(ind.prevPrevCompletion) || undefined;
+          const adoptedComp = calculateX1WithAverage(currComp, prevComp, prevPrevComp);
+          const avgComp = Math.floor((prevComp + currComp) / 2);
+          const threeYearAvg = prevPrevComp ? Math.floor((currComp + prevComp + prevPrevComp) / 3) : undefined;
+          const x1Selected: '2年平均' | '当期' | '3年平均' =
+            threeYearAvg !== undefined && adoptedComp === threeYearAvg ? '3年平均' :
+            adoptedComp === avgComp && avgComp >= currComp ? '2年平均' : '当期';
           const avgSub = Math.floor((num(ind.prevSubcontract) + num(ind.currSubcontract)) / 2);
           const techVal = num(ind.techStaffValue);
           const X1 = lookupScore(X1_TABLE, adoptedComp);
@@ -1352,28 +1360,31 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {numField('前年度完工高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v))}
-                    {numField('当年度完工高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v))}
+                    {numField('前期完成工事高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v))}
+                    {numField('当期完成工事高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v))}
                     {numField('前年度元請完成工事高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v))}
                     {numField('当年度元請完成工事高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
                   </div>
-                  {/* 下請完工高（自動計算）: 完成工事高 - 元請完成工事高 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {numField('前々期完成工事高（激変緩和用）', ind.prevPrevCompletion, (v) => updateIndustry(i, 'prevPrevCompletion', v))}
+                  </div>
+                  {/* 下請完成工事高（自動計算）: 完成工事高 - 元請完成工事高 */}
                   {(num(ind.prevCompletion) > 0 || num(ind.currCompletion) > 0) && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">前期 下請完工高（自動計算）</Label>
+                        <Label className="text-[10px] text-muted-foreground">前期 下請完成工事高（自動計算）</Label>
                         <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
                           {num(ind.prevCompletion) > 0 ? `¥${(num(ind.prevCompletion) - num(ind.prevSubcontract)).toLocaleString()}千円` : '—'}
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">当期 下請完工高（自動計算）</Label>
+                        <Label className="text-[10px] text-muted-foreground">当期 下請完成工事高（自動計算）</Label>
                         <div className="h-8 flex items-center px-2 text-sm font-mono bg-muted/40 rounded border border-dashed">
                           {num(ind.currCompletion) > 0 ? `¥${(num(ind.currCompletion) - num(ind.currSubcontract)).toLocaleString()}千円` : '—'}
                         </div>
                       </div>
                       <div className="col-span-2 self-end text-[10px] text-muted-foreground pb-2">
-                        下請完工高 = 完成工事高 − 元請完成工事高
+                        下請完成工事高 = 完成工事高 − 元請完成工事高
                       </div>
                     </div>
                   )}

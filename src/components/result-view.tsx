@@ -42,7 +42,7 @@ interface IndustryResult {
   /** 当期完成工事高（千円） */
   x1Current?: number;
   /** X1算出に採用された方 */
-  x1Selected?: '2年平均' | '当期';
+  x1Selected?: '2年平均' | '当期' | '3年平均';
 }
 
 interface ResultViewProps {
@@ -520,7 +520,7 @@ export function ResultView(props: ResultViewProps) {
                   <CardTitle className="text-base">W = {W}（社会性等）</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 text-center">
                     {([
                       { key: 'w1' as const, label: '労働福祉' },
                       { key: 'w2' as const, label: '営業年数' },

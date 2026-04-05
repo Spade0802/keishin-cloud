@@ -76,6 +76,7 @@ export interface ProcessedExtraction {
     permitType: '特定' | '一般';
     prevCompletion: string;
     currCompletion: string;
+    prevPrevCompletion: string;
     prevSubcontract: string;
     currSubcontract: string;
     techStaffValue: string;
@@ -157,6 +158,7 @@ export function useExtractedData(): UseExtractedDataReturn {
         permitType: '一般' as const,
         prevCompletion: String(ind.prevCompletion),
         currCompletion: String(ind.currCompletion),
+        prevPrevCompletion: '',
         prevSubcontract: String(ind.prevCompletion - ind.prevPrimeContract),
         currSubcontract: String(ind.currCompletion - ind.currPrimeContract),
         techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',

@@ -217,6 +217,8 @@ export interface IndustryData {
   permitType: '特定' | '一般';
   prevCompletionAmount: number;
   currCompletionAmount: number;
+  /** 前々期完成工事高（激変緩和措置の3年平均用、任意） */
+  prevPrevCompletionAmount?: number;
   prevSubcontractAmount: number;
   currSubcontractAmount: number;
   avgCompletion: number;
