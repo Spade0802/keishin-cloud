@@ -109,15 +109,17 @@ function buildPrompt(input: AnalysisInput): string {
   const industryNames = input.industries.map((ind) => ind.name);
 
   return `あなたは経営事項審査（経審）の専門コンサルタントです。
-以下の建設業者の財務データと経審結果を分析し、P点を向上させるための
-合法的な見直し余地を専門家の視点で分析してください。
+以下の入力データのみに基づいて分析してください。
 
-【重要な前提】
-- 虚偽記載・粉飾を推奨してはなりません
-- すべての提案は建設業会計基準・建設業法に準拠した適法な範囲に限定してください
-- 各提案にはリスク評価を含めてください
-- 根拠が不明確な場合は「要確認」と明記してください
-- 金額は千円単位です
+## ★最重要ルール
+- **入力データに存在する数値だけを使ってください。**
+- **入力データにない金額・件数・割合を推測・創作しないでください。**
+- 具体的な金額や件数が不明な提案は「金額は要確認」「件数は要確認」と書いてください。
+- 「例えば〇〇万円の振替が可能」のような具体的な架空の数値は絶対に書かないでください。
+- 虚偽記載・粉飾を推奨してはなりません。
+- 金額は千円単位です。
+
+## 入力データ
 
 【会社情報】
 会社名: ${input.companyName}
@@ -145,25 +147,46 @@ ${input.bs ? `【経審用BS（千円）】\n${JSON.stringify(input.bs, null, 2)
 
 ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)}` : ''}
 
-以下の4セクションの分析結果をJSON形式で出力してください。
+## 分析内容
+
+以下の4セクションをJSON形式で出力してください。
 業種名は必ず次の名前を使用してください: ${JSON.stringify(industryNames)}
 
-出力形式:
+### 1. 再分類レビュー（reclassificationReview）
+入力データを見て、P点向上の可能性がある項目を検討してください。
+- **入力データから読み取れる事実のみ**を根拠にすること。
+- 具体的な振替金額が入力データから算出できない場合は「要確認」と書く。
+- 提案ごとに適法性の根拠と必要書類を明記する。
+
+### 2. シミュレーション（simulationComparison）
+- Case A: 現状ベース（入力データのスコアをそのまま記載）
+- Case B: 見直し余地がある項目を適用した場合の**方向性**（具体的な点数は算出可能な範囲のみ）
+
+### 3. 項目判定（itemAssessments）
+入力データの各スコア（Y, X2, W各項目）について：
+- confirmed: 現状で問題なし
+- reviewable: 見直し余地あり
+- insufficientBasis: 判断材料不足
+
+### 4. リスク論点（riskPoints）
+入力データから読み取れる異常値・注意点のみ指摘。
+
+## 出力JSON形式
 {
   "reclassificationReview": [
     {
       "no": 1,
       "item": "項目名",
-      "currentTreatment": "現在の処理",
+      "currentTreatment": "入力データから読み取れる現在の処理",
       "alternativePlan": "代替処理案",
       "legality": "適法性・根拠",
       "requiredDocuments": "必要証憑",
-      "yImpact": "Y影響（例: +5〜10）",
+      "yImpact": "Y影響",
       "xImpact": "X影響",
       "zImpact": "Z影響",
       "wImpact": "W影響",
-      "pImpact": "P影響（例: +3〜5）",
-      "assessment": "採用余地あり|要確認|非推奨|—",
+      "pImpact": "P影響",
+      "assessment": "採用余地あり|要確認|非推奨",
       "risk": "リスク説明"
     }
   ],
@@ -171,22 +194,22 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
     {
       "label": "Case A",
       "description": "現状ベース",
-      "assumptions": {"key": "value"},
+      "assumptions": {},
       "scores": {
         "y": ${input.Y},
         "x2": ${input.X2},
-        "z": {${industryNames.map((n) => `"${n}": 0`).join(', ')}},
+        "z": {${industryNames.map((n, i) => `"${n}": ${input.industries[i]?.Z ?? 0}`).join(', ')}},
         "w": ${input.W},
-        "p": {${industryNames.map((n) => `"${n}": 0`).join(', ')}}
+        "p": {${industryNames.map((n, i) => `"${n}": ${input.industries[i]?.P ?? 0}`).join(', ')}}
       }
     }
   ],
   "itemAssessments": [
     {
-      "category": "confirmed|reviewable|insufficientBasis|shouldNotDo",
+      "category": "confirmed|reviewable|insufficientBasis",
       "item": "項目名",
-      "currentPImpact": "現状P影響",
-      "revisedPImpact": "見直し後P影響",
+      "currentPImpact": "入力データの値",
+      "revisedPImpact": "見直し後の見込み（不明なら「要確認」）",
       "action": "対応内容"
     }
   ],
@@ -198,35 +221,8 @@ ${input.pl ? `【経審用PL（千円）】\n${JSON.stringify(input.pl, null, 2)
       "response": "対応方針"
     }
   ],
-  "summary": "全体の分析サマリー（200文字程度）"
+  "summary": "入力データに基づく全体の分析サマリー（200文字程度）"
 }
 
-【分析の観点（必ず検討してください）】
-1. 再分類レビュー:
-   - 雑収入を完成工事高に振替できるか
-   - 資本性借入金の認定可否
-   - 支払利息から手形割引料を分離できるか
-   - 減価償却費の網羅性（製造原価への配賦確認）
-   - 技術職員の資格・講習確認
-   - CPD/CCUS実績の確認
-   - 各科目について6件以上の見直し項目を検討してください
-
-2. シミュレーション:
-   - Case A: 現状ベース（入力データそのまま）
-   - Case B: 最適化ケース（全見直しを適用した場合）
-   - Case C: 保守的ケース（確実に適用できるもののみ）
-   - P点計算式: P = 0.25×X1 + 0.15×X2 + 0.20×Y + 0.25×Z + 0.15×W
-
-3. 項目判定:
-   - そのまま確定してよい（confirmed）
-   - 見直し余地あり（reviewable）
-   - 根拠不足（insufficientBasis）
-   - 実施すべきでない（shouldNotDo）
-
-4. リスク論点:
-   - 異常値・要注意項目を指摘
-   - 税務調査リスク
-   - 審査機関での指摘リスク
-
-JSONのみを出力し、それ以外の文字列は含めないでください。`;
+JSONのみを出力してください。`;
 }
