@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { InputWizard } from '@/components/input-wizard';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -63,11 +64,13 @@ export default async function TrialDetailPage({ params }: Props) {
               保存済みシミュレーション
             </p>
           </div>
-          <InputWizard
-            initialInputData={sim.inputData as Record<string, unknown>}
-            initialResultData={sim.resultData as Record<string, unknown> | undefined}
-            simulationId={sim.id}
-          />
+          <ErrorBoundary fallbackTitle="試算画面でエラーが発生しました">
+            <InputWizard
+              initialInputData={sim.inputData as Record<string, unknown>}
+              initialResultData={sim.resultData as Record<string, unknown> | undefined}
+              simulationId={sim.id}
+            />
+          </ErrorBoundary>
         </div>
       </main>
       <Footer />

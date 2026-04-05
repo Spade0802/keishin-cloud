@@ -5,6 +5,7 @@ import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { ResultView } from '@/components/result-view';
 import { DemoReclassificationSimulator } from '@/components/demo-reclassification-simulator';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -217,6 +218,7 @@ export default function DemoPage() {
           </Card>
 
           {/* Result View (reused component) */}
+          <ErrorBoundary fallbackTitle="結果表示でエラーが発生しました">
           <ResultView
             companyName={demoResult.companyName}
             period={demoResult.period}
@@ -238,6 +240,7 @@ export default function DemoPage() {
             readOnly
             staticAiAnalysis={demoAnalysisResult}
           />
+          </ErrorBoundary>
 
           {/* Reclassification Simulator */}
           <Card>

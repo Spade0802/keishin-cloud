@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /api
+Disallow: /dashboard
+
+Sitemap: https://keishin.cloud/sitemap.xml

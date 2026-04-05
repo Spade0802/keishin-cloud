@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { InputWizard } from '@/components/input-wizard';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 export const metadata: Metadata = {
   title: '新規試算 | KeishinCloud',
@@ -21,7 +22,9 @@ export default function TrialPage() {
               決算書と提出書データから、経審P点を試算します。
             </p>
           </div>
-          <InputWizard />
+          <ErrorBoundary fallbackTitle="試算画面でエラーが発生しました">
+            <InputWizard />
+          </ErrorBoundary>
         </div>
       </main>
       <Footer />
