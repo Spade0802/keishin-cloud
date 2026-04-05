@@ -22,6 +22,18 @@ import {
   ChevronRight,
   Calculator,
 } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Cell,
+  ResponsiveContainer,
+  LabelList,
+} from 'recharts';
 import type {
   AnalysisResult,
   AnalysisInput,
@@ -125,6 +137,200 @@ function formatDelta(val: number): string {
   if (val > 0) return `+${val}`;
   if (val === 0) return '±0';
   return `${val}`;
+}
+
+// ─── チャート: ケース比較バーチャート ───
+
+const CASE_COLORS = {
+  'Case A': '#6b7280', // gray-500
+  'Case B': '#16a34a', // green-600
+  'Case C': '#f59e0b', // amber-500
+} as const;
+
+const CASE_LABELS = {
+  'Case A': '現状',
+  'Case B': '推奨（全適用）',
+  'Case C': '選択適用',
+} as const;
+
+const COMPONENT_COLORS = ['#6366f1', '#06b6d4', '#f97316', '#8b5cf6'] as const;
+
+interface CaseChartData {
+  label: string;
+  description: string;
+  P: number;
+  Y: number;
+  X2: number;
+  Z?: number;
+  W?: number;
+}
+
+/** P点比較の横棒グラフ + 構成要素の縦棒グラフ */
+function CaseComparisonChart({ cases }: { cases: CaseChartData[] }) {
+  if (cases.length === 0) return null;
+
+  const baseP = cases[0]?.P ?? 0;
+
+  // P点比較用データ（横棒）
+  const pChartData = cases.map((c) => ({
+    name: `${c.label} (${c.description})`,
+    caseLabel: c.label,
+    P: c.P,
+    delta: c.P - baseP,
+  }));
+
+  // 構成要素比較用データ（縦棒グループ）
+  const hasZW = cases.some((c) => c.Z !== undefined && c.W !== undefined);
+  const componentData = hasZW
+    ? [
+        {
+          name: 'Y点',
+          'Case A': cases[0]?.Y ?? 0,
+          'Case B': cases[1]?.Y ?? 0,
+          'Case C': cases[2]?.Y ?? 0,
+        },
+        {
+          name: 'X2点',
+          'Case A': cases[0]?.X2 ?? 0,
+          'Case B': cases[1]?.X2 ?? 0,
+          'Case C': cases[2]?.X2 ?? 0,
+        },
+        {
+          name: 'Z点',
+          'Case A': cases[0]?.Z ?? 0,
+          'Case B': cases[1]?.Z ?? 0,
+          'Case C': cases[2]?.Z ?? 0,
+        },
+        {
+          name: 'W点',
+          'Case A': cases[0]?.W ?? 0,
+          'Case B': cases[1]?.W ?? 0,
+          'Case C': cases[2]?.W ?? 0,
+        },
+      ]
+    : [
+        {
+          name: 'Y点',
+          'Case A': cases[0]?.Y ?? 0,
+          'Case B': cases[1]?.Y ?? 0,
+          'Case C': cases[2]?.Y ?? 0,
+        },
+        {
+          name: 'X2点',
+          'Case A': cases[0]?.X2 ?? 0,
+          'Case B': cases[1]?.X2 ?? 0,
+          'Case C': cases[2]?.X2 ?? 0,
+        },
+      ];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderDeltaLabel = (props: any) => {
+    const x = Number(props.x ?? 0);
+    const y = Number(props.y ?? 0);
+    const width = Number(props.width ?? 0);
+    const value = Number(props.value ?? 0);
+    const index = Number(props.index ?? 0);
+    if (index === 0 || value === baseP) return null;
+    const diff = value - baseP;
+    const sign = diff > 0 ? '+' : '';
+    return (
+      <text
+        x={x + width + 6}
+        y={y + 14}
+        fill={diff > 0 ? '#16a34a' : diff < 0 ? '#dc2626' : '#6b7280'}
+        fontSize={13}
+        fontWeight="bold"
+      >
+        {sign}{diff}
+      </text>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* P点比較 横棒グラフ */}
+      <div>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          P点比較
+        </h4>
+        <div className="w-full" style={{ height: `${Math.max(cases.length * 56 + 40, 120)}px` }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={pChartData}
+              layout="vertical"
+              margin={{ top: 5, right: 60, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" fontSize={12} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={160}
+                fontSize={12}
+                tick={{ fill: '#374151' }}
+              />
+              <Tooltip
+                formatter={(value, _name, entry) => {
+                  const d = (entry?.payload as { delta?: number })?.delta ?? 0;
+                  const suffix = d !== 0 ? ` (${d > 0 ? '+' : ''}${d})` : '';
+                  return [`${value}${suffix}`, 'P点'];
+                }}
+              />
+              <Bar dataKey="P" radius={[0, 4, 4, 0]} maxBarSize={36}>
+                {pChartData.map((entry) => (
+                  <Cell
+                    key={entry.caseLabel}
+                    fill={CASE_COLORS[entry.caseLabel as keyof typeof CASE_COLORS] || '#6b7280'}
+                  />
+                ))}
+                <LabelList dataKey="P" position="insideRight" fill="#fff" fontWeight="bold" fontSize={13} />
+                <LabelList content={renderDeltaLabel} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 構成要素比較 縦棒グラフ */}
+      <div>
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          構成要素スコア比較
+        </h4>
+        <div className="w-full" style={{ height: '260px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={componentData}
+              margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} />
+              <Tooltip />
+              <Legend
+                formatter={(value: string) => {
+                  const desc = CASE_LABELS[value as keyof typeof CASE_LABELS] || value;
+                  return `${value} (${desc})`;
+                }}
+              />
+              <Bar dataKey="Case A" fill={CASE_COLORS['Case A']} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                <LabelList dataKey="Case A" position="top" fontSize={11} fill="#6b7280" />
+              </Bar>
+              <Bar dataKey="Case B" fill={CASE_COLORS['Case B']} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                <LabelList dataKey="Case B" position="top" fontSize={11} fill="#16a34a" />
+              </Bar>
+              {cases.length > 2 && (
+                <Bar dataKey="Case C" fill={CASE_COLORS['Case C']} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                  <LabelList dataKey="Case C" position="top" fontSize={11} fill="#f59e0b" />
+                </Bar>
+              )}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── セクション: P点改善インパクトランキング ───
@@ -405,6 +611,21 @@ function SimulationTable({ cases }: { cases: SimulationCase[] }) {
             );
           })}
         </div>
+
+        {/* ビジュアル比較チャート */}
+        {(() => {
+          const firstIndustry = industryNames[0] || '';
+          const chartCases: CaseChartData[] = cases.map((c) => ({
+            label: c.label,
+            description: c.description,
+            P: c.scores.p[firstIndustry] ?? 0,
+            Y: c.scores.y,
+            X2: c.scores.x2,
+            Z: Object.values(c.scores.z)[0],
+            W: c.scores.w,
+          }));
+          return <CaseComparisonChart cases={chartCases} />;
+        })()}
 
         {/* スコア比較テーブル */}
         <div className="overflow-x-auto">
@@ -771,6 +992,15 @@ function ReclassificationSimulation({ items, analysisInput }: ReclassSimProps) {
             </label>
           ))}
         </div>
+
+        {/* ビジュアル比較チャート */}
+        <CaseComparisonChart
+          cases={[
+            { label: 'Case A', description: '現状ベース', P: pA, Y: caseA.Y, X2: caseA.X2 },
+            { label: 'Case B', description: '全項目適用', P: pB, Y: caseB.Y, X2: caseB.X2 },
+            { label: 'Case C', description: '選択適用', P: pC, Y: caseC.Y, X2: caseC.X2 },
+          ]}
+        />
 
         {/* 3パターン比較カード */}
         <div className="grid gap-4 md:grid-cols-3">

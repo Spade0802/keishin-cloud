@@ -1,50 +1,97 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, Users } from 'lucide-react';
-import { QUALIFICATION_MULTIPLIERS, getEffectiveMultiplier } from '@/lib/engine/score-tables';
+import { Plus, Trash2, Users, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import {
+  QUALIFICATION_MULTIPLIERS,
+  calculateTechStaffValueByIndustry,
+  getEffectiveMultiplier,
+} from '@/lib/engine/score-tables';
 
-interface StaffEntry {
+// ---- Industry name <-> 2-digit code mapping ----
+
+const INDUSTRY_NAME_TO_CODE: Record<string, string> = {
+  '土木': '01', '建築': '02', '大工': '03', '左官': '04',
+  'とび': '05', '石': '06', '屋根': '07', '電気': '08',
+  '管': '09', 'タイル': '10', '鋼構造物': '11', '鉄筋': '12',
+  'ほ装': '13', 'しゅんせつ': '14', '板金': '15', 'ガラス': '16',
+  '塗装': '17', '防水': '18', '内装': '19', '機械器具': '20',
+  '熱絶縁': '21', '電気通信': '22', '造園': '23', 'さく井': '24',
+  '建具': '25', '水道': '26', '消防施設': '27', '清掃': '28', '解体': '29',
+};
+
+
+// ---- Types ----
+
+export interface StaffEntry {
   id: number;
   name: string;
+  industryCode1: string;
   qualificationCode1: string;
   lectureFlag1: string;
-  hasSupervisorCert: boolean;
+  industryCode2: string;
   qualificationCode2: string;
   lectureFlag2: string;
+  hasSupervisorCert: boolean;
+}
+
+/** Per-industry calculated value with breakdown details */
+export interface IndustryTechValue {
+  code: string;
+  name: string;
+  value: number;
+  breakdown: Array<{
+    staffName: string;
+    qualName: string;
+    multiplier: number;
+  }>;
 }
 
 interface TechStaffPanelProps {
-  onTechValueCalculated?: (value: number) => void;
+  /** Names of industries from Step 2 (e.g., ['電気', '管']) */
+  industryNames: string[];
+  /** Callback with per-industry tech staff values: Record<industryName, value> */
+  onValuesCalculated?: (values: Record<string, number>, details: IndustryTechValue[]) => void;
 }
-
-const INDUSTRY_QUAL_CODES: Record<string, number[]> = {
-  '土木': [101, 103, 151, 153, 201],
-  '建築': [105, 157, 201],
-  '電気': [127, 155, 228, 256, 201],
-  '管': [129, 230, 201],
-  '電気通信': [133, 233, 201],
-  '造園': [131, 231, 201],
-};
 
 let nextId = 1;
 
-export function TechStaffPanel({ onTechValueCalculated }: TechStaffPanelProps) {
-  const [selectedIndustry, setSelectedIndustry] = useState('電気');
+export function TechStaffPanel({ industryNames, onValuesCalculated }: TechStaffPanelProps) {
   const [staff, setStaff] = useState<StaffEntry[]>([
-    { id: nextId++, name: '', qualificationCode1: '', lectureFlag1: '2', hasSupervisorCert: false, qualificationCode2: '', lectureFlag2: '2' },
+    {
+      id: nextId++,
+      name: '',
+      industryCode1: '',
+      qualificationCode1: '',
+      lectureFlag1: '2',
+      industryCode2: '',
+      qualificationCode2: '',
+      lectureFlag2: '2',
+      hasSupervisorCert: false,
+    },
   ]);
+  const [showBreakdown, setShowBreakdown] = useState(true);
 
   function addStaff() {
     setStaff((prev) => [
       ...prev,
-      { id: nextId++, name: '', qualificationCode1: '', lectureFlag1: '2', hasSupervisorCert: false, qualificationCode2: '', lectureFlag2: '2' },
+      {
+        id: nextId++,
+        name: '',
+        industryCode1: '',
+        qualificationCode1: '',
+        lectureFlag1: '2',
+        industryCode2: '',
+        qualificationCode2: '',
+        lectureFlag2: '2',
+        hasSupervisorCert: false,
+      },
     ]);
   }
 
@@ -53,199 +100,267 @@ export function TechStaffPanel({ onTechValueCalculated }: TechStaffPanelProps) {
   }
 
   function updateStaff(id: number, field: keyof StaffEntry, value: string | boolean) {
-    setStaff((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+    );
   }
 
-  // Calculate tech staff value for each person
-  const staffResults = useMemo(() => {
-    return staff.map((s) => {
-      const code1 = parseInt(s.qualificationCode1);
-      const code2 = parseInt(s.qualificationCode2);
-      const lecture1 = parseInt(s.lectureFlag1) || 2;
-      const lecture2 = parseInt(s.lectureFlag2) || 2;
+  // Build the industry code options from current industryNames
+  const industryCodeOptions = useMemo(() => {
+    return industryNames
+      .map((name) => {
+        const code = INDUSTRY_NAME_TO_CODE[name];
+        return code ? { code, name } : null;
+      })
+      .filter((x): x is { code: string; name: string } => x !== null);
+  }, [industryNames]);
 
-      let multiplier1 = 0;
-      let qualName1 = '';
-      if (!isNaN(code1) && QUALIFICATION_MULTIPLIERS[code1]) {
-        multiplier1 = getEffectiveMultiplier(code1, lecture1, s.hasSupervisorCert);
-        qualName1 = QUALIFICATION_MULTIPLIERS[code1].name;
+  // All qualification options
+  const allQualOptions = useMemo(
+    () =>
+      Object.entries(QUALIFICATION_MULTIPLIERS).map(([code, info]) => ({
+        code,
+        label: `${code}: ${info.name} (${info.grade} x${info.multiplier})`,
+        name: info.name,
+      })),
+    []
+  );
+
+  // Calculate per-industry values using the engine function
+  const industryValues = useMemo(() => {
+    const staffForCalc = staff
+      .filter((s) => s.industryCode1 && s.qualificationCode1)
+      .map((s) => ({
+        industryCode1: parseInt(s.industryCode1),
+        qualificationCode1: parseInt(s.qualificationCode1),
+        lectureFlag1: parseInt(s.lectureFlag1) || 2,
+        industryCode2: s.industryCode2 ? parseInt(s.industryCode2) : undefined,
+        qualificationCode2: s.qualificationCode2
+          ? parseInt(s.qualificationCode2)
+          : undefined,
+        lectureFlag2: s.lectureFlag2 ? parseInt(s.lectureFlag2) : undefined,
+        supervisorCertNumber: s.hasSupervisorCert ? 'YES' : undefined,
+      }));
+
+    const rawValues = calculateTechStaffValueByIndustry(staffForCalc);
+
+    // Build detailed breakdown per industry
+    const details: IndustryTechValue[] = [];
+    const valuesByName: Record<string, number> = {};
+
+    for (const { code, name } of industryCodeOptions) {
+      const value = rawValues[code] ?? 0;
+      const breakdown: IndustryTechValue['breakdown'] = [];
+
+      // Find which staff contribute to this industry
+      for (const s of staff) {
+        if (!s.qualificationCode1) continue;
+        const ic1 = s.industryCode1;
+        const ic2 = s.industryCode2;
+        const qc1 = parseInt(s.qualificationCode1);
+        const qc2 = s.qualificationCode2 ? parseInt(s.qualificationCode2) : 0;
+        const lf1 = parseInt(s.lectureFlag1) || 2;
+        const lf2 = parseInt(s.lectureFlag2) || 2;
+        const hasCert = s.hasSupervisorCert;
+
+        if (ic1 === code && QUALIFICATION_MULTIPLIERS[qc1]) {
+          const mult = getEffectiveMultiplier(qc1, lf1, hasCert);
+          breakdown.push({
+            staffName: s.name || `職員#${staff.indexOf(s) + 1}`,
+            qualName: QUALIFICATION_MULTIPLIERS[qc1].name,
+            multiplier: mult,
+          });
+        }
+        if (ic2 === code && qc2 && QUALIFICATION_MULTIPLIERS[qc2]) {
+          const mult = getEffectiveMultiplier(qc2, lf2, hasCert);
+          breakdown.push({
+            staffName: s.name || `職員#${staff.indexOf(s) + 1}`,
+            qualName: QUALIFICATION_MULTIPLIERS[qc2].name,
+            multiplier: mult,
+          });
+        }
       }
 
-      let multiplier2 = 0;
-      let qualName2 = '';
-      if (!isNaN(code2) && QUALIFICATION_MULTIPLIERS[code2]) {
-        multiplier2 = getEffectiveMultiplier(code2, lecture2, s.hasSupervisorCert);
-        qualName2 = QUALIFICATION_MULTIPLIERS[code2].name;
-      }
+      details.push({ code, name, value, breakdown });
+      valuesByName[name] = value;
+    }
 
-      // Use higher multiplier (person can only contribute once per industry)
-      const effectiveMultiplier = Math.max(multiplier1, multiplier2);
+    return { rawValues, details, valuesByName };
+  }, [staff, industryCodeOptions]);
 
-      return {
-        ...s,
-        qualName1,
-        qualName2,
-        multiplier1,
-        multiplier2,
-        effectiveMultiplier,
-      };
-    });
-  }, [staff]);
+  // Notify parent when values change
+  useEffect(() => {
+    onValuesCalculated?.(industryValues.valuesByName, industryValues.details);
+  }, [industryValues, onValuesCalculated]);
 
-  const totalValue = useMemo(() => {
-    const total = staffResults.reduce((sum, s) => sum + s.effectiveMultiplier, 0);
-    onTechValueCalculated?.(total);
-    return total;
-  }, [staffResults, onTechValueCalculated]);
-
-  // Available qualification codes for select
-  const qualOptions = Object.entries(QUALIFICATION_MULTIPLIERS).map(([code, info]) => ({
-    code,
-    label: `${code}: ${info.name}（${info.grade} ×${info.multiplier}）`,
-  }));
+  const hasAnyStaffData = staff.some((s) => s.qualificationCode1);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Users className="h-5 w-5" />
-          技術職員Z値計算
+          別紙二：技術職員名簿から自動計算
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Industry selector */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Label className="text-sm">対象業種:</Label>
-          {Object.keys(INDUSTRY_QUAL_CODES).map((ind) => (
-            <Button
-              key={ind}
-              variant={selectedIndustry === ind ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedIndustry(ind)}
-              className="h-7 text-xs"
-            >
-              {ind}
-            </Button>
-          ))}
-        </div>
-
-        <Separator />
+        {industryCodeOptions.length === 0 && (
+          <p className="text-sm text-amber-600">
+            先にStep 2で業種を入力してください。業種名から対応する資格が表示されます。
+          </p>
+        )}
 
         {/* Staff List */}
         <div className="space-y-3">
-          {staff.map((s, i) => {
-            const result = staffResults[i];
-            return (
-              <div key={s.id} className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground w-6">#{i + 1}</span>
-                  <div className="flex-1">
-                    <Input
-                      placeholder="氏名"
-                      value={s.name}
-                      onChange={(e) => updateStaff(s.id, 'name', e.target.value)}
-                      className="h-7 text-sm"
-                    />
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      result.effectiveMultiplier >= 5
-                        ? 'bg-green-50 text-green-700 border-green-200'
-                        : result.effectiveMultiplier >= 2
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'bg-gray-50 text-gray-700'
+          {staff.map((s, i) => (
+            <div key={s.id} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground w-6">
+                  #{i + 1}
+                </span>
+                <div className="flex-1">
+                  <Input
+                    placeholder="氏名"
+                    value={s.name}
+                    onChange={(e) => updateStaff(s.id, 'name', e.target.value)}
+                    className="h-7 text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={s.hasSupervisorCert}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'hasSupervisorCert', e.target.checked)
                     }
+                    className="h-4 w-4 rounded border-gray-300"
+                    id={`cert-${s.id}`}
+                  />
+                  <label htmlFor={`cert-${s.id}`} className="text-xs">
+                    監理技術者証
+                  </label>
+                </div>
+                {staff.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeStaff(s.id)}
+                    className="h-7 w-7 p-0 text-destructive"
                   >
-                    ×{result.effectiveMultiplier}
-                  </Badge>
-                  {staff.length > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => removeStaff(s.id)} className="h-7 w-7 p-0 text-destructive">
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {/* Qualification 1 */}
-                  <div className="space-y-1 col-span-2">
-                    <Label className="text-xs">資格区分コード1</Label>
-                    <select
-                      value={s.qualificationCode1}
-                      onChange={(e) => updateStaff(s.id, 'qualificationCode1', e.target.value)}
-                      className="w-full h-7 text-xs border rounded px-2 bg-background"
-                    >
-                      <option value="">（選択してください）</option>
-                      {qualOptions.map((q) => (
-                        <option key={q.code} value={q.code}>{q.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">講習受講1</Label>
-                    <select
-                      value={s.lectureFlag1}
-                      onChange={(e) => updateStaff(s.id, 'lectureFlag1', e.target.value)}
-                      className="w-full h-7 text-xs border rounded px-2 bg-background"
-                    >
-                      <option value="1">受講済</option>
-                      <option value="2">未受講</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">監理技術者証</Label>
-                    <div className="flex items-center h-7">
-                      <input
-                        type="checkbox"
-                        checked={s.hasSupervisorCert}
-                        onChange={(e) => updateStaff(s.id, 'hasSupervisorCert', e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                      <span className="ml-2 text-xs">あり</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Qualification 2 (optional) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="space-y-1 col-span-2">
-                    <Label className="text-xs text-muted-foreground">資格区分コード2（任意）</Label>
-                    <select
-                      value={s.qualificationCode2}
-                      onChange={(e) => updateStaff(s.id, 'qualificationCode2', e.target.value)}
-                      className="w-full h-7 text-xs border rounded px-2 bg-background"
-                    >
-                      <option value="">（なし）</option>
-                      {qualOptions.map((q) => (
-                        <option key={q.code} value={q.code}>{q.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">講習受講2</Label>
-                    <select
-                      value={s.lectureFlag2}
-                      onChange={(e) => updateStaff(s.id, 'lectureFlag2', e.target.value)}
-                      className="w-full h-7 text-xs border rounded px-2 bg-background"
-                    >
-                      <option value="1">受講済</option>
-                      <option value="2">未受講</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Result display */}
-                {result.qualName1 && (
-                  <div className="text-xs text-muted-foreground">
-                    {result.qualName1}
-                    {result.multiplier1 === 6 && ' （1級監理受講）'}
-                    {result.qualName2 && ` / ${result.qualName2}`}
-                    → 有効乗数: ×{result.effectiveMultiplier}
-                  </div>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 )}
               </div>
-            );
-          })}
+
+              {/* Industry 1 + Qualification 1 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">業種1</Label>
+                  <select
+                    value={s.industryCode1}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'industryCode1', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="">（選択）</option>
+                    {industryCodeOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.name}({opt.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">資格区分1</Label>
+                  <select
+                    value={s.qualificationCode1}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'qualificationCode1', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="">（選択）</option>
+                    {allQualOptions.map((q) => (
+                      <option key={q.code} value={q.code}>
+                        {q.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">講習受講1</Label>
+                  <select
+                    value={s.lectureFlag1}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'lectureFlag1', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="1">受講済</option>
+                    <option value="2">未受講</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Industry 2 + Qualification 2 (optional) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    業種2（任意）
+                  </Label>
+                  <select
+                    value={s.industryCode2}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'industryCode2', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="">（なし）</option>
+                    {industryCodeOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.name}({opt.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    資格区分2
+                  </Label>
+                  <select
+                    value={s.qualificationCode2}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'qualificationCode2', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="">（なし）</option>
+                    {allQualOptions.map((q) => (
+                      <option key={q.code} value={q.code}>
+                        {q.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    講習受講2
+                  </Label>
+                  <select
+                    value={s.lectureFlag2}
+                    onChange={(e) =>
+                      updateStaff(s.id, 'lectureFlag2', e.target.value)
+                    }
+                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                  >
+                    <option value="1">受講済</option>
+                    <option value="2">未受講</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         <Button variant="outline" size="sm" onClick={addStaff} className="w-full">
@@ -255,28 +370,91 @@ export function TechStaffPanel({ onTechValueCalculated }: TechStaffPanelProps) {
 
         <Separator />
 
-        {/* Summary */}
-        <div className="rounded-lg bg-muted/50 p-4 text-center">
-          <div className="text-xs text-muted-foreground">技術職員数値（{selectedIndustry}）</div>
-          <div className="text-3xl font-bold mt-1">{totalValue}</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {staffResults.filter((s) => s.effectiveMultiplier > 0).length}名 × 各乗数の合計
+        {/* Per-industry summary with breakdown */}
+        {hasAnyStaffData && industryValues.details.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">業種別 技術職員数値（自動計算）</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBreakdown(!showBreakdown)}
+                className="h-6 text-xs"
+              >
+                {showBreakdown ? (
+                  <>
+                    <ChevronUp className="h-3 w-3 mr-1" />
+                    内訳を隠す
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    内訳を表示
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {industryValues.details.map((detail) => (
+              <div
+                key={detail.code}
+                className="rounded-lg bg-muted/50 p-3 space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {detail.name}（{detail.code}）
+                  </span>
+                  <span className="text-lg font-bold">{detail.value}点</span>
+                </div>
+
+                {showBreakdown && detail.breakdown.length > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                    {detail.breakdown.map((b, bi) => (
+                      <div key={bi} className="flex items-center gap-1">
+                        <span>{b.staffName}</span>
+                        <span className="text-muted-foreground/60">-</span>
+                        <span>{b.qualName}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ml-auto ${
+                            b.multiplier >= 5
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : b.multiplier >= 2
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : ''
+                          }`}
+                        >
+                          +{b.multiplier}
+                        </Badge>
+                      </div>
+                    ))}
+                    <div className="border-t mt-1 pt-1 text-right font-medium">
+                      {detail.breakdown.map((b) => b.multiplier).join('+')} ={' '}
+                      {detail.value}点
+                    </div>
+                  </div>
+                )}
+
+                {detail.breakdown.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    該当する技術職員がいません
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="mt-2 flex justify-center gap-4 text-xs">
-            <span className="flex items-center gap-1">
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">×5/6</Badge>
-              {staffResults.filter((s) => s.effectiveMultiplier >= 5).length}名
-            </span>
-            <span className="flex items-center gap-1">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">×2</Badge>
-              {staffResults.filter((s) => s.effectiveMultiplier === 2).length}名
-            </span>
-            <span className="flex items-center gap-1">
-              <Badge variant="outline" className="text-[10px]">×1</Badge>
-              {staffResults.filter((s) => s.effectiveMultiplier === 1).length}名
-            </span>
+        )}
+
+        {!hasAnyStaffData && (
+          <div className="rounded-lg bg-muted/50 p-4 text-center">
+            <Info className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+            <p className="text-xs text-muted-foreground">
+              技術職員の資格情報を入力すると、業種別の技術職員数値が自動計算されます。
+              <br />
+              入力しない場合は、各業種の技術職員数値を手動で入力できます。
+            </p>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

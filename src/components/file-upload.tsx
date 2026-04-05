@@ -71,6 +71,10 @@ interface FileUploadProps {
     rawPL?: ParsedRawPL
   ) => void;
   onClear?: () => void;
+  /** Custom label for the drop zone (default: "決算書ファイルをドロップ、またはクリックして選択") */
+  dropLabel?: string;
+  /** Custom sub-description below the label */
+  dropDescription?: string;
 }
 
 const ACCEPTED_TYPES = [
@@ -82,7 +86,7 @@ const ACCEPTED_TYPES = [
 
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv', '.pdf'];
 
-export function FileUpload({ onDataParsed, onClear }: FileUploadProps) {
+export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -317,7 +321,7 @@ export function FileUpload({ onDataParsed, onClear }: FileUploadProps) {
             <>
               <Upload className="mx-auto h-8 w-8 text-muted-foreground/50" />
               <p className="mt-2 text-sm font-medium">
-                決算書ファイルをドロップ、またはクリックして選択
+                {dropLabel || '決算書ファイルをドロップ、またはクリックして選択'}
               </p>
               <div className="mt-2 flex items-center justify-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
@@ -333,6 +337,9 @@ export function FileUpload({ onDataParsed, onClear }: FileUploadProps) {
                   PDF（OCR対応）
                 </span>
               </div>
+              {dropDescription && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground font-medium">{dropDescription}</p>
+              )}
               <p className="mt-1 text-[10px] text-muted-foreground">
                 ※ ファイルはサーバーで解析後、保存されません。スキャンPDFはOCR処理されます。50MB以下。
               </p>

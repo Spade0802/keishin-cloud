@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import type { ParsedFinancialFields, ParsedRawBS, ParsedRawPL } from '@/componen
 import { FinancialPreview } from '@/components/financial-preview';
 import { WItemsChecklist } from '@/components/w-items-checklist';
 import { TechStaffPanel } from '@/components/tech-staff-panel';
+import type { IndustryTechValue } from '@/components/tech-staff-panel';
 import { ResultView } from '@/components/result-view';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW } from '@/lib/engine/p-calculator';
@@ -59,6 +60,132 @@ interface PrevPeriodData {
   constructionPayable: string;
   inventoryAndMaterials: string;
   advanceReceived: string;
+}
+
+// ---- Industry Codes (建設業許可業種 29種) ----
+
+const INDUSTRY_CODES = [
+  { code: '01', name: '土木一式工事' },
+  { code: '02', name: '建築一式工事' },
+  { code: '03', name: '大工工事' },
+  { code: '04', name: '左官工事' },
+  { code: '05', name: 'とび・土工・コンクリート工事' },
+  { code: '06', name: '石工事' },
+  { code: '07', name: '屋根工事' },
+  { code: '08', name: '電気工事' },
+  { code: '09', name: '管工事' },
+  { code: '10', name: 'タイル・れんが・ブロック工事' },
+  { code: '11', name: '鋼構造物工事' },
+  { code: '12', name: '鉄筋工事' },
+  { code: '13', name: '舗装工事' },
+  { code: '14', name: 'しゅんせつ工事' },
+  { code: '15', name: '板金工事' },
+  { code: '16', name: 'ガラス工事' },
+  { code: '17', name: '塗装工事' },
+  { code: '18', name: '防水工事' },
+  { code: '19', name: '内装仕上工事' },
+  { code: '20', name: '機械器具設置工事' },
+  { code: '21', name: '熱絶縁工事' },
+  { code: '22', name: '電気通信工事' },
+  { code: '23', name: '造園工事' },
+  { code: '24', name: 'さく井工事' },
+  { code: '25', name: '建具工事' },
+  { code: '26', name: '水道施設工事' },
+  { code: '27', name: '消防施設工事' },
+  { code: '28', name: '清掃施設工事' },
+  { code: '29', name: '解体工事' },
+] as const;
+
+function IndustryCodeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    if (!search) return INDUSTRY_CODES;
+    const q = search.toLowerCase();
+    return INDUSTRY_CODES.filter(
+      (item) => item.code.includes(q) || item.name.toLowerCase().includes(q)
+    );
+  }, [search]);
+
+  // Display label for selected value
+  const displayLabel = useMemo(() => {
+    if (!value) return '';
+    const match = INDUSTRY_CODES.find((item) => item.name === value);
+    return match ? `${match.code} - ${match.name}` : value;
+  }, [value]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setSearch(''); }}
+        className="flex items-center justify-between w-full h-8 text-sm border rounded px-2 bg-background hover:bg-muted/50 transition-colors text-left"
+      >
+        <span className={value ? '' : 'text-muted-foreground'}>{value ? displayLabel : '業種を選択'}</span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-64 rounded-md border bg-popover shadow-lg">
+          <div className="p-1.5">
+            <input
+              ref={inputRef}
+              autoFocus
+              type="text"
+              placeholder="コードまたは名前で検索..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-7 text-xs border rounded px-2 bg-background outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted-foreground">該当する業種がありません</div>
+            ) : (
+              filtered.map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  onClick={() => { onChange(item.name); setOpen(false); setSearch(''); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground transition-colors ${
+                    value === item.name ? 'bg-accent/50 font-medium' : ''
+                  }`}
+                >
+                  <span className="font-mono text-muted-foreground mr-1.5">{item.code}</span>
+                  {item.name}
+                </button>
+              ))
+            )}
+          </div>
+          {value && (
+            <div className="border-t p-1.5">
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); setSearch(''); }}
+                className="w-full text-left px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors rounded"
+              >
+                選択をクリア
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---- Step Indicator ----
@@ -192,6 +319,11 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [wScore, setWScore] = useState(0);
   const [externalWItems, setExternalWItems] = useState<Partial<SocialItems> | undefined>(undefined);
 
+  // Step 3: Tech staff auto-calculation
+  const [autoTechValues, setAutoTechValues] = useState<Record<string, number>>({});
+  const [techValueDetails, setTechValueDetails] = useState<IndustryTechValue[]>([]);
+  const [techValueOverrides, setTechValueOverrides] = useState<Record<number, boolean>>({});
+
   // 提出書PDF読込状態
   const [keishinPdfLoaded, setKeishinPdfLoaded] = useState(false);
   const [keishinPdfProcessing, setKeishinPdfProcessing] = useState(false);
@@ -207,6 +339,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [prevFileName, setPrevFileName] = useState<string | null>(null);
   const [prevFileError, setPrevFileError] = useState<string | null>(null);
   const prevFileRef = useRef<HTMLInputElement>(null);
+  // Track which prevData fields were auto-filled from the prev period upload in Step 1
+  const [prevAutoFilledFields, setPrevAutoFilledFields] = useState<Set<string>>(new Set());
+  const [prevPeriodFileLoaded, setPrevPeriodFileLoaded] = useState(false);
 
   // Result
   type ResultType = {
@@ -302,6 +437,57 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setPreviewBS(null);
     setPreviewPL(null);
     setFileLoaded(false);
+  }
+
+  // 前期決算書アップロード（Step 1）のハンドラ
+  function handlePrevFileParsed(data: ParsedFinancialFields) {
+    const filled = new Set<string>();
+    const updated: PrevPeriodData = { ...prevData };
+
+    // totalCapital = BS totalAssets
+    if (data.totalCapital !== undefined) {
+      updated.totalCapital = String(data.totalCapital);
+      filled.add('totalCapital');
+    }
+    // allowanceDoubtful
+    if (data.allowanceDoubtful !== undefined) {
+      updated.allowanceDoubtful = String(data.allowanceDoubtful);
+      filled.add('allowanceDoubtful');
+    }
+    // notesAndReceivable = notesReceivable + accountsReceivableConstruction
+    if (data.notesAndReceivable !== undefined) {
+      updated.notesAndReceivable = String(data.notesAndReceivable);
+      filled.add('notesAndReceivable');
+    }
+    // constructionPayable
+    if (data.constructionPayable !== undefined) {
+      updated.constructionPayable = String(data.constructionPayable);
+      filled.add('constructionPayable');
+    }
+    // inventoryAndMaterials = wipConstruction + materialInventory
+    if (data.inventoryAndMaterials !== undefined) {
+      updated.inventoryAndMaterials = String(data.inventoryAndMaterials);
+      filled.add('inventoryAndMaterials');
+    }
+    // advanceReceived
+    if (data.advanceReceived !== undefined) {
+      updated.advanceReceived = String(data.advanceReceived);
+      filled.add('advanceReceived');
+    }
+    // operatingCF: 前々期データが必要なため自動計算不可、0に設定
+    // (前期のPLデータだけでは営業CFは算出できない)
+    if (!updated.operatingCF) {
+      updated.operatingCF = '0';
+    }
+
+    setPrevData(updated);
+    setPrevAutoFilledFields(filled);
+    setPrevPeriodFileLoaded(true);
+  }
+
+  function handlePrevFileClear() {
+    setPrevAutoFilledFields(new Set());
+    setPrevPeriodFileLoaded(false);
   }
 
   // Previous period file upload handler
@@ -545,6 +731,46 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setWScore(w);
   }, []);
 
+  // Callback from TechStaffPanel: auto-fill techStaffValue per industry
+  const handleTechValuesCalculated = useCallback(
+    (values: Record<string, number>, details: IndustryTechValue[]) => {
+      setAutoTechValues(values);
+      setTechValueDetails(details);
+
+      // Auto-fill industry techStaffValue fields (unless user has manually overridden)
+      setIndustries((prev) =>
+        prev.map((ind, i) => {
+          if (techValueOverrides[i]) return ind; // User override -- don't touch
+          const autoVal = values[ind.name];
+          if (autoVal !== undefined && autoVal > 0) {
+            return { ...ind, techStaffValue: String(autoVal) };
+          }
+          return ind;
+        })
+      );
+    },
+    [techValueOverrides]
+  );
+
+  // Mark an industry's techStaffValue as manually overridden
+  function handleTechStaffManualEdit(index: number, value: string) {
+    setTechValueOverrides((prev) => ({ ...prev, [index]: true }));
+    updateIndustry(index, 'techStaffValue', value);
+  }
+
+  // Reset override for an industry (re-use auto-calculated value)
+  function resetTechStaffOverride(index: number) {
+    const autoVal = autoTechValues[industries[index]?.name];
+    setTechValueOverrides((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+    if (autoVal !== undefined) {
+      updateIndustry(index, 'techStaffValue', String(autoVal));
+    }
+  }
+
   return (
     <div className="space-y-6">
       {step <= 4 && <StepIndicator current={step} />}
@@ -557,13 +783,51 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             決算書Excelをアップロードすると、BS/PLの数値を自動読取します。手入力も可能です。
           </p>
 
-          <FileUpload onDataParsed={handleFileParsed} onClear={handleFileClear} />
+          {/* 当期 / 前期 アップロードエリア */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 当期決算書 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">当期決算書</h3>
+                {basicInfo.periodNumber && <Badge variant="secondary" className="text-xs">{basicInfo.periodNumber}</Badge>}
+                {fileLoaded && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    <CheckCircle className="mr-1 h-3 w-3" />読取済み
+                  </Badge>
+                )}
+              </div>
+              <FileUpload onDataParsed={handleFileParsed} onClear={handleFileClear} />
+            </div>
 
-          {fileLoaded && (
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <CheckCircle className="mr-1 h-3 w-3" />データ読取済み
-            </Badge>
-          )}
+            {/* 前期決算書 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">前期決算書（任意）</h3>
+                {prevPeriodFileLoaded && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    <CheckCircle className="mr-1 h-3 w-3" />読取済み
+                  </Badge>
+                )}
+              </div>
+              <FileUpload
+                onDataParsed={handlePrevFileParsed}
+                onClear={handlePrevFileClear}
+                dropLabel="前期の決算書ファイルをドロップ、またはクリックして選択"
+                dropDescription="Step 4の前期データを自動入力します"
+              />
+              {prevPeriodFileLoaded && prevAutoFilledFields.size > 0 && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                  前期BS {prevAutoFilledFields.size}項目を自動読取 → Step 4に反映済み
+                </div>
+              )}
+              {prevPeriodFileLoaded && (
+                <p className="text-[10px] text-amber-600">
+                  ※ 前期の営業CFは前々期データが必要なため自動計算できません。Step 4で手入力してください。
+                </p>
+              )}
+            </div>
+          </div>
 
           {/* BS/PLプレビュー */}
           {(previewBS || previewPL) && (
@@ -752,9 +1016,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               {industries.map((ind, i) => (
                 <div key={i} className="rounded-lg border p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="space-y-1 w-24">
+                    <div className="space-y-1 w-48">
                       <Label className="text-xs">業種名</Label>
-                      <Input value={ind.name} onChange={(e) => updateIndustry(i, 'name', e.target.value)} className="text-sm h-8" placeholder="電気" />
+                      <IndustryCodeSelect value={ind.name} onChange={(v) => updateIndustry(i, 'name', v)} />
                     </div>
                     <div className="space-y-1 w-20">
                       <Label className="text-xs">許可</Label>
@@ -774,7 +1038,42 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     {numField('当年度元請完工高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v))}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {numField('技術職員数値', ind.techStaffValue, (v) => updateIndustry(i, 'techStaffValue', v), '点')}
+                    <div className="space-y-1">
+                      {numField(
+                        '技術職員数値',
+                        ind.techStaffValue,
+                        (v) => handleTechStaffManualEdit(i, v),
+                        '点',
+                        undefined,
+                        autoTechValues[ind.name] !== undefined && !techValueOverrides[i] ? 'auto-filled' : undefined
+                      )}
+                      {/* Show breakdown when auto-calculated */}
+                      {(() => {
+                        const detail = techValueDetails.find((d) => d.name === ind.name);
+                        if (detail && detail.breakdown.length > 0) {
+                          return (
+                            <div className="text-[10px] text-muted-foreground bg-muted/30 rounded px-2 py-1 mt-0.5">
+                              <span className="font-medium">内訳: </span>
+                              {detail.breakdown.map((b) => `${b.staffName}(x${b.multiplier})`).join(' + ')}
+                              {' = '}
+                              {detail.breakdown.map((b) => b.multiplier).join('+')}
+                              {'='}
+                              {detail.value}点
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {techValueOverrides[i] && autoTechValues[ind.name] !== undefined && (
+                        <button
+                          type="button"
+                          onClick={() => resetTechStaffOverride(i)}
+                          className="text-[10px] text-primary hover:underline"
+                        >
+                          自動計算値({autoTechValues[ind.name]}点)に戻す
+                        </button>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground self-end pb-2">
                       2年平均完工高: {Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2).toLocaleString()}千円
                     </div>
@@ -794,6 +1093,12 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           <p className="text-sm text-muted-foreground">
             別紙二（技術職員名簿）と別紙三（社会性等W項目）を入力します。
           </p>
+
+          {/* 別紙二: 技術職員名簿 → 業種別技術職員数値の自動計算 */}
+          <TechStaffPanel
+            industryNames={industries.filter((ind) => ind.name).map((ind) => ind.name)}
+            onValuesCalculated={handleTechValuesCalculated}
+          />
 
           {/* 経審提出書PDF: 未読込ならアップロード欄、読込済みなら反映状況を表示 */}
           {!keishinPdfLoaded ? (
@@ -875,7 +1180,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         <div className="space-y-4">
           <h2 className="text-lg font-bold">Step 4: 前期データ確認</h2>
           <p className="text-sm text-muted-foreground">
-            Y点の営業CF計算に前期の経審用BS千円値が必要です。ファイルアップロードまたは手入力してください。
+            Y点の営業CF計算に前期の経審用BS千円値が必要です。
+            {prevPeriodFileLoaded
+              ? 'Step 1で前期決算書をアップロード済みのため、自動入力されています。内容を確認・修正してください。'
+              : 'ファイルアップロードまたは手入力してください。Step 1でも前期決算書をアップロードできます。'}
           </p>
 
           {/* Previous period file upload */}
@@ -919,15 +1227,24 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">前期（経審用BS千円値）</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                前期（経審用BS千円値）
+                {prevPeriodFileLoaded && prevAutoFilledFields.size > 0 && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
+                    <CheckCircle className="mr-1 h-3 w-3" />Step 1で{prevAutoFilledFields.size}項目を自動入力済み
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
             <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {numField('前期 資産合計（総資本）', prevData.totalCapital, (v) => setPrevData({ ...prevData, totalCapital: v }))}
-              {numField('前期 営業CF', prevData.operatingCF, (v) => setPrevData({ ...prevData, operatingCF: v }), '千円', '前期③があれば。なければ前期BSから再計算')}
-              {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }))}
-              {numField('前期 受取手形+完成工事未収入金', prevData.notesAndReceivable, (v) => setPrevData({ ...prevData, notesAndReceivable: v }))}
-              {numField('前期 工事未払金', prevData.constructionPayable, (v) => setPrevData({ ...prevData, constructionPayable: v }), '千円', '未払経費を含めない')}
-              {numField('前期 未成工事支出金+材料貯蔵品', prevData.inventoryAndMaterials, (v) => setPrevData({ ...prevData, inventoryAndMaterials: v }))}
-              {numField('前期 未成工事受入金', prevData.advanceReceived, (v) => setPrevData({ ...prevData, advanceReceived: v }))}
+              {numField('前期 資産合計（総資本）', prevData.totalCapital, (v) => setPrevData({ ...prevData, totalCapital: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 営業CF', prevData.operatingCF, (v) => setPrevData({ ...prevData, operatingCF: v }), '千円', '前期③があれば。なければ前期BSから再計算', prevPeriodFileLoaded ? 'needs-input' : undefined)}
+              {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 受取手形+完成工事未収入金', prevData.notesAndReceivable, (v) => setPrevData({ ...prevData, notesAndReceivable: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 工事未払金', prevData.constructionPayable, (v) => setPrevData({ ...prevData, constructionPayable: v }), '千円', '未払経費を含めない', prevPeriodFileLoaded ? (prevAutoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 未成工事支出金+材料貯蔵品', prevData.inventoryAndMaterials, (v) => setPrevData({ ...prevData, inventoryAndMaterials: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 未成工事受入金', prevData.advanceReceived, (v) => setPrevData({ ...prevData, advanceReceived: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined)}
             </CardContent>
           </Card>
 
