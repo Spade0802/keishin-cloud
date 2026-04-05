@@ -37,6 +37,7 @@ const ResultView = dynamic(() => import('@/components/result-view').then(mod => 
 import { ExtractionProgress } from '@/components/extraction-progress';
 import { OnboardingCallout } from '@/components/onboarding-guide';
 import { HelpPanel } from '@/components/help-panel';
+import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help';
 import { calculateY } from '@/lib/engine/y-calculator';
 import { calculateP, calculateX2, calculateZ, calculateW, calculateX1WithAverage } from '@/lib/engine/p-calculator';
 import { lookupScore, X1_TABLE, X21_TABLE, X22_TABLE, Z1_TABLE, Z2_TABLE } from '@/lib/engine/score-tables';
@@ -2325,6 +2326,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         ※ 本試算は参考値であり、公式の経営事項審査結果通知書ではありません。
       </p>
 
+      <KeyboardShortcutsHelp />
       <HelpPanel currentStep={step} />
     </div>
   );
