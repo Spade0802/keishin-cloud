@@ -1274,8 +1274,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             <CardContent className="space-y-4">
               {industries.map((ind, i) => (
                 <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="space-y-1 w-48">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="space-y-1 w-full sm:w-48">
                       <Label className="text-xs">業種名</Label>
                       <IndustryCodeSelect value={ind.name} onChange={(v) => updateIndustry(i, 'name', v)} />
                     </div>

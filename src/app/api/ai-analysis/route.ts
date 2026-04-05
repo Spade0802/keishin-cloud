@@ -19,27 +19,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // レート制限チェック（1 ユーザーあたり 1 時間 10 リクエスト）
   const userId = session.user.id;
-  const rateLimitCheck = aiAnalysisLimiter.check(userId);
-
-  if (!rateLimitCheck.allowed) {
-    return NextResponse.json(
-      { error: 'AI分析の利用制限に達しました。しばらくしてから再度お試しください。' },
-      {
-        status: 429,
-        headers: {
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': rateLimitCheck.resetAt.toISOString(),
-          'Retry-After': String(
-            Math.ceil((rateLimitCheck.resetAt.getTime() - Date.now()) / 1000),
-          ),
-        },
-      },
-    );
-  }
-
-  aiAnalysisLimiter.consume(userId);
 
   let body: AnalysisInput;
   try {
@@ -58,7 +38,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── キャッシュチェック ──
+  // ── キャッシュチェック（トークン消費前） ──
   const inputHash = generateInputHash(body);
   const cached = getCachedAnalysis(inputHash);
 
@@ -71,6 +51,25 @@ export async function POST(req: NextRequest) {
           'X-Cache': 'HIT',
           'X-RateLimit-Remaining': String(afterCheck.remaining),
           'X-RateLimit-Reset': afterCheck.resetAt.toISOString(),
+        },
+      },
+    );
+  }
+
+  // レート制限チェック＋消費を単一 consume() で実行（TOCTOU 防止）
+  const consumed = aiAnalysisLimiter.consume(userId);
+  if (!consumed) {
+    const rateLimitCheck = aiAnalysisLimiter.check(userId);
+    return NextResponse.json(
+      { error: 'AI分析の利用制限に達しました。しばらくしてから再度お試しください。' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimitCheck.resetAt.toISOString(),
+          'Retry-After': String(
+            Math.ceil((rateLimitCheck.resetAt.getTime() - Date.now()) / 1000),
+          ),
         },
       },
     );

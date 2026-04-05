@@ -310,7 +310,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'industryCode1', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="">（選択）</option>
                     {industryCodeOptions.map((opt) => (
@@ -327,7 +327,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'qualificationCode1', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="">（選択）</option>
                     {allQualOptions.map((q) => (
@@ -344,7 +344,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'lectureFlag1', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="1">受講済</option>
                     <option value="2">未受講</option>
@@ -363,7 +363,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'industryCode2', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="">（なし）</option>
                     {industryCodeOptions.map((opt) => (
@@ -382,7 +382,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'qualificationCode2', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="">（なし）</option>
                     {allQualOptions.map((q) => (
@@ -401,7 +401,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
                     onChange={(e) =>
                       updateStaff(s.id, 'lectureFlag2', e.target.value)
                     }
-                    className="w-full h-7 text-xs border rounded px-2 bg-background"
+                    className="w-full h-9 sm:h-7 text-xs border rounded px-2 bg-background"
                   >
                     <option value="1">受講済</option>
                     <option value="2">未受講</option>
