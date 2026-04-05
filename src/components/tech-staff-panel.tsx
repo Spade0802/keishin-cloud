@@ -10,9 +10,12 @@ import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, Users, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import {
   QUALIFICATION_MULTIPLIERS,
-  calculateTechStaffValueByIndustry,
   getEffectiveMultiplier,
 } from '@/lib/engine/score-tables';
+import {
+  calculateTechStaffValues,
+  convertLegacyStaffToExtracted,
+} from '@/lib/engine/tech-staff-calculator';
 
 // ---- Industry name <-> 2-digit code mapping ----
 
@@ -180,6 +183,7 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
     const staffForCalc = staff
       .filter((s) => s.industryCode1 && s.qualificationCode1)
       .map((s) => ({
+        name: s.name || `staff-${Math.random()}`,
         industryCode1: parseInt(s.industryCode1),
         qualificationCode1: parseInt(s.qualificationCode1),
         lectureFlag1: parseInt(s.lectureFlag1) || 2,
@@ -191,7 +195,8 @@ export function TechStaffPanel({ industryNames, onValuesCalculated, externalStaf
         supervisorCertNumber: s.hasSupervisorCert ? 'YES' : undefined,
       }));
 
-    const rawValues = calculateTechStaffValueByIndustry(staffForCalc);
+    const extracted = convertLegacyStaffToExtracted(staffForCalc);
+    const rawValues = calculateTechStaffValues(extracted).industryTotals;
 
     // Build detailed breakdown per industry
     const details: IndustryTechValue[] = [];

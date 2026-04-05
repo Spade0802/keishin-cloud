@@ -75,7 +75,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
               {[
-                { label: '完全無料', value: '¥0' },
+                { label: '無料で始められる', value: '¥0〜' },
                 { label: '登録不要', value: '即試算' },
                 { label: '対応業種', value: '全29業種' },
                 { label: 'インストール', value: '不要' },

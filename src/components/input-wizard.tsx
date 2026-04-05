@@ -1108,7 +1108,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 <div className="rounded-lg border border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20 p-4 space-y-3">
                   <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">損益計算書（P&L）</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', undefined, fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', '経審様式第25号の14 別紙一', fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('売上総利益', grossProfit, setGrossProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('grossProfit') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('経常利益', ordinaryProfit, setOrdinaryProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('ordinaryProfit') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('支払利息', interestExpense, setInterestExpense, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestExpense') ? 'auto-filled' : 'needs-input') : undefined)}
@@ -1123,7 +1123,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                     {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('総資本（総資産）', totalCapital, setTotalCapital, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', undefined, fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
+                    {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', '財務諸表 貸借対照表の純資産の部', fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('貸倒引当金（絶対値）', allowanceDoubtful, setAllowanceDoubtful, '千円', undefined, fileLoaded ? (autoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
@@ -1323,7 +1323,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           <Card>
             <CardHeader><CardTitle className="text-base">続紙：X2用データ（千円）</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
-              {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '提出書の続紙に記載')}
+              {numField('利払後事業利益額（X22用 2期平均）', ebitda, (v) => { setEbitda(v); extractedData.markUserEdited('ebitda'); }, '千円', '営業利益＋減価償却費（提出書の続紙に記載）')}
               <div className="text-xs text-muted-foreground self-end pb-2">
                 ※ X21は「純資産合計」（Step1で入力済み）から自動算出
               </div>

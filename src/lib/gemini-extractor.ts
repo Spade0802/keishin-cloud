@@ -1108,7 +1108,12 @@ async function extractTechStaffWithPageSplit(
   try {
     return await callTechStaffGemini(model, fullPdfPart);
   } catch (e) {
-    console.warn('[Tech Staff] extraction failed:', e);
+    const typed = GeminiExtractionError.fromError(e);
+    console.error(`[Tech Staff] extraction failed [${typed.type}]:`, typed.message);
+    // Re-throw critical errors (auth/config issues); return null only for extraction failures
+    if (typed.type === 'ai_unavailable' || typed.type === 'rate_limited') {
+      throw typed;
+    }
     return null;
   }
 }
@@ -1166,8 +1171,9 @@ async function callTechStaffGemini(
       totalStaffCount: calcResult.totalStaffCount,
     };
   } catch (e) {
-    console.warn('[Tech Staff] callTechStaffGemini failed:', e);
-    return null;
+    const typed = GeminiExtractionError.fromError(e);
+    console.error(`[Tech Staff] callTechStaffGemini failed [${typed.type}]:`, typed.message);
+    throw typed;
   }
 }
 
