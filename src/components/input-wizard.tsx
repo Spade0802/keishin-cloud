@@ -481,7 +481,12 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [stepErrorField, setStepErrorField] = useState<string | null>(null);
+  const [calculating, setCalculating] = useState(false);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
+
+  // Ref for scrolling to top on step change
+  const wizardTopRef = useRef<HTMLDivElement>(null);
 
   // ---- Auto-save / Restore ----
   const [restoreBannerDismissed, setRestoreBannerDismissed] = useState(false);
@@ -558,7 +563,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   // Clear step validation error when user types in the sales field
   function handleSalesChange(v: string) {
     setSales(v);
-    if (stepError) setStepError(null);
+    if (stepError) { setStepError(null); setStepErrorField(null); }
   }
 
   function validateStep(current: number): boolean {
@@ -566,23 +571,28 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const salesNum = parseFloat(sales);
       if (!sales || isNaN(salesNum) || salesNum <= 0) {
         setStepError('完成工事高（売上高）は必須です。0より大きい値を入力してください。');
+        setStepErrorField('sales');
         return false;
       }
       const tc = num(totalCapital);
       if (tc <= 0) {
         setStepError('総資本（総資産）は必須です。0より大きい値を入力してください。Y点の計算に必要です。');
+        setStepErrorField('totalCapital');
         return false;
       }
       setStepError(null);
+      setStepErrorField(null);
       return true;
     }
     if (current === 2) {
       const validIndustries = industries.filter((ind) => ind.name && num(ind.currCompletion) > 0);
       if (validIndustries.length === 0) {
         setStepError('業種を1つ以上入力してください。業種名と当年度完工高（0より大きい値）が必要です。');
+        setStepErrorField('industries');
         return false;
       }
       setStepError(null);
+      setStepErrorField(null);
       return true;
     }
     return true;
@@ -591,6 +601,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   function handleNextStep() {
     if (validateStep(step)) {
       setStep(step + 1);
+      // Scroll to top of the wizard when navigating between steps
+      requestAnimationFrame(() => {
+        wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     }
   }
 
@@ -898,6 +912,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   // Calculate
   function handleCalculate() {
     setError(null);
+    setCalculating(true);
     try {
       const yInput: YInput = {
         sales: num(sales), grossProfit: num(grossProfit), ordinaryProfit: num(ordinaryProfit),
@@ -984,6 +999,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       saveSimulation(inputDataPayload, resultObj);
     } catch (e) {
       setError(e instanceof Error ? e.message : '計算中にエラーが発生しました。');
+    } finally {
+      setCalculating(false);
     }
   }
 
@@ -1069,6 +1086,18 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     }
   }
 
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      // Only warn if the wizard has data and hasn't been submitted yet
+      if (step <= 4 && !isWizardEmpty(wizardSnapshot)) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [step, wizardSnapshot]);
+
   // FEATURE-2: Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -1089,7 +1118,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   }, [step]);
 
   return (
-    <div className="space-y-6">
+    <div ref={wizardTopRef} className="space-y-6">
       {/* Restore banner */}
       {showRestoreBanner && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3">
@@ -1201,7 +1230,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 <div className="rounded-lg border border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20 p-4 space-y-3">
                   <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">損益計算書（P&L）</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', '経審様式第25号の14 別紙一', fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
+                    <div>
+                      {numField('完成工事高（売上高）', sales, handleSalesChange, '千円', '経審様式第25号の14 別紙一', fileLoaded ? (autoFilledFields.has('sales') ? 'auto-filled' : 'needs-input') : undefined)}
+                      {stepErrorField === 'sales' && <p className="text-xs text-destructive mt-1">{stepError}</p>}
+                    </div>
                     {numField('売上総利益', grossProfit, setGrossProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('grossProfit') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('経常利益', ordinaryProfit, setOrdinaryProfit, '千円', undefined, fileLoaded ? (autoFilledFields.has('ordinaryProfit') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('支払利息', interestExpense, setInterestExpense, '千円', undefined, fileLoaded ? (autoFilledFields.has('interestExpense') ? 'auto-filled' : 'needs-input') : undefined)}
@@ -1215,7 +1247,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {numField('流動負債合計', currentLiabilities, setCurrentLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('currentLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定負債合計', fixedLiabilities, setFixedLiabilities, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedLiabilities') ? 'auto-filled' : 'needs-input') : undefined)}
-                    {numField('総資本（総資産）', totalCapital, setTotalCapital, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+                    <div>
+                      {numField('総資本（総資産）', totalCapital, (v) => { setTotalCapital(v); if (stepErrorField === 'totalCapital') { setStepError(null); setStepErrorField(null); } }, '千円', undefined, fileLoaded ? (autoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+                      {stepErrorField === 'totalCapital' && <p className="text-xs text-destructive mt-1">{stepError}</p>}
+                    </div>
                     {numField('純資産合計', equity, (v) => { setEquity(v); extractedData.markUserEdited('equity'); }, '千円', '財務諸表 貸借対照表の純資産の部', fileLoaded ? (autoFilledFields.has('equity') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('固定資産合計', fixedAssets, setFixedAssets, '千円', undefined, fileLoaded ? (autoFilledFields.has('fixedAssets') ? 'auto-filled' : 'needs-input') : undefined)}
                     {numField('利益剰余金合計', retainedEarnings, setRetainedEarnings, '千円', undefined, fileLoaded ? (autoFilledFields.has('retainedEarnings') ? 'auto-filled' : 'needs-input') : undefined)}
@@ -1445,7 +1480,10 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">別紙一：業種別完成工事高（千円）</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">別紙一：業種別完成工事高（千円）</CardTitle>
+              {stepErrorField === 'industries' && <p className="text-xs text-destructive mt-1">{stepError}</p>}
+            </CardHeader>
             <CardContent className="space-y-4">
               {industries.map((ind, i) => (
                 <div key={i} className="rounded-lg border p-3 space-y-2">
@@ -1866,12 +1904,12 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         {step > 1 && step <= 4 && (
-          <Button variant="outline" onClick={() => { setStepError(null); setStep(step - 1); }}>
+          <Button variant="outline" onClick={() => { setStepError(null); setStepErrorField(null); setStep(step - 1); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />戻る
           </Button>
         )}
         {step === 5 && (
-          <Button variant="outline" onClick={() => setStep(4)}>
+          <Button variant="outline" onClick={() => { setStep(4); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />入力に戻る
           </Button>
         )}
@@ -1882,9 +1920,18 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </Button>
           )}
           {step === 4 && (
-            <Button size="lg" onClick={handleCalculate} className="px-12">
-              <Calculator className="mr-2 h-5 w-5" />
-              試算実行
+            <Button size="lg" onClick={handleCalculate} disabled={calculating} className="px-12">
+              {calculating ? (
+                <>
+                  <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  処理中...
+                </>
+              ) : (
+                <>
+                  <Calculator className="mr-2 h-5 w-5" />
+                  試算実行
+                </>
+              )}
             </Button>
           )}
         </div>
