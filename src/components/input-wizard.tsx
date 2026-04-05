@@ -1117,6 +1117,19 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // Focus management: move focus to the step heading on step change for keyboard navigation
+  useEffect(() => {
+    if (step <= 4) {
+      requestAnimationFrame(() => {
+        const heading = wizardTopRef.current?.querySelector<HTMLElement>('h2');
+        if (heading) {
+          heading.setAttribute('tabindex', '-1');
+          heading.focus({ preventScroll: true });
+        }
+      });
+    }
+  }, [step]);
+
   return (
     <div ref={wizardTopRef} className="space-y-6">
       {/* Restore banner */}

@@ -131,7 +131,8 @@
 
 @media print {
   header, footer, nav,
-  [data-print-hide] {
+  [data-print-hide],
+  [data-slot="tooltip-content"] {
     display: none !important;
   }
   body {
@@ -139,7 +140,21 @@
     color: black !important;
     font-size: 10pt;
   }
+  * {
+    box-shadow: none !important;
+  }
   .print\:break-before-page {
     break-before: page;
+  }
+  /* Ensure cards and tables don't break mid-content */
+  [data-slot="card"], table, .space-y-4 > * {
+    break-inside: avoid;
+  }
+  /* Make tab content visible for printing */
+  [role="tablist"] {
+    display: none !important;
+  }
+  [role="tabpanel"][data-state="active"] {
+    display: block !important;
   }
 }

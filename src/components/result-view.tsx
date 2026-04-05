@@ -20,7 +20,15 @@ import {
   Sparkles,
   SlidersHorizontal,
   Loader2,
+  Printer,
+  Info,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 import { showToast } from '@/components/ui/toast';
 import { YRadarChart } from '@/components/y-radar-chart';
 import { KeishinBSTable } from '@/components/keishin-bs-table';
@@ -254,26 +262,32 @@ export function ResultView(props: ResultViewProps) {
             試算版
           </Badge>
         </div>
-        {!readOnly && (
-          <div className="flex gap-2" data-print-hide>
-            <Button onClick={handleDownloadExcel} variant="outline" disabled={excelLoading}>
-              {excelLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
-              )}
-              Excel
-            </Button>
-            <Button onClick={handleDownloadPDF} variant="outline" disabled={pdfLoading}>
-              {pdfLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="mr-2 h-4 w-4" />
-              )}
-              PDFエクスポート
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2" data-print-hide>
+          {!readOnly && (
+            <>
+              <Button onClick={handleDownloadExcel} variant="outline" disabled={excelLoading}>
+                {excelLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                )}
+                Excel
+              </Button>
+              <Button onClick={handleDownloadPDF} variant="outline" disabled={pdfLoading}>
+                {pdfLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="mr-2 h-4 w-4" />
+                )}
+                PDFエクスポート
+              </Button>
+            </>
+          )}
+          <Button onClick={() => window.print()} variant="outline">
+            <Printer className="mr-2 h-4 w-4" />
+            印刷
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -281,20 +295,34 @@ export function ResultView(props: ResultViewProps) {
       </p>
 
       {/* P Score Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {industries.map((ind) => (
-          <Card key={ind.name} className="text-center">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">{ind.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-primary">{ind.P}</div>
-              <div className="text-xs text-muted-foreground mt-1">P点</div>
-              {ind.prevP !== undefined && <DiffBadge prev={ind.prevP} curr={ind.P} />}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <TooltipProvider>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {industries.map((ind) => (
+            <Card key={ind.name} className="text-center">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">{ind.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tooltip>
+                  <TooltipTrigger className="cursor-help inline-flex items-center gap-1">
+                    <div className="text-4xl font-bold text-primary">{ind.P}</div>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-left">
+                    <p className="font-medium mb-1">P点の計算式</p>
+                    <p>P = X1(完工高)x0.25 + X2(自己資本等)x0.15 + Y(経営状況)x0.20 + Z(技術力)x0.25 + W(社会性)x0.15</p>
+                    <p className="mt-1 text-[10px] opacity-80">
+                      5つの評点を重み付けして合計した総合評定値です。公共工事の入札参加資格に使用されます。
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                <div className="text-xs text-muted-foreground mt-1">P点</div>
+                {ind.prevP !== undefined && <DiffBadge prev={ind.prevP} curr={ind.P} />}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </TooltipProvider>
 
       {/* Common Scores Bar */}
       <div className="flex flex-wrap gap-4 justify-center text-center">

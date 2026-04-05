@@ -15,12 +15,14 @@ interface ExtractionProgressProps {
 
 const STAGES: { threshold: number; text: string }[] = [
   { threshold: 0, text: 'PDFを読み込んでいます...' },
-  { threshold: 10, text: '基本情報を抽出中...' },
-  { threshold: 30, text: '業種データを読み取り中...' },
+  { threshold: 8, text: 'PDFを解析中...' },
+  { threshold: 20, text: '基本情報を抽出中...' },
+  { threshold: 35, text: '業種データを読み取り中...' },
   { threshold: 50, text: '社会性項目を解析中...' },
-  { threshold: 70, text: '技術職員データを処理中...' },
-  { threshold: 85, text: 'AI分析を実行中...' },
-  { threshold: 95, text: '結果を整理中...' },
+  { threshold: 65, text: '技術職員データを処理中...' },
+  { threshold: 78, text: 'データを検証中...' },
+  { threshold: 88, text: 'フォームに反映中...' },
+  { threshold: 95, text: '完了処理中...' },
 ];
 
 function getStageText(progress: number): string {
