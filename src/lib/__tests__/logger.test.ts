@@ -83,7 +83,7 @@ describe('logger (production mode - suppresses debug and info)', () => {
   it('suppresses debug and info in production', async () => {
     const origNodeEnv = process.env.NODE_ENV;
     const origLogLevel = process.env.LOG_LEVEL;
-    process.env.NODE_ENV = 'production';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     delete process.env.LOG_LEVEL;
 
     try {
@@ -100,7 +100,7 @@ describe('logger (production mode - suppresses debug and info)', () => {
       logger.error('error');
       expect(console.error).toHaveBeenCalledWith('[ERROR]', 'error');
     } finally {
-      process.env.NODE_ENV = origNodeEnv;
+      (process.env as Record<string, string | undefined>).NODE_ENV = origNodeEnv;
       if (origLogLevel !== undefined) {
         process.env.LOG_LEVEL = origLogLevel;
       } else {
@@ -112,7 +112,7 @@ describe('logger (production mode - suppresses debug and info)', () => {
   it('respects explicit LOG_LEVEL=error even in development', async () => {
     const origNodeEnv = process.env.NODE_ENV;
     const origLogLevel = process.env.LOG_LEVEL;
-    process.env.NODE_ENV = 'development';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'error';
 
     try {
@@ -128,7 +128,7 @@ describe('logger (production mode - suppresses debug and info)', () => {
       logger.error('yes');
       expect(console.error).toHaveBeenCalledWith('[ERROR]', 'yes');
     } finally {
-      process.env.NODE_ENV = origNodeEnv;
+      (process.env as Record<string, string | undefined>).NODE_ENV = origNodeEnv;
       if (origLogLevel !== undefined) {
         process.env.LOG_LEVEL = origLogLevel;
       } else {
