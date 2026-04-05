@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { sanitizeString } from '@/lib/security';
 
 /** POST /api/organizations — 法人を作成してユーザーに紐づけ */
 export async function POST(req: NextRequest) {
@@ -20,9 +21,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, permitNumber } = body;
+  const name = sanitizeString(body.name, 200);
+  const permitNumber = sanitizeString(body.permitNumber, 50);
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+  if (!name) {
     return NextResponse.json(
       { error: '法人名は必須です' },
       { status: 400 }
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
     const [org] = await tx
       .insert(organizations)
       .values({
-        name: name.trim(),
+        name,
         permitNumber: permitNumber || null,
       })
       .returning();

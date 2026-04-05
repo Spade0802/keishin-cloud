@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { simulations } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { sanitizeString } from '@/lib/security';
 
 /** GET /api/simulations — 法人のシミュレーション一覧（法人未設定ならユーザー個人） */
 export async function GET() {
@@ -38,7 +39,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, inputData, resultData, period } = body;
+  const name = sanitizeString(body.name, 200) || '無題のシミュレーション';
+  const period = sanitizeString(body.period, 50);
+  const { inputData, resultData } = body;
 
   if (!inputData) {
     return NextResponse.json({ error: '入力データが必要です' }, { status: 400 });
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     .values({
       organizationId: session.user.organizationId ?? null,
       userId: session.user.id,
-      name: name || '無題のシミュレーション',
+      name,
       period: period || null,
       inputData,
       resultData,
@@ -67,7 +70,9 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { id, name, inputData, resultData, period } = body;
+  const { id, inputData, resultData } = body;
+  const name = sanitizeString(body.name, 200);
+  const period = sanitizeString(body.period, 50);
 
   if (!id) {
     return NextResponse.json({ error: 'IDが必要です' }, { status: 400 });

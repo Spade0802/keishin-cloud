@@ -7,6 +7,7 @@ import {
   Z1_TABLE,
   Z2_TABLE,
   getEffectiveMultiplier,
+  type Bracket,
 } from '@/lib/engine/score-tables';
 import {
   calculateTechStaffValues,
@@ -155,4 +156,72 @@ describe('calculateTechStaffValues via convertLegacyStaffToExtracted（別紙二
     expect(result['08']).toBe(5);
     expect(result['8']).toBeUndefined();
   });
+});
+
+// ─── テーブル整合性テスト ─────────────────────────────────
+
+describe('テーブル整合性: ブラケット内でスコアが減少しない', () => {
+  const tables: [string, Bracket[]][] = [
+    ['X1_TABLE', X1_TABLE],
+    ['X21_TABLE', X21_TABLE],
+    ['X22_TABLE', X22_TABLE],
+    ['Z1_TABLE', Z1_TABLE],
+    ['Z2_TABLE', Z2_TABLE],
+  ];
+
+  for (const [name, brackets] of tables) {
+    describe(name, () => {
+      test('各ブラケット内で min のスコア <= max-1 のスコア', () => {
+        for (const bracket of brackets) {
+          // -Infinity や Infinity のブラケットはスキップ（定数スコアの場合が多い）
+          if (bracket.min === -Infinity || bracket.max === Infinity) continue;
+
+          const scoreAtMin = lookupScore(brackets, bracket.min);
+          // max - 1 は「このブラケットの最後の整数値」
+          const scoreAtMaxMinus1 = lookupScore(brackets, bracket.max - 1);
+
+          expect(scoreAtMaxMinus1).toBeGreaterThanOrEqual(
+            scoreAtMin,
+            // メッセージ付きでデバッグしやすくする
+          );
+        }
+      });
+
+      test('ブラケットが隙間なく連続している（min[i+1] === max[i]）', () => {
+        for (let i = 0; i < brackets.length - 1; i++) {
+          expect(brackets[i + 1].min).toBe(brackets[i].max);
+        }
+      });
+    });
+  }
+});
+
+describe('lookupScore の計算が整数を返す', () => {
+  const tables: [string, Bracket[]][] = [
+    ['X1_TABLE', X1_TABLE],
+    ['X21_TABLE', X21_TABLE],
+    ['X22_TABLE', X22_TABLE],
+    ['Z1_TABLE', Z1_TABLE],
+    ['Z2_TABLE', Z2_TABLE],
+  ];
+
+  for (const [name, brackets] of tables) {
+    test(`${name}: Math.floor(a*value/b)+c は常に整数`, () => {
+      for (const bracket of brackets) {
+        // 代表的な値でテスト: min, (min+max)/2, max-1
+        const testValues: number[] = [];
+
+        if (bracket.min !== -Infinity) testValues.push(bracket.min);
+        if (bracket.max !== Infinity && bracket.min !== -Infinity) {
+          testValues.push(Math.floor((bracket.min + bracket.max) / 2));
+          testValues.push(bracket.max - 1);
+        }
+
+        for (const val of testValues) {
+          const score = lookupScore(brackets, val);
+          expect(Number.isInteger(score)).toBe(true);
+        }
+      }
+    });
+  }
 });

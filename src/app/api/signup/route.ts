@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { RateLimiter } from '@/lib/rate-limiter';
+import { isValidEmail, sanitizeString } from '@/lib/security';
 
 /** サインアップ: 1 IPあたり 1 分間 3 リクエスト */
 const signupLimiter = new RateLimiter({
@@ -30,7 +31,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, password } = await req.json();
+    const body = await req.json();
+
+    // 入力サニタイズ: トリム＆長さ制限
+    const name = sanitizeString(body.name, 100);
+    const email = sanitizeString(body.email, 254);
+    const password = typeof body.password === 'string' ? body.password : '';
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -39,18 +45,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Basic email format validation
-    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+    if (!isValidEmail(email)) {
       return NextResponse.json(
         { error: 'メールアドレスの形式が正しくありません' },
         { status: 400 }
       );
     }
 
-    if (password.length < 8) {
+    if (password.length < 8 || password.length > 128) {
       return NextResponse.json(
-        { error: 'パスワードは8文字以上で入力してください' },
+        { error: 'パスワードは8文字以上128文字以内で入力してください' },
         { status: 400 }
       );
     }

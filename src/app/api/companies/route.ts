@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { companies } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { sanitizeString } from '@/lib/security';
 
 /** GET /api/companies — 法人の企業一覧 */
 export async function GET() {
@@ -36,9 +37,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, permitNumber, prefectureCode, targetIndustries } = body;
+  const name = sanitizeString(body.name, 200);
+  const permitNumber = sanitizeString(body.permitNumber, 50);
+  const prefectureCode = sanitizeString(body.prefectureCode, 10);
+  const targetIndustries = Array.isArray(body.targetIndustries)
+    ? body.targetIndustries
+    : [];
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+  if (!name) {
     return NextResponse.json({ error: '企業名は必須です' }, { status: 400 });
   }
 
@@ -46,10 +52,10 @@ export async function POST(req: NextRequest) {
     .insert(companies)
     .values({
       organizationId: session.user.organizationId,
-      name: name.trim(),
+      name,
       permitNumber: permitNumber || null,
       prefectureCode: prefectureCode || null,
-      targetIndustries: targetIndustries || [],
+      targetIndustries,
     })
     .returning();
 
