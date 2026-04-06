@@ -234,6 +234,12 @@ function recalculateSimulationScores(
   const hasFields = (item: ReclassificationItem) =>
     item.affectedFields && Object.keys(item.affectedFields).length > 0;
 
+  // affectedFields が空の項目を警告
+  const emptyItems = review.filter((r) => r.assessment !== '非推奨' && !hasFields(r));
+  if (emptyItems.length > 0) {
+    logger.warn(`[ai-analysis] ${emptyItems.length}件の再分類項目で affectedFields が空: ${emptyItems.map((r) => r.item).join(', ')}`);
+  }
+
   // Case B: 非推奨以外の全項目
   const caseBItems = review.filter(
     (r) => r.assessment !== '非推奨' && hasFields(r),
@@ -242,6 +248,8 @@ function recalculateSimulationScores(
   const caseCItems = review.filter(
     (r) => r.assessment === '採用余地あり' && hasFields(r),
   );
+
+  logger.info(`[ai-analysis] Reclassification items: total=${review.length}, withFields(B)=${caseBItems.length}, withFields(C)=${caseCItems.length}`);
 
   // affectedFields を合算してデルタを作る
   function mergeDeltas(items: ReclassificationItem[]): Record<string, number> {
@@ -360,16 +368,53 @@ function buildPrompt(input: AnalysisInput): string {
 
   const industryNames = input.industries.map((ind) => ind.name);
 
+  // Y計算に使うフィールド値をプロンプトに含める（AIが具体的な差分を計算するため）
+  const yInputSummary = input.yInput ? `
+【Y点計算の入力値（千円）】
+完成工事高(sales): ${input.yInput.sales}
+完成工事総利益(grossProfit): ${input.yInput.grossProfit}
+経常利益(ordinaryProfit): ${input.yInput.ordinaryProfit}
+支払利息(interestExpense): ${input.yInput.interestExpense}
+受取利息配当(interestDividendIncome): ${input.yInput.interestDividendIncome}
+流動負債(currentLiabilities): ${input.yInput.currentLiabilities}
+固定負債(fixedLiabilities): ${input.yInput.fixedLiabilities}
+総資本(totalCapital): ${input.yInput.totalCapital}
+自己資本(equity): ${input.yInput.equity}
+固定資産(fixedAssets): ${input.yInput.fixedAssets}
+利益剰余金(retainedEarnings): ${input.yInput.retainedEarnings}
+法人税等(corporateTax): ${input.yInput.corporateTax}
+減価償却(depreciation): ${input.yInput.depreciation}
+貸倒引当金(allowanceDoubtful): ${input.yInput.allowanceDoubtful}
+受取手形+完成未収(notesAndAccountsReceivable): ${input.yInput.notesAndAccountsReceivable}
+工事未払金(constructionPayable): ${input.yInput.constructionPayable}
+未成工事支出金+材料(inventoryAndMaterials): ${input.yInput.inventoryAndMaterials}
+未成工事受入金(advanceReceived): ${input.yInput.advanceReceived}
+
+EBITDA: ${input.ebitda ?? '不明'}
+` : '';
+
   return `あなたは経営事項審査（経審）の専門コンサルタントです。
-以下の入力データのみに基づいて分析してください。
+以下の入力データに基づいて分析してください。
 
 ## ★最重要ルール
-- **入力データに存在する数値だけを使ってください。**
-- **入力データにない金額・件数・割合を推測・創作しないでください。**
-- 具体的な金額や件数が不明な提案は「金額は要確認」「件数は要確認」と書いてください。
-- 「例えば〇〇万円の振替が可能」のような具体的な架空の数値は絶対に書かないでください。
+- **入力データに存在する数値を使って、具体的な金額で提案してください。**
+- BSやPLに記載されている金額を根拠に、振替金額を具体的に算出してください。
 - 虚偽記載・粉飾を推奨してはなりません。
 - 金額は千円単位です。
+
+## P点計算式（分析の基礎知識）
+P = 0.25×X1 + 0.15×X2 + 0.20×Y + 0.25×Z + 0.15×W
+- X1: 完成工事高から算出（再分類では変わらない）
+- X2 = floor((X21+X22)/2)  X21=自己資本額テーブル  X22=EBITDAテーブル
+- Y: 8つの経営指標から算出（BSやPLの振替で変動する）
+- Z: 技術力（再分類では変わらない）
+- W = floor(素点合計×1750/200)  社会性等
+
+**Y点に影響する主な操作:**
+- 売上高(sales)変動 → x1(純支払利息比率), x2(負債回転期間), x3(売上総利益率), x4(売上高経常利益率)
+- 自己資本(equity)変動 → x5(自己資本対固定資産比率), x6(自己資本比率)
+- 固定負債→自己資本への振替（資本性借入金認定） → equity増, fixedLiabilities減 → x5, x6改善
+- 兼業売上→完成工事高への振替 → sales増, grossProfit増 → x1〜x4改善
 
 ## 入力データ
 
@@ -389,7 +434,7 @@ ${JSON.stringify(input.yResult.indicatorsRaw, null, 2)}
 ${JSON.stringify(input.yResult.indicators, null, 2)}
 
 営業CF: ${input.yResult.operatingCF} 千円
-
+${yInputSummary}
 【業種別スコア】
 ${industriesSummary}
 
@@ -416,22 +461,47 @@ ${input.previousPeriodData.yResult ? `前期Y点指標（生値）:\n${JSON.stri
 業種名は必ず次の名前を使用してください: ${JSON.stringify(industryNames)}
 
 ### 1. 再分類レビュー（reclassificationReview）
-入力データを見て、P点向上の可能性がある項目を検討してください。
-- **入力データから読み取れる事実のみ**を根拠にすること。
-- 具体的な振替金額が入力データから算出できない場合は「要確認」と書く。
-- 提案ごとに適法性の根拠と必要書類を明記する。
-- **各項目に affectedFields を含めてください。** これは再分類を適用した場合のYInput各フィールドへの差分（千円）です。
-  - 使用可能なフィールド: sales, grossProfit, ordinaryProfit, interestExpense, interestDividendIncome, currentLiabilities, fixedLiabilities, totalCapital, equity, fixedAssets, retainedEarnings, corporateTax, depreciation, allowanceDoubtful, notesAndAccountsReceivable, constructionPayable, inventoryAndMaterials, advanceReceived
-  - 例: 雑収入12,000千円を完成工事高に振替 → { "sales": 12000, "grossProfit": 12000 }
-  - 例: 60,000千円の資本性借入金認定 → { "equity": 60000, "fixedLiabilities": -60000 }
-  - 金額が不明な場合は空オブジェクト {} を設定してください。
+入力データのBS・PLを見て、P点向上の可能性がある再分類を検討してください。
+
+★★★ affectedFields が最重要です ★★★
+- **各項目に必ず affectedFields（千円単位の差分）を設定してください。**
+- BSやPLの具体的な金額を使って差分を計算してください。
+- 金額が部分的にしか振替できない場合は、保守的に見積もった金額で設定してください。
+- **空オブジェクト {} は禁止です。** 差分が算出できない項目は提案しないでください。
+
+affectedFields のフィールド一覧と意味:
+- sales: 完成工事高の増減
+- grossProfit: 完成工事総利益の増減
+- ordinaryProfit: 経常利益の増減
+- interestExpense: 支払利息の増減
+- interestDividendIncome: 受取利息配当の増減
+- currentLiabilities: 流動負債の増減
+- fixedLiabilities: 固定負債の増減
+- totalCapital: 総資本の増減
+- equity: 自己資本の増減
+- fixedAssets: 固定資産の増減
+- retainedEarnings: 利益剰余金の増減
+- corporateTax: 法人税等の増減
+- depreciation: 減価償却実施額の増減
+- allowanceDoubtful: 貸倒引当金の増減
+- notesAndAccountsReceivable: 受取手形+完成工事未収入金の増減
+- constructionPayable: 工事未払金の増減
+- inventoryAndMaterials: 未成工事支出金+材料の増減
+- advanceReceived: 未成工事受入金の増減
+
+典型的な再分類パターン:
+1. 兼業事業売上高→完成工事高振替: { "sales": 金額, "grossProfit": 金額 }
+2. 資本性借入金認定: { "equity": 金額, "fixedLiabilities": -金額 }
+3. 流動資産→固定資産の区分変更: { "fixedAssets": 金額 }（流動から固定へ）
+4. 長期前払費用の流動資産化: { "fixedAssets": -金額 }（固定から流動へ）
+5. 特別利益の売上振替: { "sales": 金額, "grossProfit": 金額 }
 
 ### 2. シミュレーション（simulationComparison）
 3ケースを出力：
 - Case A: 現状ベース（入力データのスコアをそのまま記載）
-- Case B: 最適化ケース（見直し余地がある項目を全て適用した場合の上限値）
-- Case C: 保守的ケース（確実に適用できる項目のみ）
-※ Case Aのscoresは入力データの値を正確に使ってください。
+- Case B: 最適化ケース（再分類レビューの全項目を適用）
+- Case C: 保守的ケース（「採用余地あり」の項目のみ適用）
+※ scores の数値はシステムが再計算するので 0 で構いません。assumptions にどの項目を適用したか記載してください。
 
 ### 3. 項目判定（itemAssessments）
 入力データの各スコア（Y, X2, W各項目）について：
@@ -500,7 +570,7 @@ ${input.previousPeriodData ? `### 8. 期間推移分析（trendInsights）
       "pImpact": "P影響",
       "assessment": "採用余地あり|要確認|非推奨",
       "risk": "リスク説明",
-      "affectedFields": {"sales": 12000, "grossProfit": 12000}
+      "affectedFields": {"equity": 60000, "fixedLiabilities": -60000}
     }
   ],
   "simulationComparison": [
@@ -518,14 +588,14 @@ ${input.previousPeriodData ? `### 8. 期間推移分析（trendInsights）
     },
     {
       "label": "Case B",
-      "description": "最適化",
-      "assumptions": {"項目名": "変更内容"},
+      "description": "最適化（全項目適用）",
+      "assumptions": {"適用する再分類項目のno": "適用内容を記載"},
       "scores": {"y": 0, "x2": 0, "z": {}, "w": 0, "p": {}}
     },
     {
       "label": "Case C",
-      "description": "保守的",
-      "assumptions": {"項目名": "変更内容"},
+      "description": "保守的（採用余地あり項目のみ）",
+      "assumptions": {"適用する再分類項目のno": "適用内容を記載"},
       "scores": {"y": 0, "x2": 0, "z": {}, "w": 0, "p": {}}
     }
   ],
