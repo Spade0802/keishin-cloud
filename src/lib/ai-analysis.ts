@@ -7,9 +7,12 @@
  * Vertex AI（無料）と Google AI Studio APIキー（有料）の両方に対応。
  */
 import { z } from 'zod';
-import type { AnalysisInput, AnalysisResult } from './ai-analysis-types';
+import type { AnalysisInput, AnalysisResult, ReclassificationItem } from './ai-analysis-types';
 import { getGeminiModel, isRateLimitError } from './gemini-client';
 import { logger } from './logger';
+import { calculateY } from './engine/y-calculator';
+import { calculateP, calculateX2 } from './engine/p-calculator';
+import { lookupScore, X21_TABLE, X22_TABLE } from './engine/score-tables';
 
 // ── Zod schema for AI response validation ──
 
@@ -195,6 +198,11 @@ export async function generatePPointAnalysis(
     }
   }
 
+  // ── シミュレーション Case A/B/C のスコアをサーバー側で再計算 ──
+  // AIは計算が苦手なので、reclassificationReview の affectedFields を使って
+  // 実際のエンジンで再計算する
+  recalculateSimulationScores(parsed, input);
+
   // 免責事項を強制付与（モデルの出力に関わらず常に設定）
   parsed.disclaimer =
     '本レポートはAI（Gemini）による自動分析であり、専門家の助言ではありません。' +
@@ -202,6 +210,144 @@ export async function generatePPointAnalysis(
     '虚偽記載・粉飾決算は建設業法違反であり、許可取消し等の厳しい処分の対象となります。';
 
   return parsed;
+}
+
+// ─── シミュレーションスコアのサーバー側再計算 ───
+
+/**
+ * reclassificationReview の affectedFields を集約して YInput に適用し、
+ * Y → X2 → P を再計算する。
+ *
+ * Case A: 現状そのまま（入力値を正確に設定）
+ * Case B: 全ての「採用余地あり」+「要確認」項目を適用（上限シナリオ）
+ * Case C: 「採用余地あり」のみ適用（保守的シナリオ）
+ */
+function recalculateSimulationScores(
+  result: AnalysisResult,
+  input: AnalysisInput,
+): void {
+  if (!input.yInput || result.simulationComparison.length < 3) return;
+
+  const review = result.reclassificationReview ?? [];
+
+  // affectedFields が有効（非空オブジェクト）な項目のみ対象
+  const hasFields = (item: ReclassificationItem) =>
+    item.affectedFields && Object.keys(item.affectedFields).length > 0;
+
+  // Case B: 非推奨以外の全項目
+  const caseBItems = review.filter(
+    (r) => r.assessment !== '非推奨' && hasFields(r),
+  );
+  // Case C: 採用余地ありのみ
+  const caseCItems = review.filter(
+    (r) => r.assessment === '採用余地あり' && hasFields(r),
+  );
+
+  // affectedFields を合算してデルタを作る
+  function mergeDeltas(items: ReclassificationItem[]): Record<string, number> {
+    const delta: Record<string, number> = {};
+    for (const item of items) {
+      for (const [key, val] of Object.entries(item.affectedFields ?? {})) {
+        delta[key] = (delta[key] ?? 0) + val;
+      }
+    }
+    return delta;
+  }
+
+  // YInput にデルタを適用して新しい YInput を作成
+  function applyDelta(delta: Record<string, number>) {
+    const base = input.yInput!;
+    return {
+      ...base,
+      sales: base.sales + (delta.sales ?? 0),
+      grossProfit: base.grossProfit + (delta.grossProfit ?? 0),
+      ordinaryProfit: base.ordinaryProfit + (delta.ordinaryProfit ?? 0),
+      interestExpense: base.interestExpense + (delta.interestExpense ?? 0),
+      interestDividendIncome: base.interestDividendIncome + (delta.interestDividendIncome ?? 0),
+      currentLiabilities: base.currentLiabilities + (delta.currentLiabilities ?? 0),
+      fixedLiabilities: base.fixedLiabilities + (delta.fixedLiabilities ?? 0),
+      totalCapital: base.totalCapital + (delta.totalCapital ?? 0),
+      equity: base.equity + (delta.equity ?? 0),
+      fixedAssets: base.fixedAssets + (delta.fixedAssets ?? 0),
+      retainedEarnings: base.retainedEarnings + (delta.retainedEarnings ?? 0),
+      corporateTax: base.corporateTax + (delta.corporateTax ?? 0),
+      depreciation: base.depreciation + (delta.depreciation ?? 0),
+      allowanceDoubtful: base.allowanceDoubtful + (delta.allowanceDoubtful ?? 0),
+      notesAndAccountsReceivable: base.notesAndAccountsReceivable + (delta.notesAndAccountsReceivable ?? 0),
+      constructionPayable: base.constructionPayable + (delta.constructionPayable ?? 0),
+      inventoryAndMaterials: base.inventoryAndMaterials + (delta.inventoryAndMaterials ?? 0),
+      advanceReceived: base.advanceReceived + (delta.advanceReceived ?? 0),
+    };
+  }
+
+  // スコア計算
+  function calcScores(delta: Record<string, number>) {
+    const modifiedInput = applyDelta(delta);
+    const yResult = calculateY(modifiedInput);
+    const newY = yResult.Y;
+
+    // X2: equity/ebitda が変わった場合は再計算
+    const newEquity = input.yInput!.equity + (delta.equity ?? 0);
+    const newEbitda = (input.ebitda ?? 0) +
+      (delta.ordinaryProfit ?? 0) +
+      (delta.depreciation ?? 0) -
+      (delta.interestDividendIncome ?? 0);
+
+    let newX2 = input.X2;
+    try {
+      const x21 = lookupScore(X21_TABLE, newEquity);
+      const x22 = lookupScore(X22_TABLE, newEbitda);
+      newX2 = calculateX2(x21, x22);
+    } catch {
+      // テーブル外の値の場合は現状維持
+    }
+
+    // W, Z は再分類では基本変わらない
+    const newW = input.W;
+
+    // 業種別P点
+    const zMap: Record<string, number> = {};
+    const pMap: Record<string, number> = {};
+    for (const ind of input.industries) {
+      zMap[ind.name] = ind.Z;
+      pMap[ind.name] = calculateP(ind.X1, newX2, newY, ind.Z, newW);
+    }
+
+    return { y: newY, x2: newX2, z: zMap, w: newW, p: pMap };
+  }
+
+  // Case A: 入力データの値を正確に反映（AIの計算を信用しない）
+  const caseA = result.simulationComparison[0];
+  caseA.scores.y = input.Y;
+  caseA.scores.x2 = input.X2;
+  caseA.scores.w = input.W;
+  for (const ind of input.industries) {
+    caseA.scores.z[ind.name] = ind.Z;
+    caseA.scores.p[ind.name] = ind.P;
+  }
+
+  // Case B: 最適化
+  const deltaBItems = mergeDeltas(caseBItems);
+  if (Object.keys(deltaBItems).length > 0) {
+    const scoresB = calcScores(deltaBItems);
+    result.simulationComparison[1].scores = scoresB;
+    logger.info(`[ai-analysis] Recalculated Case B: Y=${scoresB.y}, X2=${scoresB.x2}, P=${JSON.stringify(scoresB.p)}`);
+  } else {
+    // affectedFields がない場合は現状と同じ値にする
+    result.simulationComparison[1].scores = { ...caseA.scores };
+    logger.info('[ai-analysis] Case B: no affectedFields, using Case A scores');
+  }
+
+  // Case C: 保守的
+  const deltaCItems = mergeDeltas(caseCItems);
+  if (Object.keys(deltaCItems).length > 0) {
+    const scoresC = calcScores(deltaCItems);
+    result.simulationComparison[2].scores = scoresC;
+    logger.info(`[ai-analysis] Recalculated Case C: Y=${scoresC.y}, X2=${scoresC.x2}, P=${JSON.stringify(scoresC.p)}`);
+  } else {
+    result.simulationComparison[2].scores = { ...caseA.scores };
+    logger.info('[ai-analysis] Case C: no affectedFields, using Case A scores');
+  }
 }
 
 function buildPrompt(input: AnalysisInput): string {

@@ -328,6 +328,9 @@ export function ResultView(props: ResultViewProps) {
   // Calculate P formula breakdown for first industry
   const primaryInd = industries[0];
 
+  // AI分析結果をタブ切替後も保持するためのキャッシュ state
+  const [aiCachedResult, setAiCachedResult] = useState<AnalysisResult | null>(null);
+
   const [excelLoading, setExcelLoading] = useState(false);
 
   async function handleDownloadExcel() {
@@ -855,12 +858,14 @@ export function ResultView(props: ResultViewProps) {
           )}
         </TabsContent>
 
-        {/* AI Analysis — must be last to match TabsTrigger order */}
+        {/* AI Analysis */}
         <TabsContent value="ai-analysis">
           <AiAnalysisView
             analysisInput={aiAnalysisInput}
             staticResult={staticAiAnalysis}
             readOnly={readOnly}
+            cachedResult={aiCachedResult}
+            onResultChange={setAiCachedResult}
           />
         </TabsContent>
       </Tabs>

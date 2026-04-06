@@ -57,6 +57,9 @@ interface AiAnalysisViewProps {
   analysisInput?: AnalysisInput;
   staticResult?: AnalysisResult;
   readOnly?: boolean;
+  /** 親コンポーネントで保持するキャッシュ（タブ切替時のデータ消失防止） */
+  cachedResult?: AnalysisResult | null;
+  onResultChange?: (result: AnalysisResult | null) => void;
 }
 
 // ─── ヘルパー ───
@@ -1318,10 +1321,21 @@ export function AiAnalysisView({
   analysisInput,
   staticResult,
   readOnly,
+  cachedResult,
+  onResultChange,
 }: AiAnalysisViewProps) {
-  const [result, setResult] = useState<AnalysisResult | null>(staticResult ?? null);
+  // 初期値: キャッシュ → staticResult → null の優先順
+  const [result, setResultInternal] = useState<AnalysisResult | null>(
+    cachedResult ?? staticResult ?? null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // result 変更時に親コンポーネントのキャッシュも更新
+  function setResult(r: AnalysisResult | null) {
+    setResultInternal(r);
+    onResultChange?.(r);
+  }
 
   async function handleAnalyze() {
     if (!analysisInput) return;
