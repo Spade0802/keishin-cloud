@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, FileText, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { ExtractionProgress } from '@/components/extraction-progress';
 
 interface ParseMapping {
   source: string;
@@ -98,6 +99,7 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
     ocrUsed?: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
@@ -120,6 +122,7 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
       }
 
       setIsProcessing(true);
+      setIsComplete(false);
 
       try {
         // Send to appropriate API based on file type
@@ -243,10 +246,13 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
         if (mappings.length > 0) {
           onDataParsed(formValues, rawBS, rawPL);
         }
+        // Signal completion so progress bar jumps to 100%
+        setIsComplete(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'ファイルの解析に失敗しました。');
       } finally {
-        setIsProcessing(false);
+        // Small delay so user sees 100% before hiding the progress bar
+        setTimeout(() => setIsProcessing(false), 400);
       }
     },
     [onDataParsed]
@@ -286,6 +292,7 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
     setFileName(null);
     setResult(null);
     setError(null);
+    setIsComplete(false);
     onClear?.();
   }
 
@@ -313,9 +320,13 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
           />
 
           {isProcessing ? (
-            <div className="space-y-2">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <p className="text-sm text-muted-foreground">解析中...</p>
+            <div className="space-y-2 px-2">
+              <ExtractionProgress
+                isActive={isProcessing}
+                isComplete={isComplete}
+                estimatedDuration={20000}
+                label="決算書を解析中"
+              />
             </div>
           ) : (
             <>
