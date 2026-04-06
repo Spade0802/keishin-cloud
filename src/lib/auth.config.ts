@@ -34,6 +34,8 @@ export const authConfig: NextAuthConfig = {
         '/reclassification',
         '/admin',
         '/account',
+        '/companies',
+        '/batch',
       ];
 
       const isProtected = protectedPaths.some(
@@ -43,7 +45,8 @@ export const authConfig: NextAuthConfig = {
       const isOnboarding =
         pathname === '/onboarding' || pathname.startsWith('/onboarding/');
 
-      const isLoggedIn = !!auth?.user;
+      // auth?.user が空オブジェクト {} の場合にも対応
+      const isLoggedIn = !!(auth?.user?.email || auth?.user?.id);
 
       // 保護ページ: 未認証 → ログインへ
       if (isProtected && !isLoggedIn) {

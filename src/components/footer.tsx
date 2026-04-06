@@ -5,7 +5,8 @@ import { useSession } from '@/lib/session-context';
 
 export function Footer() {
   const session = useSession();
-  const isLoggedIn = !!session?.user;
+  // session?.user が空オブジェクト {} の場合にも対応するため、id または email の存在で判定
+  const isLoggedIn = !!(session?.user?.email || session?.user?.id);
 
   return (
     <footer className="border-t bg-muted/30">

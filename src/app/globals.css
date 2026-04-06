@@ -157,4 +157,19 @@
   [role="tabpanel"][data-state="active"] {
     display: block !important;
   }
+  /* Legal pages: keep sections together, readable typography */
+  article section {
+    break-inside: avoid;
+  }
+  article h2 {
+    break-after: avoid;
+  }
+  article a[href] {
+    color: black !important;
+    text-decoration: underline;
+  }
+  article a[href^="/"]::after {
+    content: " (https://keishin.cloud" attr(href) ")";
+    font-size: 8pt;
+  }
 }

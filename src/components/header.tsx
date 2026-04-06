@@ -34,8 +34,9 @@ export function Header() {
   const session = useSession();
 
   const isActive = (href: string) => pathname === href;
-  const isLoggedIn = !!session?.user;
-  const isAdmin = session?.user?.role === 'admin';
+  // session?.user が空オブジェクト {} の場合にも対応するため、id または email の存在で判定
+  const isLoggedIn = !!(session?.user?.email || session?.user?.id);
+  const isAdmin = isLoggedIn && session?.user?.role === 'admin';
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">

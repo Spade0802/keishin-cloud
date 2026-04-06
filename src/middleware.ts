@@ -26,5 +26,7 @@ export const config = {
     '/api/parse-keishin-pdf/:path*',
     '/api/parse-result-pdf/:path*',
     '/account/:path*',
+    '/companies/:path*',
+    '/batch/:path*',
   ],
 };

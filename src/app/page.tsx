@@ -90,32 +90,32 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Social Proof / 導入実績 */}
+        {/* Why KeishinCloud */}
         <section className="py-16 bg-gradient-to-b from-transparent to-muted/20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold">導入実績</h2>
+              <h2 className="text-3xl font-bold">選ばれる理由</h2>
               <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
                 建設業の経審対策を支える、行政書士・建設会社のためのクラウドツール
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
               <div className="text-center p-6 rounded-xl border bg-background">
-                <div className="text-3xl font-bold text-primary">1,000+件</div>
-                <div className="mt-2 text-sm text-muted-foreground">シミュレーション実績</div>
+                <div className="text-3xl font-bold text-primary">公式計算式</div>
+                <div className="mt-2 text-sm text-muted-foreground">国土交通省の経審計算式に準拠</div>
               </div>
               <div className="text-center p-6 rounded-xl border bg-background">
                 <div className="text-3xl font-bold text-primary">全29業種</div>
-                <div className="mt-2 text-sm text-muted-foreground">対応業種数</div>
+                <div className="mt-2 text-sm text-muted-foreground">すべての建設業種に対応</div>
               </div>
               <div className="text-center p-6 rounded-xl border bg-background">
-                <div className="text-3xl font-bold text-primary">100%</div>
-                <div className="mt-2 text-sm text-muted-foreground">実績データとの一致率</div>
+                <div className="text-3xl font-bold text-primary">検証済み</div>
+                <div className="mt-2 text-sm text-muted-foreground">実在企業データでP点一致を確認</div>
               </div>
             </div>
             <div className="mx-auto max-w-3xl">
               <p className="text-center text-sm text-muted-foreground mb-6">
-                こんな方にご利用いただいています
+                こんな方におすすめです
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[

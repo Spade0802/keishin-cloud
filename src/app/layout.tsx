@@ -63,7 +63,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth().catch(() => null);
+  const rawSession = await auth().catch(() => null);
+  // next-auth v5 beta が空の user オブジェクトを返す場合に備え、
+  // user.id または user.email が無ければ session を null に正規化する
+  const session =
+    rawSession?.user?.id || rawSession?.user?.email ? rawSession : null;
 
   return (
     <html
