@@ -31,6 +31,12 @@ export interface Bracket {
 export function lookupScore(brackets: Bracket[], value: number): number {
   const bracket = brackets.find((b) => value >= b.min && value < b.max);
   if (!bracket) {
+    // 負の値がテーブル範囲外の場合、最低ブラケットの最低評点を返す
+    // （例: 完成工事高やX1が負の場合、0千円時の評点を返す）
+    if (value < (brackets[0]?.min ?? 0)) {
+      const lowest = brackets[0];
+      return lowest ? Math.floor((lowest.a * lowest.min) / lowest.b) + lowest.c : 0;
+    }
     throw new Error(
       `評点テーブルの該当区間が見つかりません（値: ${value}、範囲: ${brackets[0]?.min ?? '?'} - ${brackets[brackets.length - 1]?.max ?? '?'}）`
     );

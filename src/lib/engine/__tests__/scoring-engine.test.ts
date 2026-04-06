@@ -85,9 +85,10 @@ describe('lookupScore', () => {
     expect(lookupScore(simpleBrackets, 100)).toBe(99);
   });
 
-  it('throws for value below all brackets', () => {
+  it('returns lowest score for value below all brackets', () => {
     const limited: Bracket[] = [{ min: 10, max: 100, a: 1, b: 1, c: 0 }];
-    expect(() => lookupScore(limited, 5)).toThrow('該当区間が見つかりません');
+    // min=10, a=1, b=1, c=0 → floor(1*10/1)+0 = 10
+    expect(lookupScore(limited, 5)).toBe(10);
   });
 
   it('throws for empty brackets array', () => {
