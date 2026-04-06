@@ -159,8 +159,11 @@ export function useExtractedData(): UseExtractedDataReturn {
         prevCompletion: String(ind.prevCompletion),
         currCompletion: String(ind.currCompletion),
         prevPrevCompletion: '',
-        prevSubcontract: String(ind.prevCompletion - ind.prevPrimeContract),
-        currSubcontract: String(ind.currCompletion - ind.currPrimeContract),
+        // ※ prevSubcontract/currSubcontract は変数名が紛らわしいが、
+        // input-wizard では「元請完成工事高」として扱われる（Z2評点の入力値）。
+        // 下請完成工事高は wizard 内で completion - subcontract として自動計算表示される。
+        prevSubcontract: String(ind.prevPrimeContract),
+        currSubcontract: String(ind.currPrimeContract),
         techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',
       };
     });

@@ -358,26 +358,26 @@ function ImpactRankingSection({ items }: { items: ImpactRankingItem[] }) {
           {items.map((item) => (
             <div
               key={item.rank}
-              className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+              className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors overflow-hidden"
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${rankColor(item.rank)}`}
               >
                 {item.rank}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{item.item}</span>
+              <div className="flex-1 overflow-hidden">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm break-words">{item.item}</span>
                   {item.difficulty && (
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${difficultyBadgeColor(item.difficulty)}`}>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${difficultyBadgeColor(item.difficulty)}`}>
                       {item.difficultyLabel || (item.difficulty === 'easy' ? '簡単' : item.difficulty === 'hard' ? '困難' : '普通')}
                     </Badge>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">{item.comment}</div>
+                <div className="text-xs text-muted-foreground mt-0.5 break-words">{item.comment}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-mono font-bold text-primary">{item.pImpact}</div>
+                <div className="text-sm font-mono font-bold text-primary whitespace-nowrap">{item.pImpact}</div>
               </div>
             </div>
           ))}
@@ -420,10 +420,10 @@ function ChecklistSection({ items }: { items: ChecklistItem[] }) {
                 onChange={() => setChecked((p) => ({ ...p, [i]: !p[i] }))}
                 className="h-4 w-4 rounded border-gray-300 mt-0.5 shrink-0"
               />
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm ${checked[i] ? 'line-through text-muted-foreground' : ''}`}>{item.item}</div>
+              <div className="flex-1 overflow-hidden">
+                <div className={`text-sm break-words ${checked[i] ? 'line-through text-muted-foreground' : ''}`}>{item.item}</div>
               </div>
-              <Badge variant="outline" className="shrink-0 text-xs">
+              <Badge variant="outline" className="shrink-0 text-xs whitespace-nowrap">
                 確認先: {item.target}
               </Badge>
             </label>
@@ -786,9 +786,9 @@ function ItemAssessmentList({ items }: { items: ItemAssessment[] }) {
                     className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/20 transition-colors"
                   >
                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm">{item.item}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                    <div className="flex-1 overflow-hidden">
+                      <div className="font-medium text-sm break-words">{item.item}</div>
+                      <div className="text-xs text-muted-foreground mt-1 break-words">
                         {item.action}
                       </div>
                     </div>
@@ -1017,9 +1017,9 @@ function ReclassificationSimulation({ items, analysisInput }: ReclassSimProps) {
                 onChange={() => toggleItem(item.no)}
                 className="h-4 w-4 rounded border-gray-300"
               />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{item.item}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+              <div className="flex-1 overflow-hidden">
+                <div className="font-medium text-sm break-words">{item.item}</div>
+                <div className="text-xs text-muted-foreground mt-0.5 break-words">
                   {item.currentTreatment} → {item.alternativePlan}
                 </div>
               </div>
@@ -1475,7 +1475,7 @@ export function AiAnalysisView({
       {/* P点改善インパクトランキング + チェックリスト（横並び） */}
       {((result.impactRanking && result.impactRanking.length > 0) ||
         (result.checklistItems && result.checklistItems.length > 0)) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
           {result.impactRanking && result.impactRanking.length > 0 && (
             <ImpactRankingSection items={result.impactRanking} />
           )}

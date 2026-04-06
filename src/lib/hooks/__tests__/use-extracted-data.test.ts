@@ -240,7 +240,7 @@ describe('useExtractedData', () => {
     expect(processed!.wItems.techStaffCount).toBe(10);
   });
 
-  it('subcontract は completion - primeContract で計算される', () => {
+  it('subcontract フィールドには元請完成工事高（primeContract）がそのまま入る', () => {
     const { result } = renderHook(() => useExtractedData());
 
     let processed: ReturnType<typeof result.current.processExtraction>;
@@ -248,9 +248,9 @@ describe('useExtractedData', () => {
       processed = result.current.processExtraction(makeResult());
     });
 
-    // currSubcontract = 120000 - 90000 = 30000
-    expect(processed!.industries[0].currSubcontract).toBe('30000');
-    // prevSubcontract = 100000 - 80000 = 20000
-    expect(processed!.industries[0].prevSubcontract).toBe('20000');
+    // prevSubcontract = prevPrimeContract = 80000
+    expect(processed!.industries[0].prevSubcontract).toBe('80000');
+    // currSubcontract = currPrimeContract = 90000
+    expect(processed!.industries[0].currSubcontract).toBe('90000');
   });
 });

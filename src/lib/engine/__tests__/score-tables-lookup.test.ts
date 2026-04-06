@@ -51,11 +51,11 @@ describe('lookupScore', () => {
     expect(lookupScore(SIMPLE_TABLE, 999999999)).toBe(99);
   });
 
-  it('ブラケット範囲外の負の値は最低ブラケットの最低評点を返す', () => {
-    // SIMPLE_TABLE は min=0 からなので -1 → 最低ブラケット(min=0)の評点
-    const lowest = SIMPLE_TABLE[0];
-    const expected = Math.floor((lowest.a * lowest.min) / lowest.b) + lowest.c;
-    expect(lookupScore(SIMPLE_TABLE, -1)).toBe(expected);
+  it('ブラケット範囲外の負の値はエラーをスローする', () => {
+    // SIMPLE_TABLE は min=0 からなので -1 は範囲外
+    expect(() => lookupScore(SIMPLE_TABLE, -1)).toThrow(
+      '評点テーブルの該当区間が見つかりません'
+    );
   });
 
   it('空のテーブルでエラーをスローする', () => {
@@ -125,10 +125,10 @@ describe('X1_TABLE', () => {
     expect(lookupScore(X1_TABLE, 999999999)).toBe(1998);
   });
 
-  it('テーブル最小値未満は最低評点を返す', () => {
-    // X1_TABLE min=0 → 最低評点 397
-    expect(lookupScore(X1_TABLE, -1)).toBe(397);
-    expect(lookupScore(X1_TABLE, -1000)).toBe(397);
+  it('テーブル最小値未満（負の値）はエラーをスローする', () => {
+    // X1_TABLE min=0 → 負の値は範囲外
+    expect(() => lookupScore(X1_TABLE, -1)).toThrow('評点テーブルの該当区間が見つかりません');
+    expect(() => lookupScore(X1_TABLE, -1000)).toThrow('評点テーブルの該当区間が見つかりません');
   });
 });
 
@@ -232,9 +232,9 @@ describe('Z1_TABLE', () => {
     expect(lookupScore(Z1_TABLE, 9999)).toBe(1712);
   });
 
-  it('テーブル最小値未満は最低評点を返す', () => {
-    // Z1_TABLE min=0 → 最低評点 510
-    expect(lookupScore(Z1_TABLE, -1)).toBe(510);
+  it('テーブル最小値未満（負の値）はエラーをスローする', () => {
+    // Z1_TABLE min=0 → 負の値は範囲外
+    expect(() => lookupScore(Z1_TABLE, -1)).toThrow('評点テーブルの該当区間が見つかりません');
   });
 });
 
@@ -270,9 +270,9 @@ describe('Z2_TABLE', () => {
     expect(lookupScore(Z2_TABLE, 9999999)).toBe(1341);
   });
 
-  it('テーブル最小値未満は最低評点を返す', () => {
-    // Z2_TABLE min=0 → 最低評点 241
-    expect(lookupScore(Z2_TABLE, -1)).toBe(241);
+  it('テーブル最小値未満（負の値）はエラーをスローする', () => {
+    // Z2_TABLE min=0 → 負の値は範囲外
+    expect(() => lookupScore(Z2_TABLE, -1)).toThrow('評点テーブルの該当区間が見つかりません');
   });
 });
 
