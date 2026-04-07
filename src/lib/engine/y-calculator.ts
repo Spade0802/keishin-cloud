@@ -108,7 +108,7 @@ export function calculateY(input: YInput): YResult {
     x8: clamp(raw.x8, LIMITS.x8.min, LIMITS.x8.max),
   };
 
-  const A =
+  const rawA =
     -0.465 * ind.x1 -
     0.0508 * ind.x2 +
     0.0264 * ind.x3 +
@@ -118,6 +118,10 @@ export function calculateY(input: YInput): YResult {
     0.0818 * ind.x7 +
     0.0172 * ind.x8 +
     0.1906;
+
+  // 経営状況分析機関の公式計算ではA値を小数第2位で四捨五入してからY点を算出する
+  // 実データ検証: ③第57期 A=1.13→Y=772, ③第58期 A=1.61→Y=852 と一致
+  const A = Math.round(rawA * 100) / 100;
 
   const Y = Math.max(0, Math.min(1595, Math.floor(167.3 * A + 583)));
 

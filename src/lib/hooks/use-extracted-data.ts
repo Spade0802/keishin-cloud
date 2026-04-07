@@ -151,11 +151,25 @@ export function useExtractedData(): UseExtractedDataReturn {
     }
 
     // 業種データ（正規化済み）
+    const rawPermitTypes = data.permitTypes ?? {};
+    // permitTypes のキーを正規化してルックアップマップを構築
+    // Gemini が短縮名（"電気"）で返す場合と正式名（"電気工事"）で返す場合の両方に対応
+    const permitTypes: Record<string, '特定' | '一般'> = {};
+    for (const [key, value] of Object.entries(rawPermitTypes)) {
+      // 元のキーでも、正規化後のキーでも引けるようにする
+      permitTypes[key] = value;
+      const normalizedKey = normalizeIndustryName(key);
+      if (normalizedKey && normalizedKey !== key) {
+        permitTypes[normalizedKey] = value;
+      }
+    }
     const industries = data.industries.map((ind) => {
       const normalizedName = normalizeIndustryName(ind.name);
+      // 許可区分: PDFから抽出された permitTypes を参照、未取得なら '一般' をデフォルト
+      const extractedPermit = permitTypes[normalizedName] ?? permitTypes[ind.name];
       return {
         name: normalizedName,
-        permitType: '一般' as const,
+        permitType: (extractedPermit === '特定' ? '特定' : '一般') as '特定' | '一般',
         prevCompletion: String(ind.prevCompletion),
         currCompletion: String(ind.currCompletion),
         prevPrevCompletion: '',
@@ -167,17 +181,30 @@ export function useExtractedData(): UseExtractedDataReturn {
         techStaffValue: ind.techStaffValue ? String(ind.techStaffValue) : '',
       };
     });
+    const hasPermitTypes = Object.keys(rawPermitTypes).length > 0;
     if (industries.length > 0) {
       autoFilledFields.add('industries');
       newFieldMeta.industries = { source: 'direct_pdf', timestamp: now, userOverridden: false };
-      // permitType is always defaulted to '一般' - warn user to verify
-      validation.issues.push({
-        field: 'industries.permitType',
-        label: '許可区分',
-        severity: 'info',
-        message: '許可区分はデフォルトで「一般」に設定されています。特定建設業許可をお持ちの業種がある場合は手動で変更してください。',
-        originalValue: '一般',
-      });
+      if (hasPermitTypes) {
+        // 許可区分がPDFから抽出された場合
+        autoFilledFields.add('industries.permitType');
+        validation.issues.push({
+          field: 'industries.permitType',
+          label: '許可区分',
+          severity: 'info',
+          message: '許可区分はPDFから自動抽出されました。内容をご確認ください。',
+          originalValue: null,
+        });
+      } else {
+        // permitType is defaulted to '一般' - warn user to verify
+        validation.issues.push({
+          field: 'industries.permitType',
+          label: '許可区分',
+          severity: 'info',
+          message: '許可区分はデフォルトで「一般」に設定されています。特定建設業許可をお持ちの業種がある場合は手動で変更してください。',
+          originalValue: '一般',
+        });
+      }
     }
 
     // W項目（バリデーション済み）
@@ -202,8 +229,15 @@ export function useExtractedData(): UseExtractedDataReturn {
     }
 
     // W項目のフィールドメタ追跡
+    // boolean の true は有意な値として追跡する（false はデフォルトと同じなのでスキップ）
+    // number の 0 以外も有意な値として追跡する
     for (const [key, value] of Object.entries(wItems)) {
-      if (value !== undefined && value !== null && value !== 0 && value !== false) {
+      if (value === undefined || value === null) continue;
+      // boolean true / number > 0 / string non-empty を有意な値として追跡
+      const isMeaningful = (typeof value === 'boolean' && value === true)
+        || (typeof value === 'number' && value !== 0)
+        || (typeof value === 'string' && value !== '');
+      if (isMeaningful) {
         autoFilledFields.add(`wItems.${key}`);
         newFieldMeta[`wItems.${key}`] = { source: 'direct_pdf', timestamp: now, userOverridden: false };
       }

@@ -16,7 +16,6 @@ import {
   Building2,
   Users,
   Calculator,
-  ClipboardCheck,
   ChevronDown,
   Save,
   Sparkles,
@@ -232,10 +231,10 @@ function checkCrossStepConsistency(
     }
   }
 
-  // 3. Tech staff count in W items should match actual staff entered in Step 3 panel
-  // W items techStaffCount is tracked in currentSocialItems?.techStaffCount
+  // 3. Tech staff count: Step 3 の業種別配置人数が W 項目の総数を超えていないか
+  // W項目 techStaffCount = 技術職員の総数（W点用）
+  // techValueDetails = 業種別に配置した技術職員（Z点用、総数より少ないのが通常）
   if (currentSocialItems && typeof currentSocialItems.techStaffCount === 'number' && currentSocialItems.techStaffCount > 0) {
-    // Count unique staff from techValueDetails
     const uniqueStaffNames = new Set<string>();
     for (const detail of techValueDetails) {
       for (const b of detail.breakdown) {
@@ -243,8 +242,8 @@ function checkCrossStepConsistency(
       }
     }
     const actualStaffCount = uniqueStaffNames.size;
-    if (actualStaffCount > 0 && currentSocialItems.techStaffCount !== actualStaffCount) {
-      warnings.push(`W項目の技術職員数(${currentSocialItems.techStaffCount}名)とStep 3で入力した技術職員数(${actualStaffCount}名)が一致しません。`);
+    if (actualStaffCount > 0 && actualStaffCount > currentSocialItems.techStaffCount) {
+      warnings.push(`Step 3で入力した技術職員数(${actualStaffCount}名)がW項目の技術職員数(${currentSocialItems.techStaffCount}名)を超えています。`);
     }
   }
 
@@ -446,19 +445,19 @@ const STEPS = [
   { num: 1, title: '決算書アップロード', icon: Upload },
   { num: 2, title: '提出書データ', icon: Building2 },
   { num: 3, title: '技術職員・社会性', icon: Users },
-  { num: 4, title: '前期データ確認', icon: ClipboardCheck },
-  { num: 5, title: '結果', icon: Calculator },
+  { num: 4, title: '結果', icon: Calculator },
 ];
 
-function StepIndicator({ current, onNavigate }: { current: number; onNavigate: (step: number) => void }) {
-  const stepsToShow = current >= 5 ? STEPS : STEPS.slice(0, 4);
+function StepIndicator({ current, maxReached, onNavigate }: { current: number; maxReached: number; onNavigate: (step: number) => void }) {
+  const stepsToShow = current >= 4 ? STEPS : STEPS.slice(0, 3);
   return (
     <nav aria-label="ステップ進行" className="flex items-center justify-center gap-1 sm:gap-2 mb-8">
       {stepsToShow.map((step, i) => {
         const Icon = step.icon;
         const isActive = step.num === current;
-        const isDone = step.num < current;
-        const canClick = isDone;
+        const isVisited = step.num <= maxReached && step.num !== current;
+        // Allow clicking any previously visited step, but not the result step (4) via indicator
+        const canClick = isVisited && step.num < 4;
         return (
           <div key={step.num} className="flex items-center">
             <button
@@ -467,12 +466,12 @@ function StepIndicator({ current, onNavigate }: { current: number; onNavigate: (
               onClick={() => canClick && onNavigate(step.num)}
               className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs sm:text-sm transition-colors ${
                 isActive ? 'bg-primary text-primary-foreground' :
-                isDone ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer' :
+                canClick ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer' :
                 'bg-muted/50 text-muted-foreground cursor-default'
               }`}
               aria-current={isActive ? 'step' : undefined}
             >
-              {isDone ? <CheckCircle className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+              {isVisited && step.num < current ? <CheckCircle className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">Step{step.num}: {step.title}</span>
               <span className="sm:hidden">{step.num}</span>
             </button>
@@ -490,19 +489,21 @@ function numField(
   onChange: (v: string) => void,
   unit: string = '千円',
   help?: string,
-  status?: 'auto-filled' | 'needs-input',
+  status?: 'auto-filled' | 'needs-input' | 'pending',
   warning?: FieldWarning | null
 ) {
   const fieldId = `numfield-${label.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, '-')}`;
   return (
     <div className={`space-y-1 rounded-md p-1.5 transition-colors ${
       status === 'auto-filled' ? 'bg-green-50 dark:bg-green-950/20 ring-1 ring-green-200 dark:ring-green-800' :
-      status === 'needs-input' ? 'bg-amber-50 dark:bg-amber-950/20 ring-1 ring-amber-200 dark:ring-amber-800' : ''
+      status === 'needs-input' ? 'bg-amber-50 dark:bg-amber-950/20 ring-1 ring-amber-200 dark:ring-amber-800' :
+      status === 'pending' ? 'bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-200 dark:ring-blue-800' : ''
     }`}>
       <Label htmlFor={fieldId} className="text-xs font-medium flex items-center gap-1">
         {label}
         {status === 'auto-filled' && <span className="text-[9px] text-green-600 font-normal">自動</span>}
         {status === 'needs-input' && <span className="text-[9px] text-amber-600 font-normal">要入力</span>}
+        {status === 'pending' && <span className="text-[9px] text-blue-600 font-normal">計算待ち</span>}
       </Label>
       <div className="flex items-center gap-1">
         <Input id={fieldId} type="number" value={value} onChange={(e) => onChange(e.target.value)} className={`text-right text-sm h-10 sm:h-8 ${warning ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`} />
@@ -538,7 +539,8 @@ interface InputWizardProps {
 export function InputWizard({ initialInputData, initialResultData, simulationId: initialSimulationId }: InputWizardProps = {}) {
   const [currentSimulationId, setCurrentSimulationId] = useState<string | undefined>(initialSimulationId);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState(initialResultData ? 5 : 1);
+  const [step, setStep] = useState(initialResultData ? 4 : 1);
+  const [maxStepReached, setMaxStepReached] = useState(initialResultData ? 4 : 1);
 
   // Helper to extract string from initial data
   const init = (key: string, fallback = ''): string => {
@@ -616,15 +618,18 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     if (initialInputData?.prevData) return initialInputData.prevData as PrevPeriodData;
     return { totalCapital: '', operatingCF: '', allowanceDoubtful: '', notesAndReceivable: '', constructionPayable: '', inventoryAndMaterials: '', advanceReceived: '' };
   });
-  const [prevFileLoading, setPrevFileLoading] = useState(false);
-  const [prevFileComplete, setPrevFileComplete] = useState(false);
-  const [prevFileName, setPrevFileName] = useState<string | null>(null);
-  const [prevFileError, setPrevFileError] = useState<string | null>(null);
-  const prevFileRef = useRef<HTMLInputElement>(null);
-  const [prevFileDragging, setPrevFileDragging] = useState(false);
   // Track which prevData fields were auto-filled from the prev period upload in Step 1
   const [prevAutoFilledFields, setPrevAutoFilledFields] = useState<Set<string>>(new Set());
   const [prevPeriodFileLoaded, setPrevPeriodFileLoaded] = useState(false);
+
+  // 前々期決算書アップロード状態（Step 1）
+  const [prevPrevPeriodFileLoaded, setPrevPrevPeriodFileLoaded] = useState(false);
+  // 前期PLデータ（営業CF自動計算用）
+  const [prevPeriodPLData, setPrevPeriodPLData] = useState<{ ordinaryProfit: number; depreciation: number; corporateTax: number } | null>(null);
+  // 前々期BSデータ（営業CF自動計算用）
+  const [prevPrevPeriodBSData, setPrevPrevPeriodBSData] = useState<ParsedFinancialFields | null>(null);
+  // 前期営業CFが自動計算されたかどうか
+  const [prevCFAutoCalculated, setPrevCFAutoCalculated] = useState(false);
 
   // Result
   type ResultType = {
@@ -667,7 +672,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   ]);
 
   // Don't auto-save when wizard is empty or showing results, or when loaded from props
-  const shouldSave = !initialInputData && step <= 4 && !isWizardEmpty(wizardSnapshot);
+  const shouldSave = !initialInputData && step <= 3 && !isWizardEmpty(wizardSnapshot);
   const { savedAt, clear: clearAutoSave } = useAutoSave<WizardSaveData>(
     WIZARD_SAVE_KEY,
     wizardSnapshot,
@@ -680,11 +685,12 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     discard: discardSavedData,
   } = useRestoreSave<WizardSaveData>(WIZARD_SAVE_KEY);
 
-  const showRestoreBanner = hasSavedData && !restoreBannerDismissed && !initialInputData && step <= 4;
+  const showRestoreBanner = hasSavedData && !restoreBannerDismissed && !initialInputData && step <= 3;
 
   function handleRestore() {
     if (!savedData) return;
     setStep(savedData.step);
+    setMaxStepReached(prev => Math.max(prev, savedData.step));
     setBasicInfo(savedData.basicInfo);
     setIndustries(savedData.industries);
     setEquity(savedData.equity);
@@ -782,7 +788,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   function handleNextStep() {
     const errorField = validateStep(step);
     if (errorField === null) {
-      setStep(step + 1);
+      const nextStep = step + 1;
+      setStep(nextStep);
+      setMaxStepReached(prev => Math.max(prev, nextStep));
       // Scroll to top of the wizard when navigating between steps
       requestAnimationFrame(() => {
         wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -850,6 +858,46 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setFileLoaded(false);
   }
 
+  /**
+   * 前期営業CF自動計算
+   * 前期PL（前期決算書から）＋ 前期BS（前期決算書から）＋ 前々期BS（前々期決算書から）が揃った場合のみ計算。
+   * 当期+前期の2つだけでは前々期BSがないため計算不可 → ユーザー手入力。
+   */
+  function tryCalculatePrevOperatingCF(
+    currentPrevData: PrevPeriodData,
+    prevPrevBS: ParsedFinancialFields | null,
+  ): number | null {
+    // 前期PL（前期決算書から）と前々期BS（前々期決算書から）の両方が必要
+    if (!prevPeriodPLData || !prevPrevBS) return null;
+
+    // 前期BS values（前期決算書 → prevData に格納済み）
+    const prevAllowance = parseFloat(currentPrevData.allowanceDoubtful) || 0;
+    const prevReceivable = parseFloat(currentPrevData.notesAndReceivable) || 0;
+    const prevPayable = parseFloat(currentPrevData.constructionPayable) || 0;
+    const prevInventory = parseFloat(currentPrevData.inventoryAndMaterials) || 0;
+    const prevAdvance = parseFloat(currentPrevData.advanceReceived) || 0;
+
+    // 前々期BS values（前々期決算書から）
+    const prevPrevAllowance = prevPrevBS.allowanceDoubtful ?? 0;
+    const prevPrevReceivable = prevPrevBS.notesAndReceivable ?? 0;
+    const prevPrevPayable = prevPrevBS.constructionPayable ?? 0;
+    const prevPrevInventory = prevPrevBS.inventoryAndMaterials ?? 0;
+    const prevPrevAdvance = prevPrevBS.advanceReceived ?? 0;
+
+    // 営業CF = 経常利益 + 減価償却実施額 - 法人税等
+    //        + 貸倒引当金増減 - 売掛債権増減 + 仕入債務増減 - 棚卸資産増減 + 受入金増減
+    return (
+      prevPeriodPLData.ordinaryProfit +
+      prevPeriodPLData.depreciation -
+      prevPeriodPLData.corporateTax +
+      (prevAllowance - prevPrevAllowance) -
+      (prevReceivable - prevPrevReceivable) +
+      (prevPayable - prevPrevPayable) -
+      (prevInventory - prevPrevInventory) +
+      (prevAdvance - prevPrevAdvance)
+    );
+  }
+
   // 前期決算書アップロード（Step 1）のハンドラ
   function handlePrevFileParsed(data: ParsedFinancialFields) {
     const filled = new Set<string>();
@@ -885,11 +933,21 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       updated.advanceReceived = String(data.advanceReceived);
       filled.add('advanceReceived');
     }
-    // operatingCF: 前々期データが必要なため自動計算不可、0に設定
-    // (前期のPLデータだけでは営業CFは算出できない)
-    if (!updated.operatingCF) {
-      updated.operatingCF = '0';
+    // 前期PLデータを保存（営業CF自動計算用）
+    const plData = (data.ordinaryProfit !== undefined && data.depreciation !== undefined && data.corporateTax !== undefined)
+      ? { ordinaryProfit: data.ordinaryProfit, depreciation: data.depreciation, corporateTax: data.corporateTax }
+      : null;
+    setPrevPeriodPLData(plData);
+
+    // 前々期BSデータがあれば営業CFを自動計算
+    const autoCalcCF = tryCalculatePrevOperatingCF(updated, prevPrevPeriodBSData);
+    if (autoCalcCF !== null) {
+      updated.operatingCF = String(autoCalcCF);
+      filled.add('operatingCF');
+      setPrevCFAutoCalculated(true);
     }
+    // 前々期がまだ未アップロードの場合は空のままにする（'0'にしない）
+    // ユーザーには「計算待ち」状態として表示される
 
     setPrevData(updated);
     setPrevAutoFilledFields(filled);
@@ -899,71 +957,44 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   function handlePrevFileClear() {
     setPrevAutoFilledFields(new Set());
     setPrevPeriodFileLoaded(false);
+    setPrevPeriodPLData(null);
+    // 前期営業CFの自動計算結果をクリア
+    if (prevCFAutoCalculated) {
+      setPrevData(prev => ({ ...prev, operatingCF: '' }));
+      setPrevCFAutoCalculated(false);
+    }
   }
 
-  // Previous period file upload handler
-  const handlePrevFile = useCallback(async (file: File) => {
-    setPrevFileError(null);
-    setPrevFileName(file.name);
+  // 前々期決算書アップロード（Step 1）のハンドラ
+  function handlePrevPrevFileParsed(data: ParsedFinancialFields) {
+    // 前々期BSデータを保存（営業CF自動計算用）
+    setPrevPrevPeriodBSData(data);
+    setPrevPrevPeriodFileLoaded(true);
 
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!['.xlsx', '.xls', '.csv', '.pdf'].includes(ext)) {
-      setPrevFileError('対応形式: Excel (.xlsx/.xls), CSV, PDF');
-      return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-      setPrevFileError('ファイルサイズが50MBを超えています。');
-      return;
-    }
-
-    setPrevFileLoading(true);
-    setPrevFileComplete(false);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const apiUrl = ext === '.pdf' ? '/api/parse-pdf' : '/api/parse-excel';
-      const res = await fetch(apiUrl, { method: 'POST', body: formData });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        throw new Error(errBody?.error || `解析エラー (${res.status})`);
-      }
-      const parsed = await res.json();
-      const { data } = parsed;
-
-      // Map BS data to prevData fields
-      // ※ parse-pdf API はすでに千円単位で返す（autoCorrectUnit適用済み）
-      //   のでここで /1000 してはいけない
-      const updated: PrevPeriodData = { ...prevData };
-      if (data.bs?.totals?.totalAssets) updated.totalCapital = String(data.bs.totals.totalAssets);
-      if (data.bs?.currentAssets?.['貸倒引当金'] !== undefined) updated.allowanceDoubtful = String(Math.abs(data.bs.currentAssets['貸倒引当金']));
-
-      // 受取手形 + 完成工事未収入金
-      const notes = data.bs?.currentAssets?.['受取手形'] || 0;
-      const acctRec = data.bs?.currentAssets?.['完成工事未収入金'] || 0;
-      if (notes || acctRec) updated.notesAndReceivable = String(notes + acctRec);
-
-      // 工事未払金
-      if (data.bs?.currentLiabilities?.['工事未払金']) updated.constructionPayable = String(data.bs.currentLiabilities['工事未払金']);
-
-      // 未成工事支出金 + 材料貯蔵品
-      const wip = data.bs?.currentAssets?.['未成工事支出金'] || 0;
-      const mat = data.bs?.currentAssets?.['材料貯蔵品'] || 0;
-      if (wip || mat) updated.inventoryAndMaterials = String(wip + mat);
-
-      // 未成工事受入金
-      if (data.bs?.currentLiabilities?.['未成工事受入金']) updated.advanceReceived = String(data.bs.currentLiabilities['未成工事受入金']);
-
+    // 前々期データで営業CFを自動計算（前期PLがあれば優先、なければ前々期PLで代用）
+    const autoCalcCF = tryCalculatePrevOperatingCF(prevData, data);
+    if (autoCalcCF !== null) {
+      const updated = { ...prevData, operatingCF: String(autoCalcCF) };
       setPrevData(updated);
-      setPrevFileComplete(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (e) {
-      setPrevFileError(e instanceof Error ? e.message : '解析に失敗しました。');
-    } finally {
-      setPrevFileLoading(false);
-      setPrevFileComplete(false);
+      setPrevAutoFilledFields(prev => new Set([...prev, 'operatingCF']));
+      setPrevCFAutoCalculated(true);
     }
-  }, [prevData]);
+  }
 
+  function handlePrevPrevFileClear() {
+    setPrevPrevPeriodBSData(null);
+    setPrevPrevPeriodFileLoaded(false);
+    // 前期営業CFの自動計算結果をクリア
+    if (prevCFAutoCalculated) {
+      setPrevData(prev => ({ ...prev, operatingCF: '0' }));
+      setPrevAutoFilledFields(prev => {
+        const next = new Set(prev);
+        next.delete('operatingCF');
+        return next;
+      });
+      setPrevCFAutoCalculated(false);
+    }
+  }
 
   // 経審提出書PDFアップロード処理
   async function handleKeishinPdfUpload(file: File) {
@@ -1160,7 +1191,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       const pl = previewPL ? buildKeishinPLFromParsed(previewPL) : undefined;
       const resultObj: ResultType = { Y: yResult.Y, X2: x2, X21: x21, X22: x22, W, wTotal, yResult, wDetail: wDet, industries: industryResults, bs, pl };
       setResult(resultObj);
-      setStep(5); // Go to result
+      setStep(4); // Go to result
+      setMaxStepReached(prev => Math.max(prev, 4));
 
       // 計算完了の成功フィードバック
       const mainIndustry = industryResults[0];
@@ -1280,6 +1312,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const handleRecalculate = useCallback(() => {
     setResult(null);
     setStep(1);
+    setMaxStepReached(3); // Keep steps 1-3 navigable, but result step requires recalculation
     setFileLoaded(true); // Mark as loaded so fields stay visible
     requestAnimationFrame(() => {
       wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1290,7 +1323,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
       // Only warn if the wizard has data and hasn't been submitted yet
-      if (step <= 4 && !isWizardEmpty(wizardSnapshot)) {
+      if (step <= 3 && !isWizardEmpty(wizardSnapshot)) {
         e.preventDefault();
       }
     }
@@ -1301,13 +1334,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   // FEATURE-2: Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ctrl+Enter → trigger calculation (only on step 4, the last step before results)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && step === 4) {
+      // Ctrl+Enter → trigger calculation (only on step 3, the last step before results)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && step === 3) {
         e.preventDefault();
         handleCalculate();
       }
       // Ctrl+S → trigger auto-save (prevent browser save dialog)
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && step <= 4) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && step <= 3) {
         e.preventDefault();
         showToast('データは自動保存されています', 'success');
       }
@@ -1319,7 +1352,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   // Focus management: move focus to the step heading on step change for keyboard navigation
   useEffect(() => {
-    if (step <= 4) {
+    if (step <= 3) {
       requestAnimationFrame(() => {
         const heading = wizardTopRef.current?.querySelector<HTMLElement>('h2');
         if (heading) {
@@ -1349,7 +1382,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
         </div>
       )}
 
-      {<StepIndicator current={step} onNavigate={(s) => { setStepError(null); setStepErrorField(null); setStep(s); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }} />}
+      {<StepIndicator current={step} maxReached={maxStepReached} onNavigate={(s) => { setStepError(null); setStepErrorField(null); setStep(s); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }} />}
 
       {/* Step 1: Upload + Financial */}
       {step === 1 && (
@@ -1359,9 +1392,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             決算書Excelをアップロードすると、BS/PLの数値を自動読取します。手入力も可能です。
           </p>
 
-          {/* 当期 / 前期 アップロードエリア */}
+          {/* 当期 / 前期 / 前々期 アップロードエリア */}
           <OnboardingCallout id="upload" text="ここにPDFまたはExcelをアップロードしてください">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* 当期決算書 */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -1390,18 +1423,47 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                 onDataParsed={handlePrevFileParsed}
                 onClear={handlePrevFileClear}
                 dropLabel="前期の決算書ファイルをドロップ、またはクリックして選択"
-                dropDescription="Step 4の前期データを自動入力します"
+                dropDescription="前期データ（営業CF計算用）を自動入力します"
               />
               {prevPeriodFileLoaded && prevAutoFilledFields.size > 0 && (
                 <div className="text-xs text-muted-foreground flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                  前期BS {prevAutoFilledFields.size}項目を自動読取 → Step 4に反映済み
+                  前期BS {prevAutoFilledFields.size}項目を自動読取
                 </div>
               )}
-              {prevPeriodFileLoaded && (
+              {prevPeriodFileLoaded && !prevCFAutoCalculated && (
                 <p className="text-[10px] text-amber-600">
-                  ※ 前期の営業CFは前々期データが必要なため自動計算できません。Step 4で手入力してください。
+                  ※ 前期の営業CFは前期＋前々期の決算書が揃うと自動計算されます。前々期決算書もアップロードしてください。
                 </p>
+              )}
+              {prevCFAutoCalculated && (
+                <p className="text-[10px] text-green-600">
+                  ※ 前期PL＋前期BS＋前々期BSから前期営業CFを自動計算しました。
+                </p>
+              )}
+            </div>
+
+            {/* 前々期決算書 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">前々期決算書（任意）</h3>
+                {prevPrevPeriodFileLoaded && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    <CheckCircle className="mr-1 h-3 w-3" />読取済み
+                  </Badge>
+                )}
+              </div>
+              <FileUpload
+                onDataParsed={handlePrevPrevFileParsed}
+                onClear={handlePrevPrevFileClear}
+                dropLabel="前々期の決算書ファイルをドロップ、またはクリックして選択"
+                dropDescription="営業CF計算の参考データとして使用します"
+              />
+              {prevPrevPeriodFileLoaded && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                  前々期決算書を読取済み{prevCFAutoCalculated ? '（前期営業CFを自動計算済み）' : '（前期決算書も揃えば営業CFを自動計算します）'}
+                </div>
               )}
             </div>
           </div>
@@ -1488,6 +1550,35 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               </CardContent>
             </Card>
           </div>
+
+          {/* 前期データ（営業CF計算用） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                前期（経審用BS千円値）
+                {prevPeriodFileLoaded && prevAutoFilledFields.size > 0 && (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
+                    <CheckCircle className="mr-1 h-3 w-3" />{prevAutoFilledFields.size}項目を自動入力済み
+                  </Badge>
+                )}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Y点の営業CF計算に前期の経審用BS千円値が必要です。
+                {prevPeriodFileLoaded
+                  ? '前期決算書から自動入力されています。内容を確認・修正してください。'
+                  : '上の前期決算書アップロードまたは手入力してください。'}
+              </p>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {numField('前期 資産合計（総資本）', prevData.totalCapital, (v) => setPrevData({ ...prevData, totalCapital: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 営業CF', prevData.operatingCF, (v) => { setPrevData({ ...prevData, operatingCF: v }); if (prevCFAutoCalculated) setPrevCFAutoCalculated(false); }, '千円', prevCFAutoCalculated ? '前期＋前々期決算書から自動計算済み（手動変更可）' : '前期＋前々期の決算書が揃うと自動計算', prevPeriodFileLoaded ? (prevCFAutoCalculated ? 'auto-filled' : (!prevPrevPeriodFileLoaded ? 'pending' : 'needs-input')) : undefined)}
+              {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 受取手形+完成工事未収入金', prevData.notesAndReceivable, (v) => setPrevData({ ...prevData, notesAndReceivable: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 工事未払金', prevData.constructionPayable, (v) => setPrevData({ ...prevData, constructionPayable: v }), '千円', '未払経費を含めない', prevPeriodFileLoaded ? (prevAutoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 未成工事支出金+材料貯蔵品', prevData.inventoryAndMaterials, (v) => setPrevData({ ...prevData, inventoryAndMaterials: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined)}
+              {numField('前期 未成工事受入金', prevData.advanceReceived, (v) => setPrevData({ ...prevData, advanceReceived: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined)}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1725,8 +1816,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {numField('前期完成工事高', ind.prevCompletion, (v) => updateIndustry(i, 'prevCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('前期完成工事高', ind.prevCompletion, { mustBePositive: true }))}
-                    {numField('当期完成工事高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('当期完成工事高', ind.currCompletion, { mustBePositive: true }))}
                     {numField('前年度元請完成工事高', ind.prevSubcontract, (v) => updateIndustry(i, 'prevSubcontract', v), '千円', undefined, undefined, getFinancialFieldWarning('前年度元請完成工事高', ind.prevSubcontract, { mustBePositive: true }))}
+                    {numField('当期完成工事高', ind.currCompletion, (v) => updateIndustry(i, 'currCompletion', v), '千円', undefined, undefined, getFinancialFieldWarning('当期完成工事高', ind.currCompletion, { mustBePositive: true }))}
                     {numField('当年度元請完成工事高', ind.currSubcontract, (v) => updateIndustry(i, 'currSubcontract', v), '千円', undefined, undefined, getFinancialFieldWarning('当年度元請完成工事高', ind.currSubcontract, { mustBePositive: true }))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -1968,107 +2059,6 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               <div className="text-xs text-muted-foreground">素点合計 = {wTotal}</div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Step 4: Previous Period */}
-      {step === 4 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold">Step 4: 前期データ確認</h2>
-          <p className="text-sm text-muted-foreground">
-            Y点の営業CF計算に前期の経審用BS千円値が必要です。
-            {prevPeriodFileLoaded
-              ? 'Step 1で前期決算書をアップロード済みのため、自動入力されています。内容を確認・修正してください。'
-              : 'ファイルアップロードまたは手入力してください。Step 1でも前期決算書をアップロードできます。'}
-          </p>
-
-          {/* Previous period file upload（ドラッグ&ドロップ対応） */}
-          <Card
-            className={`border-dashed border-2 transition-colors cursor-pointer ${
-              prevFileDragging ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
-            } ${prevFileLoading ? 'pointer-events-none opacity-60' : ''}`}
-            onDrop={(e) => { e.preventDefault(); setPrevFileDragging(false); const f = e.dataTransfer.files[0]; if (f) handlePrevFile(f); }}
-            onDragOver={(e) => { e.preventDefault(); setPrevFileDragging(true); }}
-            onDragLeave={(e) => { e.preventDefault(); setPrevFileDragging(false); }}
-            onClick={() => prevFileRef.current?.click()}
-          >
-            <CardContent className="py-4">
-              <input
-                ref={prevFileRef}
-                type="file"
-                accept=".xlsx,.xls,.csv,.pdf"
-                className="hidden"
-                onChange={(e) => { const file = e.target.files?.[0]; if (file) handlePrevFile(file); e.target.value = ''; }}
-                disabled={prevFileLoading}
-              />
-              <div className="flex flex-col items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-sm font-medium">前期決算書をアップロード（任意）</span>
-                  {prevFileName && !prevFileError && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      <CheckCircle className="mr-1 h-3 w-3" />読取済み
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  {prevFileDragging ? 'ここにドロップしてアップロード' : 'BS科目から自動マッピングします'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
-                    prevFileLoading
-                      ? 'bg-muted text-muted-foreground cursor-wait'
-                      : 'bg-background hover:bg-accent text-foreground cursor-pointer'
-                  }`}>
-                    <Upload className="h-4 w-4" />
-                    {prevFileLoading ? '解析中...' : prevFileName && !prevFileError ? prevFileName : 'ファイルをドロップまたは選択'}
-                  </span>
-                </div>
-                {prevFileLoading && (
-                  <div className="w-full px-2">
-                    <ExtractionProgress
-                      isActive={prevFileLoading}
-                      isComplete={prevFileComplete}
-                      estimatedDuration={15000}
-                      label="決算書を解析中"
-                    />
-                  </div>
-                )}
-                {prevFileError && (
-                  <p className="text-xs text-destructive">{prevFileError}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                前期（経審用BS千円値）
-                {prevPeriodFileLoaded && prevAutoFilledFields.size > 0 && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
-                    <CheckCircle className="mr-1 h-3 w-3" />Step 1で{prevAutoFilledFields.size}項目を自動入力済み
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {numField('前期 資産合計（総資本）', prevData.totalCapital, (v) => setPrevData({ ...prevData, totalCapital: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 営業CF', prevData.operatingCF, (v) => setPrevData({ ...prevData, operatingCF: v }), '千円', '前期③があれば。なければ前期BSから再計算', prevPeriodFileLoaded ? 'needs-input' : undefined)}
-              {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 受取手形+完成工事未収入金', prevData.notesAndReceivable, (v) => setPrevData({ ...prevData, notesAndReceivable: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 工事未払金', prevData.constructionPayable, (v) => setPrevData({ ...prevData, constructionPayable: v }), '千円', '未払経費を含めない', prevPeriodFileLoaded ? (prevAutoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 未成工事支出金+材料貯蔵品', prevData.inventoryAndMaterials, (v) => setPrevData({ ...prevData, inventoryAndMaterials: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('inventoryAndMaterials') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 未成工事受入金', prevData.advanceReceived, (v) => setPrevData({ ...prevData, advanceReceived: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('advanceReceived') ? 'auto-filled' : 'needs-input') : undefined)}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-blue-50/50 border-blue-200">
-            <CardContent className="py-4 text-sm text-blue-800">
-              <p className="font-medium">2回目以降は自動引継ぎ</p>
-              <p className="mt-1 text-xs">前回の試算データがDB内にある場合、前期データは自動で引き継がれます。ここでは確認・修正のみ行ってください。</p>
-            </CardContent>
-          </Card>
 
           {/* Data Validation Summary */}
           {(() => {
@@ -2086,6 +2076,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             if (!equity) finWarnings.push('自己資本が未入力');
             if (!ordinaryProfit) finWarnings.push('経常利益が未入力');
             if (num(totalCapital) > 0 && num(equity) > num(totalCapital)) finWarnings.push('自己資本が総資本を超えています');
+            if (!prevData.totalCapital) finWarnings.push('前期 総資本が未入力（Step 1の前期データ欄）');
             sections.push({ name: 'Step 1: 決算書データ', warnings: finWarnings });
 
             // Step 2: Industry data
@@ -2105,11 +2096,6 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             const wWarnings: string[] = [];
             if (wTotal === 0 && wScore === 0) wWarnings.push('社会性(W)項目が未入力（全て0点）');
             sections.push({ name: 'Step 3: 技術職員・社会性', warnings: wWarnings });
-
-            // Step 4: Previous period
-            const prevWarnings: string[] = [];
-            if (!prevData.totalCapital) prevWarnings.push('前期 総資本が未入力');
-            sections.push({ name: 'Step 4: 前期データ', warnings: prevWarnings });
 
             // Cross-step consistency
             if (crossStepWarnings.length > 0) {
@@ -2171,7 +2157,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       )}
 
       {/* Result */}
-      {step === 5 && result && (
+      {step === 4 && result && (
         <ResultView
           companyName={basicInfo.companyName}
           period={basicInfo.periodNumber}
@@ -2245,23 +2231,23 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
       {/* Navigation */}
       <div className="flex justify-between pt-4">
-        {step > 1 && step <= 4 && (
+        {step > 1 && step <= 3 && (
           <Button variant="outline" onClick={() => { setStepError(null); setStepErrorField(null); setStep(step - 1); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />戻る
           </Button>
         )}
-        {step === 5 && (
-          <Button variant="outline" onClick={() => { setStep(4); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }}>
+        {step === 4 && (
+          <Button variant="outline" onClick={() => { setStep(3); requestAnimationFrame(() => { wizardTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />入力に戻る
           </Button>
         )}
         <div className="ml-auto">
-          {step < 4 && (
+          {step < 3 && (
             <Button onClick={handleNextStep}>
               次へ<ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
-          {step === 4 && (
+          {step === 3 && (
             <OnboardingCallout id="calculate" text="全ての入力が完了したら試算実行ボタンを押してください">
             <Button size="lg" onClick={handleCalculate} disabled={calculating} className="px-12">
               {calculating ? (
@@ -2288,7 +2274,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       )}
 
       {/* Auto-save indicator */}
-      {step <= 4 && savedAt && !isWizardEmpty(wizardSnapshot) && (
+      {step <= 3 && savedAt && !isWizardEmpty(wizardSnapshot) && (
         <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
           <Save className="h-3 w-3" />
           自動保存済み {savedAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}

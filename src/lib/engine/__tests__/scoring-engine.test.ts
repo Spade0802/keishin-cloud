@@ -624,7 +624,8 @@ describe('calculateW', () => {
           secondClassAccountants: 1,
         })
       );
-      expect(result.detail.w5).toBe(6); // 2+3+1
+      // min(10, (2+3+1)*2) = min(10, 12) = 10（上限キャップ）
+      expect(result.detail.w5).toBe(10);
     });
 
     it('combines audit status + all accountant types', () => {
@@ -636,8 +637,8 @@ describe('calculateW', () => {
           secondClassAccountants: 3,
         })
       );
-      // 20 (audit) + 2 + 1 + 3 = 26
-      expect(result.detail.w5).toBe(26);
+      // 20 (audit) + min(10, (2+1+3)*2) = 20 + 10 = 30
+      expect(result.detail.w5).toBe(30);
     });
   });
 
@@ -866,15 +867,15 @@ describe('calculateW edge cases', () => {
     expect(result.detail.w3).toBe(20);
     // w4: 0 (no orders)
     expect(result.detail.w4).toBe(0);
-    // w5: 20(audit4) + 10+10+10 = 50
-    expect(result.detail.w5).toBe(50);
+    // w5: 20(audit4) + min(10, (10+10+10)*2) = 20 + 10 = 30
+    expect(result.detail.w5).toBe(30);
     // w6: 25 (rdRatio = 50%)
     expect(result.detail.w6).toBe(25);
     // w7: 15 (capped)
     expect(result.detail.w7).toBe(15);
     // w8: 10 (capped)
     expect(result.detail.w8).toBe(10);
-    expect(result.total).toBe(96 + 60 + 20 + 0 + 50 + 25 + 15 + 10);
+    expect(result.total).toBe(96 + 60 + 20 + 0 + 30 + 25 + 15 + 10);
     expect(result.W).toBe(Math.floor((result.total * 1750) / 200));
   });
 

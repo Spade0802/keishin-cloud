@@ -619,10 +619,25 @@ describe('validateWItems – additional', () => {
     expect(issue!.originalValue).toBe('abc');
   });
 
-  it('produces warning for boolean field with string value', () => {
+  it('coerces recognized boolean string values (e.g. "yes" → true)', () => {
     const data = baseData({
       wItems: {
         employmentInsurance: 'yes' as unknown as boolean,
+      },
+    });
+    const result = validateExtractedData(data);
+    // "yes" is now recognized and coerced to true (no warning)
+    expect(result.validatedWItems.employmentInsurance).toBe(true);
+    const issue = result.issues.find(
+      (i) => i.field === 'employmentInsurance' && i.message.includes('boolean期待'),
+    );
+    expect(issue).toBeUndefined();
+  });
+
+  it('produces warning for unrecognized boolean string value', () => {
+    const data = baseData({
+      wItems: {
+        employmentInsurance: 'maybe' as unknown as boolean,
       },
     });
     const result = validateExtractedData(data);

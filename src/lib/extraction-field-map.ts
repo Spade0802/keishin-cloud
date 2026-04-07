@@ -166,9 +166,9 @@ export const W_ITEMS_MAPPINGS: FieldMapping[] = [
 
   // 監査・経理
   { extractionPath: 'wItems.auditStatus', formTarget: 'auditStatus', section: 'w_items', type: 'number', label: '監査受審状況', validation: { min: 0, max: 4 } },
-  { extractionPath: 'wItems.certifiedAccountants', formTarget: 'certifiedAccountants', section: 'w_items', type: 'number', label: '公認会計士数', validation: { min: 0, max: 100 } },
-  { extractionPath: 'wItems.firstClassAccountants', formTarget: 'firstClassAccountants', section: 'w_items', type: 'number', label: '建設業経理士1級', validation: { min: 0, max: 100 } },
-  { extractionPath: 'wItems.secondClassAccountants', formTarget: 'secondClassAccountants', section: 'w_items', type: 'number', label: '建設業経理士2級', validation: { min: 0, max: 100 } },
+  { extractionPath: 'wItems.certifiedAccountants', formTarget: 'certifiedAccountants', section: 'w_items', type: 'number', label: '公認会計士等（公認会計士・税理士）', validation: { min: 0, max: 100 } },
+  { extractionPath: 'wItems.firstClassAccountants', formTarget: 'firstClassAccountants', section: 'w_items', type: 'number', label: '建設業経理士1級（1点/人）', validation: { min: 0, max: 100 } },
+  { extractionPath: 'wItems.secondClassAccountants', formTarget: 'secondClassAccountants', section: 'w_items', type: 'number', label: '建設業経理士2級（0.4点/人）', validation: { min: 0, max: 100 } },
 
   // 研究開発・機械・ISO
   { extractionPath: 'wItems.rdExpense2YearAvg', formTarget: 'rdExpense2YearAvg', section: 'w_items', type: 'number', label: '研究開発費（2期平均）', validation: { min: 0, max: 100_000_000 } },

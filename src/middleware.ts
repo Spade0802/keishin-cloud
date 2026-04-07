@@ -31,11 +31,23 @@ export default authMiddleware(function handler(req) {
     req.headers.get('host') ||
     '';
 
+  // リダイレクト対象:
+  //  - ブラウザからの通常GETナビゲーションのみ
+  //  - API ルート、Next.js RSC fetch、POST/OPTIONS 等は除外
+  //    （fetch ベースのリクエストを 308 リダイレクトすると CORS エラーになるため）
+  const isNavigationGet =
+    req.method === 'GET' &&
+    !req.nextUrl.pathname.startsWith('/api/') &&
+    !req.nextUrl.searchParams.has('_rsc') &&
+    !req.headers.get('rsc') &&
+    req.headers.get('sec-fetch-mode') !== 'cors';
+
   if (
     CANONICAL_HOST &&
     requestHost &&
     requestHost !== CANONICAL_HOST &&
-    !requestHost.startsWith('localhost')
+    !requestHost.startsWith('localhost') &&
+    isNavigationGet
   ) {
     const canonicalUrl = new URL(
       req.nextUrl.pathname + req.nextUrl.search,

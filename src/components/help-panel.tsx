@@ -57,19 +57,6 @@ const HELP_CONTENT: Record<number, { title: string; sections: { heading: string;
     ],
   },
   4: {
-    title: 'Step 4: 前期データ確認',
-    sections: [
-      {
-        heading: '前期データの役割',
-        body: '一部の評点（X2: 経営状況分析）では、前期と当期の2期分のデータを使って評価します。前期データが正確であることを確認してください。',
-      },
-      {
-        heading: '確認ポイント',
-        body: '・総資本（前期）\n・営業キャッシュフロー（前期）\n・貸倒引当金（前期）\n・受取手形＋完成工事未収入金（前期）\n・工事未払金（前期）\n・未成工事支出金＋材料貯蔵品（前期）\n・未成工事受入金（前期）',
-      },
-    ],
-  },
-  5: {
     title: '結果',
     sections: [
       {

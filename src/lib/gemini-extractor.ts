@@ -763,6 +763,10 @@ const PROMPT_KEISHIN_COMPREHENSIVE = `あなたは日本の建設業の経営事
 - 利払前税引前償却前利益（千円）→ ebitda
 - 技術職員数の合計 → techStaffCount
 - 営業年数 → businessYears
+- 許可を受けている建設業 → permitTypes（業種ごとの許可区分「特定」または「一般」）
+  - 例: 「電気（特定）、管（特定）、電気通信（一般）、消防施設（一般）」
+  - 各業種の正式名称（「工事」付き）をキーに、「特定」または「一般」を値にした辞書を返す
+  - 業種略称は正式名に変換: 電気→電気工事, 管→管工事, 電気通信→電気通信工事, 土木→土木一式工事, 建築→建築一式工事, etc.
 
 ### 値の妥当性チェック
 - **自己資本額（equity）**: 千円単位で1,000,000,000（=1兆円）を超える場合は円単位の可能性→1000で割る。
@@ -831,8 +835,14 @@ const PROMPT_KEISHIN_COMPREHENSIVE = `あなたは日本の建設業の経営事
 - くるみん認定 → wlbKurumin (0=なし, 1=くるみん, 2=トライくるみん, 3=プラチナ)
 - ユースエール認定 → wlbYouth (0=なし, 1=あり)
 
-### CCUS
-- CCUS活用 → ccusImplementation (0=なし, 1=民間工事, 2=全工事)
+### CCUS（建設キャリアアップシステム）就業履歴蓄積
+- CCUS活用レベル → ccusImplementation (0=未実施, 1=レベル1, 2=レベル2, 3=レベル3)
+- ★書類によって表記が異なる。以下すべて同一項目:
+  - 「CCUS活用」「CCUS活用レベル」「CCUSレベル」
+  - 「建設キャリアアップシステム」「就業履歴蓄積」
+  - 「知識及び技術又は技能の向上に関する取組の状況」の中のCCUS欄
+  - 経審結果通知書では「CCUS」の行、提出書では「就業履歴」等の表記になることがある
+- ★値が1〜3のいずれかであれば、そのまま設定。「有」「○」等のチェックのみの場合は1とする
 
 ### 営業年数・法令遵守
 - ★営業年数は通常2桁（10〜60年）。固定帳票では各桁が別マス。[5][7]→57年。1桁の場合は隣マスを再確認。
@@ -843,10 +853,24 @@ const PROMPT_KEISHIN_COMPREHENSIVE = `あなたは日本の建設業の経営事
 - 指示処分 → instructionOrder (true/false)
 
 ### 監査・経理
-- 監査の受審状況 → auditStatus (0=なし, 1=会計参与設置, 2=会計監査人設置)
-- 公認会計士等の数 → certifiedAccountants (数値)
-- 1級登録経理士の数 → firstClassAccountants (数値)
-- 2級登録経理士の数 → secondClassAccountants (数値)
+- ★★ 監査の受審状況 → auditStatus (数値0〜4)。W5の主要項目であり正確な抽出が重要。
+  必ず以下のスケールで数値を返すこと:
+  - 0: 監査なし（無し、受審なし、該当なし）
+  - 1: 社内の経理士による監査（社内監査）
+  - 2: 会計参与の設置（会計参与設置会社）
+  - 3: 経理処理の適正を確認した旨の書類の提出（1級建設業経理士による自主監査、経理士監査）
+  - 4: 会計監査人の設置（会計監査人設置会社）
+  ★PDFでの表記パターン:
+  - 「その他の審査項目（社会性等）」セクション内に記載
+  - 「監査の受審状況」「公認会計士等数及び監査の受審状況」というラベル
+  - 数字(0〜4)、全角数字(０〜４)で記載されている場合がある
+  - ○印やチェックが該当レベルの横にある場合がある
+  - 経審結果通知書ではW5の点数から推定可能: 0点=0, 4点=1, 8点=2, 14点=3, 20点=4
+  ★全角数字（０１２３４）は半角に変換して数値として返すこと
+- 公認会計士等の数（公認会計士・税理士の合計） → certifiedAccountants (数値)
+- 建設業経理士1級の数 → firstClassAccountants (数値)
+- 建設業経理士2級の数 → secondClassAccountants (数値)
+  ※「登録経理試験」「登録経理士」は旧称。現在は「建設業経理士」「建設業経理事務士」が正式名称。
 
 ### その他
 - 研究開発費 2期平均 → rdExpense2YearAvg (千円)
@@ -854,6 +878,10 @@ const PROMPT_KEISHIN_COMPREHENSIVE = `あなたは日本の建設業の経営事
 - ISO 9001 認証 → iso9001 (true/false)
 - ISO 14001 認証 → iso14001 (true/false)
 - エコアクション21 認証 → ecoAction21 (true/false)
+- ★ISO認証は別紙三の「国際標準化機構が定めた規格による登録の状況」セクションに記載。
+  「ISO9001」「ISO 9001」「品質」の行で「有」「1」「○」ならtrue。
+  「ISO14001」「ISO 14001」「環境」の行で「有」「1」「○」ならtrue。
+  経審結果通知書の場合はW8の点数から推定: W8が5点以上ならISO取得の可能性が高い。
 
 ### チェックボックスの読み取りルール
 - true: ✓、○、レ、1、有、チェック済み
@@ -872,7 +900,12 @@ const PROMPT_KEISHIN_COMPREHENSIVE = `あなたは日本の建設業の経営事
     "equity": 0,
     "ebitda": 0,
     "techStaffCount": 0,
-    "businessYears": 0
+    "businessYears": 0,
+    "permitTypes": {
+      "電気工事": "特定",
+      "管工事": "特定",
+      "電気通信工事": "一般"
+    }
   },
   "industries": [
     {
@@ -1044,6 +1077,8 @@ export interface KeishinGeminiResult {
   businessYears: number;
   /** 技術職員名簿から抽出した個別職員リスト */
   staffList?: ExtractedStaffMember[];
+  /** 許可区分（業種名 → 特定/一般） */
+  permitTypes?: Record<string, '特定' | '一般'>;
 }
 
 /**
@@ -1140,6 +1175,7 @@ interface PassBasicResult {
   ebitda: number;
   techStaffCount: number;
   businessYears: number;
+  permitTypes?: Record<string, '特定' | '一般'>;
 }
 
 interface PassIndustriesResult {
@@ -1301,6 +1337,9 @@ export async function extractKeishinDataWithGemini(
       merged.ebitda = parsed.basic.ebitda || 0;
       merged.techStaffCount = parsed.basic.techStaffCount || 0;
       merged.businessYears = parsed.basic.businessYears || 0;
+      if (parsed.basic.permitTypes && Object.keys(parsed.basic.permitTypes).length > 0) {
+        merged.permitTypes = parsed.basic.permitTypes;
+      }
     }
 
     // W項目からtechStaffCount, businessYearsを補完

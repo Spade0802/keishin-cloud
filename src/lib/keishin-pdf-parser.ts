@@ -15,6 +15,7 @@
 import type { SocialItems } from './engine/types';
 import { extractKeishinDataWithGemini, isGeminiAvailable } from './gemini-extractor';
 import type { ExtractedStaffMember } from './engine/tech-staff-calculator';
+import { normalizeIndustryName as normalizeToFullName } from './extraction-field-map';
 import { logger } from '@/lib/logger';
 
 // ─── 結果型 ───
@@ -55,6 +56,8 @@ export interface KeishinPdfResult {
   rawText?: string;
   /** 技術職員名簿から抽出した個別職員リスト */
   staffList?: ExtractedStaffMember[];
+  /** 許可区分（業種名 → 特定/一般） */
+  permitTypes?: Record<string, '特定' | '一般'>;
 }
 
 // ─── Document AI 構造化データ型 ───
@@ -293,6 +296,124 @@ export function findValueWithUnit(text: string, keyword: string, unit: string, m
   return findNumberAfter(text, keyword, maxChars);
 }
 
+// ─── 監査受審状況の正規化・解析 ───
+
+// normalizeAuditStatusValue はクライアントでも使うため audit-status-utils.ts に分離
+import { normalizeAuditStatusValue } from './audit-status-utils';
+export { normalizeAuditStatusValue };
+
+/**
+ * 監査の受審状況を PDF テキストから解析する。
+ * 値: 0=なし, 1=社内監査, 2=会計参与設置, 3=経理士監査（自主監査）, 4=会計監査人設置
+ *
+ * 経審結果通知書・提出書では以下の表記パターンがある:
+ * - 数字（半角/全角）: 0, 1, 2, 3, 4 / ０, １, ２, ３, ４
+ * - テキストラベル: 無, 社内, 会計参与, 経理士, 会計監査人
+ * - ○印やチェックマークが該当レベルの横にある
+ *
+ * @internal exported for testing
+ */
+export function parseAuditStatus(text: string): number | undefined {
+  // 全角数字を半角に変換済みのテキストを前提とするが、念のため再変換
+  const normalized = text.replace(/[０-９]/g, ch =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+  );
+
+  // 「監査の受審状況」「監査受審状況」「監査受審」の近辺を探す
+  const auditKeywords = [
+    '監査の受審状況',
+    '監査受審状況',
+    '監査受審',
+    '公認会計士等数及び監査の受審状況',
+    '公認会計士等の数及び監査の受審状況',
+  ];
+
+  let auditIdx = -1;
+  for (const kw of auditKeywords) {
+    const idx = normalized.indexOf(kw);
+    if (idx !== -1) {
+      auditIdx = idx;
+      break;
+    }
+  }
+  if (auditIdx === -1) return undefined;
+
+  const after = normalized.slice(auditIdx, auditIdx + 500);
+
+  // パターン1: 直接数値 (0-4) が記載されている場合
+  // 「監査の受審状況  4」「監査受審状況: 3」のようなケース
+  const directNum = after.match(/監査[のに]?受審状況[^\d]*?([0-4])/);
+  if (directNum) {
+    return parseInt(directNum[1], 10);
+  }
+
+  // パターン2: テキストラベルによる判定（優先度の高い順にチェック）
+  // 「会計監査人」が含まれていれば 4
+  if (/会計監査人/.test(after)) {
+    // ただし「会計監査人設置」のような表記の近くに○やチェックがあるか確認
+    if (/会計監査人[^\n]*?[○✓✔☑レ有1]/.test(after) || /[○✓✔☑レ有1][^\n]*?会計監査人/.test(after)) {
+      return 4;
+    }
+  }
+
+  // 「経理処理の適正」「経理士監査」「自主監査」「経理士による」が含まれていれば 3
+  if (/経理処理の適正|経理士[にの]?よる.*監査|自主監査|経理士監査/.test(after)) {
+    if (/(?:経理処理の適正|経理士監査|自主監査)[^\n]*?[○✓✔☑レ有1]/.test(after) ||
+        /[○✓✔☑レ有1][^\n]*?(?:経理処理の適正|経理士監査|自主監査)/.test(after)) {
+      return 3;
+    }
+  }
+
+  // 「会計参与」が含まれていれば 2
+  if (/会計参与/.test(after)) {
+    if (/会計参与[^\n]*?[○✓✔☑レ有1]/.test(after) || /[○✓✔☑レ有1][^\n]*?会計参与/.test(after)) {
+      return 2;
+    }
+  }
+
+  // 「社内」「社内監査」が含まれていれば 1
+  if (/社内[のに]?.*監査|社内監査/.test(after)) {
+    if (/社内[^\n]*?[○✓✔☑レ有1]/.test(after) || /[○✓✔☑レ有1][^\n]*?社内/.test(after)) {
+      return 1;
+    }
+  }
+
+  // パターン3: 選択肢リスト形式 「1. 有  2. 無  3. 会計参与  4. 会計監査人」のあとに回答値
+  const choiceMatch = after.match(/[1-4]\s*[.．]\s*(?:無|社内|会計参与|経理士|会計監査人)/);
+  if (choiceMatch) {
+    // 回答値を探す: 選択肢リストの後にある単独数字
+    const afterChoices = after.slice(after.indexOf(choiceMatch[0]) + choiceMatch[0].length);
+    const answerMatch = afterChoices.match(/^\s*.*?([0-4])\s/);
+    if (answerMatch) {
+      return parseInt(answerMatch[1], 10);
+    }
+  }
+
+  // パターン4: 単純なテキストマッチ（○やチェックなし、ラベル自体が回答の場合）
+  const labelPatterns: [RegExp, number][] = [
+    [/会計監査人設置/, 4],
+    [/会計監査人/, 4],
+    [/経理処理の適正を確認/, 3],
+    [/経理士監査/, 3],
+    [/自主監査/, 3],
+    [/会計参与の設置/, 2],
+    [/会計参与/, 2],
+    [/社内の経理士/, 1],
+    [/社内監査/, 1],
+    [/監査[のに]?受審.*無/, 0],
+    [/受審.*なし/, 0],
+  ];
+  // 「監査の受審状況」直後の100文字以内に回答テキストがある場合
+  const nearbyText = after.slice(0, 200);
+  for (const [pattern, value] of labelPatterns) {
+    if (pattern.test(nearbyText)) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 // ─── 業種名正規化 ───
 
 const INDUSTRY_NAME_MAP: Record<string, string> = {
@@ -382,6 +503,83 @@ function parseBasicInfo(text: string, result: KeishinPdfResult): void {
       break;
     }
   }
+}
+
+function parsePermitTypes(text: string, result: KeishinPdfResult): void {
+  // 「許可を受けている建設業」セクションから業種ごとの許可区分を抽出
+  const sectionMatch = text.match(/許可を受けている建設業[\s\S]{0,2000}/);
+  if (!sectionMatch) return;
+
+  const section = sectionMatch[0];
+  const permitTypes: Record<string, '特定' | '一般'> = {};
+
+  // ※ normalizeToFullName は extraction-field-map の正規化（短縮名 → 正式名「○○工事」）
+  //    use-extracted-data.ts と同じ正規化を使うことでキーの一致を保証する
+
+  // パターン1: 業種名（特定）or 業種名（一般）— 全角/半角括弧両対応
+  // 例: "電気（特定）、管（特定）、電気通信（一般）、消防施設（一般）"
+  const pattern1 = /([^\s,、，（(）)]+?)\s*[（(](特定|一般)[）)]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern1.exec(section)) !== null) {
+    const rawName = match[1].trim();
+    const permitType = match[2] as '特定' | '一般';
+    const normalizedName = normalizeToFullName(rawName);
+    if (normalizedName) {
+      permitTypes[normalizedName] = permitType;
+    }
+  }
+
+  // パターン2: テーブル形式 — "特定 業種1 業種2 ..." / "一般 業種3 業種4 ..."
+  // 経審提出書では「特定」「一般」の行に業種名が列挙される形式が多い
+  if (Object.keys(permitTypes).length === 0) {
+    // 「特定」行から業種を抽出
+    const tokuteLines = section.match(/特定[　\s]+([^\n]+)/g);
+    if (tokuteLines) {
+      for (const line of tokuteLines) {
+        const names = line.replace(/^特定[　\s]+/, '').split(/[\s　,、，]+/).filter(Boolean);
+        for (const rawName of names) {
+          const normalizedName = normalizeToFullName(rawName.trim());
+          if (normalizedName) {
+            permitTypes[normalizedName] = '特定';
+          }
+        }
+      }
+    }
+    // 「一般」行から業種を抽出
+    const ippanLines = section.match(/一般[　\s]+([^\n]+)/g);
+    if (ippanLines) {
+      for (const line of ippanLines) {
+        const names = line.replace(/^一般[　\s]+/, '').split(/[\s　,、，]+/).filter(Boolean);
+        for (const rawName of names) {
+          const normalizedName = normalizeToFullName(rawName.trim());
+          if (normalizedName) {
+            permitTypes[normalizedName] = '一般';
+          }
+        }
+      }
+    }
+  }
+
+  // パターン3: 業種ごとに "特定" or "一般" が隣接 — "電気 特定 管 特定 電気通信 一般"
+  if (Object.keys(permitTypes).length === 0) {
+    const pattern3 = /([\p{Script=Han}\p{Script=Katakana}\p{Script=Hiragana}ー・]+)\s*(特定|一般)/gu;
+    while ((match = pattern3.exec(section)) !== null) {
+      const rawName = match[1].trim();
+      const permitType = match[2] as '特定' | '一般';
+      const normalizedName = normalizeToFullName(rawName);
+      if (normalizedName) {
+        permitTypes[normalizedName] = permitType;
+      }
+    }
+  }
+
+  if (Object.keys(permitTypes).length > 0) {
+    result.permitTypes = permitTypes;
+    result.mappings.push({ source: '基本情報', target: '許可区分', value: JSON.stringify(permitTypes) });
+  }
+
+  // フォールバック: 業種データが既にあれば、業種名からデフォルト推定を追加
+  // （ここでは推定しない — Geminiからの抽出を優先し、取れなければデフォルト「一般」のまま）
 }
 
 function parseX2Summary(text: string, result: KeishinPdfResult): void {
@@ -714,6 +912,11 @@ function parseIndustries(text: string, result: KeishinPdfResult): void {
 function parseWItems(text: string, result: KeishinPdfResult): void {
   const w: Partial<SocialItems> = {};
 
+  // 全角英数字を半角に正規化（ISO9001 等の検出精度向上）
+  text = text.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+  );
+
   // 有/無/1/2 の判定ヘルパー
   // OCRでは「雇用保険加入の有無\n[1. 有 2. 無、 3.適用除外 ]」のような形式
   // → 説明テキストの「1. 有 2. 無」は除外し、実際の記入値を探す
@@ -739,10 +942,28 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
       // 実際の回答: 行に「有」だけ or 「1」だけ（項目の回答として）
       if (/^\s*有\s*$/.test(trimmed) || /^\s*1\s*$/.test(trimmed)) return true;
       if (/^\s*無\s*$/.test(trimmed) || /^\s*2\s*$/.test(trimmed)) return false;
+
+      // パターン3: キーワードと同じ行に「有」or「無」がある場合
+      // 例: 「ISO9001 有」「ISO14001　無」のようにキーワードの右側に値がある
+      // キーワード自体を含む行のみ対象（最初の行）
+      if (trimmed.includes(keyword)) {
+        const afterKeyword = trimmed.slice(trimmed.indexOf(keyword) + keyword.length);
+        // キーワード直後に「有」「無」「○」「×」があるか
+        if (/\s+有\s*$/.test(afterKeyword) || /\s+○\s*$/.test(afterKeyword)) return true;
+        if (/\s+無\s*$/.test(afterKeyword) || /\s+×\s*$/.test(afterKeyword)) return false;
+      }
+
+      // パターン4: 行末が「有」or「無」で終わる（キーワード行含む）
+      if (/有\s*$/.test(trimmed) && !trimmed.includes('無')) return true;
+      if (/無\s*$/.test(trimmed) && !trimmed.includes('有')) return false;
     }
 
-    // フォールバック: キーワード直後の最初の「有」or「無」（説明文を除く）
-    // 安全策として undefined を返す（判定不能）
+    // フォールバック: キーワード直後30文字で「有」or「無」を探す（ISO等の短い行向け）
+    const nearAfter = text.slice(idx + keyword.length, idx + keyword.length + 30);
+    if (/有/.test(nearAfter) && !/無/.test(nearAfter)) return true;
+    if (/無/.test(nearAfter) && !/有/.test(nearAfter)) return false;
+
+    // 判定不能
     return undefined;
   }
 
@@ -794,9 +1015,14 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
   const youthM = text.match(/青少年の雇用[^\d]*([\d])/);
   if (youthM) { w.wlbYouth = parseInt(youthM[1]); result.mappings.push({ source: '別紙三', target: 'W/ユースエール', value: youthM[1] }); }
 
-  // CCUS
-  const ccusM = text.match(/就業履[歴歷][^\d]*([\d])/);
-  if (ccusM) { w.ccusImplementation = parseInt(ccusM[1]); }
+  // CCUS（建設キャリアアップシステム）就業履歴蓄積
+  // 経審書類によって表記が異なる: 就業履歴、CCUS活用、CCUS活用レベル、建設キャリアアップシステム等
+  const ccusM = text.match(/(?:就業履[歴歷]|ＣＣＵＳ|CCUS|キャリアアップ)[^\d]*([\d])/);
+  if (ccusM) {
+    const val = parseInt(ccusM[1]);
+    w.ccusImplementation = Math.min(val, 3); // 0-3の範囲に制限
+    result.mappings.push({ source: '別紙三', target: 'W/CCUS活用', value: val });
+  }
 
   // W4: 営業継続
   const yearsM = text.match(/営業年数[^\d]*(\d+)\s*年/);
@@ -813,9 +1039,13 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
   const rehab = isYes('民事再生');
   if (rehab !== undefined) w.civilRehabilitation = rehab;
 
-  // W5: 監査 — auditStatus
-  // 値: 0=なし, 1=監査, 2=レビュー, 3=会計参与, 4=自主監査
-  // 通常テキストから直接読むのは難しいのでスキップ（ユーザーに確認させる）
+  // W5: 監査の受審状況 — auditStatus
+  // 値: 0=なし, 1=社内監査, 2=会計参与設置, 3=経理士監査（自主監査）, 4=会計監査人設置
+  const auditStatus = parseAuditStatus(text);
+  if (auditStatus !== undefined) {
+    w.auditStatus = auditStatus;
+    result.mappings.push({ source: '別紙三', target: 'W/監査受審状況', value: auditStatus });
+  }
 
   // W6: 研究開発
   const rdM = text.match(/研究開発費[^\d]*([\d,]+)\s*千円/);
@@ -826,14 +1056,16 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
   if (machineM) { w.constructionMachineCount = parseInt(machineM[1]); result.mappings.push({ source: '別紙三', target: 'W/建設機械', value: parseInt(machineM[1]) }); }
 
   // W8: ISO / エコアクション
-  const iso9 = isYes('ISO9001');
-  if (iso9 !== undefined) w.iso9001 = iso9;
+  // PDFテキストでは "ISO9001", "ISO 9001" 等のバリエーションがある（全角は上で半角に正規化済み）
+  // また公式フォームでは「国際標準化機構が定めた規格による登録の状況」のセクション内に記載される
+  const iso9 = isYes('ISO9001') ?? isYes('ISO 9001') ?? isYes('9001');
+  if (iso9 !== undefined) { w.iso9001 = iso9; result.mappings.push({ source: '別紙三', target: 'W/ISO9001', value: iso9 ? '有' : '無' }); }
 
-  const iso14 = isYes('ISO14001');
-  if (iso14 !== undefined) w.iso14001 = iso14;
+  const iso14 = isYes('ISO14001') ?? isYes('ISO 14001') ?? isYes('14001');
+  if (iso14 !== undefined) { w.iso14001 = iso14; result.mappings.push({ source: '別紙三', target: 'W/ISO14001', value: iso14 ? '有' : '無' }); }
 
   const eco = isYes('エコアクション');
-  if (eco !== undefined) w.ecoAction21 = eco;
+  if (eco !== undefined) { w.ecoAction21 = eco; result.mappings.push({ source: '別紙三', target: 'W/エコアクション21', value: eco ? '有' : '無' }); }
 
   result.wItems = w;
 }
@@ -946,11 +1178,23 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         }
         // W項目
         if (gd.wItems) {
+          // auditStatus の正規化: 全角数字・文字列ラベル → 0-4 の数値
+          if (gd.wItems.auditStatus !== undefined) {
+            gd.wItems.auditStatus = normalizeAuditStatusValue(gd.wItems.auditStatus);
+          }
+          // デバッグ: W項目の主要フィールドをログ出力
+          logger.info(`[keishin-pdf] Gemini wItems: audit=${gd.wItems.auditStatus}, cert=${gd.wItems.certifiedAccountants}, 1st=${gd.wItems.firstClassAccountants}, 2nd=${gd.wItems.secondClassAccountants}, iso9=${gd.wItems.iso9001}, iso14=${gd.wItems.iso14001}, rd=${gd.wItems.rdExpense2YearAvg}, machine=${gd.wItems.constructionMachineCount}, ccus=${gd.wItems.ccusImplementation}`);
           result.wItems = gd.wItems;
+        } else {
+          logger.warn('[keishin-pdf] Gemini returned NO wItems');
         }
         // 技術職員リスト
         if (gd.staffList && gd.staffList.length > 0) {
           result.staffList = gd.staffList;
+        }
+        // 許可区分
+        if (gd.permitTypes && Object.keys(gd.permitTypes).length > 0) {
+          result.permitTypes = gd.permitTypes;
         }
 
         // マッピング記録
@@ -959,6 +1203,9 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         };
         if (result.basicInfo.companyName) addMapping('会社名', 'basicInfo.companyName', result.basicInfo.companyName);
         if (result.basicInfo.permitNumber) addMapping('許可番号', 'basicInfo.permitNumber', result.basicInfo.permitNumber);
+        if (result.permitTypes && Object.keys(result.permitTypes).length > 0) {
+          addMapping('許可区分', 'permitTypes', JSON.stringify(result.permitTypes));
+        }
         if (result.equity) addMapping('自己資本額', 'equity', result.equity);
         if (result.ebitda) addMapping('利益額', 'ebitda', result.ebitda);
         if (result.techStaffCount) addMapping('技術職員数', 'techStaffCount', result.techStaffCount);
@@ -988,16 +1235,16 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
             wlbEruboshi: 'えるぼし',
             wlbKurumin: 'くるみん',
             wlbYouth: 'ユースエール',
-            ccusImplementation: 'CCUS活用',
+            ccusImplementation: 'CCUS活用レベル',
             businessYears: '営業年数',
             civilRehabilitation: '民事再生',
             disasterAgreement: '防災協定',
             suspensionOrder: '営業停止処分',
             instructionOrder: '指示処分',
             auditStatus: '監査の受審状況',
-            certifiedAccountants: '公認会計士数',
-            firstClassAccountants: '一級登録経理士数',
-            secondClassAccountants: '二級登録経理士数',
+            certifiedAccountants: '公認会計士等数',
+            firstClassAccountants: '建設業経理士1級数',
+            secondClassAccountants: '建設業経理士2級数',
             rdExpense2YearAvg: '研究開発費（2年平均）',
             constructionMachineCount: '建設機械台数',
             iso9001: 'ISO9001',
@@ -1145,6 +1392,11 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
   if (!hasX2) parseX2Summary(text, result);
   if (!hasIndustries) parseIndustries(text, result);
   if (!hasWItems) parseWItems(text, result);
+
+  // 許可区分の抽出（Geminiで未取得の場合のみ）
+  if (!result.permitTypes || Object.keys(result.permitTypes).length === 0) {
+    parsePermitTypes(text, result);
+  }
 
   // 業種の数値精度チェック: コードで検出した業種はOK、名前のみの業種は不確実
   const nameOnly = result.industries.filter(d => !d.code).map(d => d.name);

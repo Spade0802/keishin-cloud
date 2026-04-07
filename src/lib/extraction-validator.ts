@@ -6,6 +6,7 @@
  */
 
 import type { KeishinPdfResult } from './keishin-pdf-parser';
+import { normalizeAuditStatusValue } from './audit-status-utils';
 import type { SocialItems } from './engine/types';
 import { W_ITEMS_MAPPINGS, getNestedValue } from './extraction-field-map';
 
@@ -249,6 +250,22 @@ function validateWItems(
       } else if (typeof value === 'number') {
         // Gemini が 0/1 を返す場合がある
         (validated as Record<string, unknown>)[key] = value !== 0;
+      } else if (typeof value === 'string') {
+        // Gemini が "true"/"false" を文字列で返す場合がある
+        const lower = value.toLowerCase().trim();
+        if (lower === 'true' || lower === '1' || lower === '有' || lower === 'yes') {
+          (validated as Record<string, unknown>)[key] = true;
+        } else if (lower === 'false' || lower === '0' || lower === '無' || lower === 'no' || lower === '') {
+          (validated as Record<string, unknown>)[key] = false;
+        } else {
+          issues.push({
+            field: mapping.formTarget,
+            label: mapping.label,
+            severity: 'warning',
+            message: `${mapping.label}の値が不正です（boolean期待、実際: "${value}"）`,
+            originalValue: value,
+          });
+        }
       } else {
         issues.push({
           field: mapping.formTarget,
@@ -259,6 +276,13 @@ function validateWItems(
         });
       }
     } else if (mapping.type === 'number') {
+      // auditStatus は特別処理: テキストラベルや全角数字にも対応
+      if (key === 'auditStatus') {
+        const normalized = normalizeAuditStatusValue(value);
+        (validated as Record<string, unknown>)[key] = normalized;
+        continue;
+      }
+
       const numVal = Number(value);
       if (isNaN(numVal)) {
         issues.push({

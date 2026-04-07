@@ -133,8 +133,8 @@ describe('W score: Maximum scenario (all items maxed)', () => {
   });
 
   test('W5 includes audit status 4 and all accountants', () => {
-    // audit=4 → +20, plus 3+2+1 = +6
-    expect(result.detail.w5).toBe(26);
+    // audit=4 → +20, plus min(10, (3+2+1)*2) = min(10, 12) = +10
+    expect(result.detail.w5).toBe(30);
   });
 
   test('W6 is 25 for R&D ratio >= 5%', () => {
@@ -151,7 +151,7 @@ describe('W score: Maximum scenario (all items maxed)', () => {
   });
 
   test('Total raw W items sum correctly', () => {
-    const expectedTotal = 96 + 60 + 20 + 0 + 26 + 25 + 15 + 10;
+    const expectedTotal = 96 + 60 + 20 + 0 + 30 + 25 + 15 + 10;
     expect(result.detail.total).toBe(expectedTotal);
     expect(result.total).toBe(expectedTotal);
   });
@@ -282,8 +282,8 @@ describe('W score: Typical medium company with mixed items', () => {
     expect(result.detail.w3).toBe(20);
   });
 
-  test('W5 = 8 (audit) + 1 (first class) = 9', () => {
-    expect(result.detail.w5).toBe(9);
+  test('W5 = 8 (audit) + min(10, 1*2) = 10', () => {
+    expect(result.detail.w5).toBe(10);
   });
 
   test('W7 = 3 (machines)', () => {
@@ -295,7 +295,7 @@ describe('W score: Typical medium company with mixed items', () => {
   });
 
   test('Total and W conversion', () => {
-    const expectedTotal = 47 + 40 + 20 + 0 + 9 + 0 + 3 + 5;
+    const expectedTotal = 47 + 40 + 20 + 0 + 10 + 0 + 3 + 5;
     expect(result.total).toBe(expectedTotal);
     expect(result.W).toBe(Math.floor((expectedTotal * 1750) / 200));
   });
@@ -615,7 +615,8 @@ describe('W score: Individual sub-item toggle tests', () => {
       firstClassAccountants: 3,
       secondClassAccountants: 4,
     }));
-    expect(r.detail.w5).toBe(2 + 3 + 4);
+    // New formula: min(10, (2+3+4)*2) = min(10, 18) = 10
+    expect(r.detail.w5).toBe(10);
   });
 
   // --- W7: Construction machines ---
@@ -851,8 +852,8 @@ describe('W score: All bonus items enabled (theoretical maximum)', () => {
   });
 
   test('W5 is maximized (audit + accountants)', () => {
-    // 20 + 5 + 5 + 5 = 35
-    expect(result.detail.w5).toBe(35);
+    // 20 + min(10, 15*2) = 20 + 10 = 30
+    expect(result.detail.w5).toBe(30);
   });
 
   test('W6 is maximized at 25', () => {
@@ -868,14 +869,14 @@ describe('W score: All bonus items enabled (theoretical maximum)', () => {
   });
 
   test('Total is sum of all max sub-items', () => {
-    const expected = 96 + 60 + 20 + 0 + 35 + 25 + 15 + 10;
+    const expected = 96 + 60 + 20 + 0 + 30 + 25 + 15 + 10;
     expect(result.detail.total).toBe(expected);
-    expect(result.detail.total).toBe(261);
+    expect(result.detail.total).toBe(256);
   });
 
   test('W conversion of max total', () => {
-    expect(result.W).toBe(Math.floor((261 * 1750) / 200));
-    expect(result.W).toBe(2283);
+    expect(result.W).toBe(Math.floor((256 * 1750) / 200));
+    expect(result.W).toBe(2240);
   });
 });
 
@@ -1091,9 +1092,9 @@ describe('W score: Sensitivity analysis', () => {
       iso14001: true,
       ecoAction21: true,
     });
-    // 96 + 60 + 20 + 0 + 35 + 25 + 15 + 10 = 261 raw
-    // floor(261 * 1750 / 200) = floor(2283.75) = 2283
-    expect(d).toBe(2283);
+    // 96 + 60 + 20 + 0 + 30 + 25 + 15 + 10 = 256 raw
+    // floor(256 * 1750 / 200) = floor(2240) = 2240
+    expect(d).toBe(2240);
   });
 });
 

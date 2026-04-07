@@ -587,7 +587,7 @@ function buildSocialWSheet(
     wlbEruboshi: 'えるぼし認定',
     wlbKurumin: 'くるみん認定',
     wlbYouth: 'ユースエール認定',
-    ccusImplementation: 'CCUS活用',
+    ccusImplementation: 'CCUS活用レベル',
   };
 
   for (const [key, label] of Object.entries(w1Labels)) {

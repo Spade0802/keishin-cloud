@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1330,6 +1330,28 @@ export function AiAnalysisView({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // 分析中の経過時間カウンター
+  useEffect(() => {
+    if (!loading) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  // 経過時間に応じたフェーズメッセージ
+  function getPhaseMessage(seconds: number): string {
+    if (seconds < 5) return 'AIモデルに接続中...';
+    if (seconds < 30) return '財務データを分析中...';
+    if (seconds < 50) return 'シミュレーションを計算中...';
+    if (seconds < 70) return 'レポートを生成中...';
+    return 'もう少しお待ちください...';
+  }
 
   // result 変更時に親コンポーネントのキャッシュも更新
   function setResult(r: AnalysisResult | null) {
@@ -1364,9 +1386,14 @@ export function AiAnalysisView({
 
   // ローディングスケルトン: 分析中に表示
   if (loading) {
+    const ESTIMATED_TOTAL = 60; // 推定合計秒数
+    const progress = Math.min((elapsedSeconds / ESTIMATED_TOTAL) * 100, 95); // 95%上限（完了まで100にしない）
+    const remaining = Math.max(ESTIMATED_TOTAL - elapsedSeconds, 0);
+    const phaseMessage = getPhaseMessage(elapsedSeconds);
+
     return (
       <div className="space-y-6" role="status" aria-label="AI分析を実行中">
-        {/* スケルトン: サマリー */}
+        {/* 進捗カード */}
         <Card className="border-primary/20">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
@@ -1374,10 +1401,27 @@ export function AiAnalysisView({
               <span className="text-base font-semibold">AI分析を実行中...</span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-full animate-pulse rounded bg-muted" />
-            <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
+          <CardContent className="space-y-4">
+            {/* フェーズメッセージ */}
+            <p className="text-sm text-muted-foreground">{phaseMessage}</p>
+
+            {/* プログレスバー */}
+            <div className="space-y-2">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-1000 ease-linear"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>経過時間: {elapsedSeconds}秒</span>
+                <span>
+                  {remaining > 0
+                    ? `残り約${remaining}秒`
+                    : 'まもなく完了します...'}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1409,10 +1453,6 @@ export function AiAnalysisView({
             <div className="h-48 w-full animate-pulse rounded bg-muted" />
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-muted-foreground">
-          AIが経審データを分析しています。30秒〜1分程度お待ちください...
-        </p>
       </div>
     );
   }

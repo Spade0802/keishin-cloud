@@ -253,7 +253,13 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
 
     const filled = new Set<string>();
     for (const [key, value] of Object.entries(externalItems)) {
-      if (value !== undefined && value !== null && value !== 0 && value !== false) {
+      if (value === undefined || value === null) continue;
+      // boolean true / number > 0 を有意な値として追跡
+      // boolean false と number 0 はデフォルトと同じなのでスキップ
+      const isMeaningful = (typeof value === 'boolean' && value === true)
+        || (typeof value === 'number' && value !== 0)
+        || (typeof value === 'string' && value !== '');
+      if (isMeaningful) {
         filled.add(key);
       }
     }
@@ -618,14 +624,15 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
             autoFilled={autoFilledFields.has('auditStatus')}
           />
           <div className="text-xs font-semibold text-muted-foreground px-3 pt-2 pb-0.5">
-            経理体制
+            公認会計士等の数（経理の状況）
           </div>
           <NumberRow
-            label="公認会計士数"
+            label="公認会計士等（公認会計士・税理士）"
             value={items.certifiedAccountants}
             onChange={(v) => update('certifiedAccountants', v)}
             unit="人"
             min={0}
+            tooltip="公認会計士（会計士補を含む）及び税理士の合計人数。1人あたり1点"
             autoFilled={autoFilledFields.has('certifiedAccountants')}
           />
           <NumberRow
@@ -634,6 +641,7 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
             onChange={(v) => update('firstClassAccountants', v)}
             unit="人"
             min={0}
+            tooltip="1級建設業経理士（旧: 1級登録経理試験合格者）の人数。1人あたり1点"
             autoFilled={autoFilledFields.has('firstClassAccountants')}
           />
           <NumberRow
@@ -642,8 +650,15 @@ export function WItemsChecklist({ onWCalculated, externalItems }: WItemsChecklis
             onChange={(v) => update('secondClassAccountants', v)}
             unit="人"
             min={0}
+            tooltip="2級建設業経理士（旧: 2級登録経理試験合格者）の人数。1人あたり0.4点"
             autoFilled={autoFilledFields.has('secondClassAccountants')}
           />
+          {(items.certifiedAccountants > 0 || items.firstClassAccountants > 0 || items.secondClassAccountants > 0) && (
+            <p className="text-xs text-muted-foreground px-3">
+              経理の状況: {items.certifiedAccountants}x1 + {items.firstClassAccountants}x1 + {items.secondClassAccountants}x0.4
+              = {Math.floor(items.certifiedAccountants * 1 + items.firstClassAccountants * 1 + items.secondClassAccountants * 0.4)}点
+            </p>
+          )}
         </CardContent>
       </Card>
 

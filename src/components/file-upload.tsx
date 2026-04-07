@@ -186,22 +186,30 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
           const abd = data.bs.currentAssets?.['貸倒引当金'];
           if (abd !== undefined) formValues.allowanceDoubtful = Math.abs(abd);
 
-          // 受取手形 + 完成工事未収入金
+          // 受取手形 + 完成工事未収入金（一般企業の「売掛金」も考慮）
           const notes = data.bs.currentAssets?.['受取手形'] || 0;
-          const acctRec = data.bs.currentAssets?.['完成工事未収入金'] || 0;
+          const acctRec = data.bs.currentAssets?.['完成工事未収入金']
+            || data.bs.currentAssets?.['売掛金']
+            || 0;
           if (notes || acctRec) formValues.notesAndReceivable = notes + acctRec;
 
-          // 工事未払金（未払経費は含めない）
-          const cp = data.bs.currentLiabilities?.['工事未払金'] || 0;
+          // 工事未払金（一般企業の「買掛金」も考慮。未払経費は含めない）
+          const cp = data.bs.currentLiabilities?.['工事未払金']
+            || data.bs.currentLiabilities?.['買掛金']
+            || 0;
           if (cp) formValues.constructionPayable = cp;
 
-          // 未成工事支出金 + 材料貯蔵品
-          const wip = data.bs.currentAssets?.['未成工事支出金'] || 0;
+          // 未成工事支出金（一般企業の「仕掛品」も考慮） + 材料貯蔵品
+          const wip = data.bs.currentAssets?.['未成工事支出金']
+            || data.bs.currentAssets?.['仕掛品']
+            || 0;
           const mat = data.bs.currentAssets?.['材料貯蔵品'] || 0;
           if (wip || mat) formValues.inventoryAndMaterials = wip + mat;
 
-          // 未成工事受入金
-          const adv = data.bs.currentLiabilities?.['未成工事受入金'] || 0;
+          // 未成工事受入金（一般企業の「前受金」も考慮）
+          const adv = data.bs.currentLiabilities?.['未成工事受入金']
+            || data.bs.currentLiabilities?.['前受金']
+            || 0;
           if (adv) formValues.advanceReceived = adv;
         }
 

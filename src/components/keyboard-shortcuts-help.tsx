@@ -10,7 +10,7 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
-  { keys: ['Ctrl', 'Enter'], description: '計算を実行（Step 4）' },
+  { keys: ['Ctrl', 'Enter'], description: '計算を実行（Step 3）' },
   { keys: ['Ctrl', 'S'], description: 'データを保存' },
   { keys: ['Esc'], description: 'ダイアログを閉じる' },
   { keys: ['?'], description: 'このショートカット一覧を表示' },

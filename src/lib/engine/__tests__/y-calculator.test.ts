@@ -325,7 +325,9 @@ describe('calculateY — A and Y computation', () => {
       0.0172 * ind.x8 +
       0.1906;
 
-    expect(result.A).toBeCloseTo(expectedA, 6);
+    // A値は小数第2位に四捨五入される（公式計算準拠）
+    const roundedExpectedA = Math.round(expectedA * 100) / 100;
+    expect(result.A).toBeCloseTo(roundedExpectedA, 6);
   });
 
   it('Y = floor(167.3 * A + 583), clamped to [0, 1595]', () => {

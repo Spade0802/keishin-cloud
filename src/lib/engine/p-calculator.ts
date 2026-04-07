@@ -179,11 +179,16 @@ export function calculateW(items: SocialItems): {
   else if (items.auditStatus === 3) w5 += 14;
   else if (items.auditStatus === 2) w5 += 8;
   else if (items.auditStatus === 1) w5 += 4;
-  // 公認会計士
-  w5 += items.certifiedAccountants * 1;
-  // 経理（1級・2級）
-  w5 += items.firstClassAccountants * 1;
-  w5 += items.secondClassAccountants * 1;
+  // 公認会計士等の数（経理の状況）
+  // 公式: 公認会計士等数 n = 公認会計士等 + 1級建設業経理士 + 2級建設業経理士（各1人）
+  //        経理の状況の点数 = min(10, n × 2)
+  // 参照: 経審 別表第一 W5 公認会計士等の数
+  // 実データ検証: 2級×3名 → 経理の状況=6点（⑤第57期/58期 通知書で確認済み）
+  const accountingPersons =
+    items.certifiedAccountants +
+    items.firstClassAccountants +
+    items.secondClassAccountants;
+  w5 += Math.min(10, accountingPersons * 2);
 
   // W6: 研究開発費
   // 研究開発費(2年平均) ÷ 完成工事高(2年平均) × 100 の比率で評点化
