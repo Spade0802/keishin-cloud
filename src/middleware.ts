@@ -8,23 +8,35 @@ import { authConfig } from '@/lib/auth.config';
  * 1. 正規URL へのリダイレクト（Cookie不一致によるOAuth障害を防止）
  * 2. 認可ロジック（保護ページへの未認証アクセスをブロック）
  *
- * ★ Cloud Run は複数のURL形式でアクセス可能（旧形式/新形式）。
+ * ★ Cloud Run は複数のURL形式でアクセス可能:
+ *   - 旧形式: xxx-axguwuc4qq-an.a.run.app
+ *   - 新形式: xxx-687458058500.asia-northeast1.run.app
  * OAuth callback URL や Cookie はドメインに紐づくため、
  * 異なるドメインからアクセスすると CSRF 不一致やセッション消失が起きる。
  * 全トラフィックを正規URLに統一することで恒久的に防止する。
  */
 
-// Cloud Run の正規URL（NEXTAUTH_URL と一致させる）
 const CANONICAL_HOST = process.env.NEXTAUTH_URL
   ? new URL(process.env.NEXTAUTH_URL).host
   : null;
 
 const { auth: authMiddleware } = NextAuth(authConfig);
 
-// NextAuth の auth middleware をラップして正規URL リダイレクトを追加
 export default authMiddleware(function handler(req) {
-  // 正規URLリダイレクト（静的ファイルはNext.jsが処理するので対象外）
-  if (CANONICAL_HOST && req.nextUrl.host !== CANONICAL_HOST) {
+  // ── 正規URLリダイレクト ──
+  // req.nextUrl.host は trustHost により書き換わる場合があるため、
+  // 実際のリクエストヘッダーから判定する
+  const requestHost =
+    req.headers.get('x-forwarded-host') ||
+    req.headers.get('host') ||
+    '';
+
+  if (
+    CANONICAL_HOST &&
+    requestHost &&
+    requestHost !== CANONICAL_HOST &&
+    !requestHost.startsWith('localhost')
+  ) {
     const canonicalUrl = new URL(
       req.nextUrl.pathname + req.nextUrl.search,
       `https://${CANONICAL_HOST}`,
@@ -32,14 +44,12 @@ export default authMiddleware(function handler(req) {
     return NextResponse.redirect(canonicalUrl, 308);
   }
 
-  // authorized callback で認証チェック済み → そのまま通過
   return NextResponse.next();
 });
 
 export const config = {
   matcher: [
-    // 正規URLリダイレクト + 認証チェック対象
-    // 静的ファイル（画像、CSS、JS）は除外
+    // 全ページ対象（静的ファイルは除外）
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

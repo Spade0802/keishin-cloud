@@ -605,6 +605,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [keishinPdfError, setKeishinPdfError] = useState<string | null>(null);
   const [keishinPdfMappings, setKeishinPdfMappings] = useState<{ source: string; target: string; value: string | number }[]>([]);
   const [keishinPdfComplete, setKeishinPdfComplete] = useState(false);
+  const [keishinPdfDragging, setKeishinPdfDragging] = useState(false);
+  const keishinPdfInputRef = useRef<HTMLInputElement>(null);
   // 抽出データ管理（バリデーション・データソース追跡）
   const extractedData = useExtractedData();
   const [extractionWarnings, setExtractionWarnings] = useState<ValidationIssue[]>([]);
@@ -619,6 +621,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [prevFileName, setPrevFileName] = useState<string | null>(null);
   const [prevFileError, setPrevFileError] = useState<string | null>(null);
   const prevFileRef = useRef<HTMLInputElement>(null);
+  const [prevFileDragging, setPrevFileDragging] = useState(false);
   // Track which prevData fields were auto-filled from the prev period upload in Step 1
   const [prevAutoFilledFields, setPrevAutoFilledFields] = useState<Set<string>>(new Set());
   const [prevPeriodFileLoaded, setPrevPeriodFileLoaded] = useState(false);
@@ -1496,9 +1499,25 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             経審提出書PDFをアップロードすると、基本情報・業種別完工高・W項目を自動読取します。手入力も可能です。
           </p>
 
-          {/* 提出書PDFアップロード */}
-          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+          {/* 提出書PDFアップロード（ドラッグ&ドロップ対応） */}
+          <Card
+            className={`border-dashed border-2 transition-colors cursor-pointer ${
+              keishinPdfDragging ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+            } ${keishinPdfProcessing ? 'pointer-events-none opacity-60' : ''}`}
+            onDrop={(e) => { e.preventDefault(); setKeishinPdfDragging(false); const f = e.dataTransfer.files[0]; if (f) handleKeishinPdfUpload(f); }}
+            onDragOver={(e) => { e.preventDefault(); setKeishinPdfDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setKeishinPdfDragging(false); }}
+            onClick={() => keishinPdfInputRef.current?.click()}
+          >
             <CardContent className="py-4">
+              <input
+                ref={keishinPdfInputRef}
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKeishinPdfUpload(f); e.target.value = ''; }}
+                disabled={keishinPdfProcessing}
+              />
               <div className="flex flex-col items-center gap-3">
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
@@ -1510,29 +1529,17 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  経営規模等評価申請書・別紙一（業種別完工高）・別紙三（W項目）を自動で読み取ります
+                  {keishinPdfDragging ? 'ここにドロップしてアップロード' : '経営規模等評価申請書・別紙一（業種別完工高）・別紙三（W項目）を自動で読み取ります'}
                 </p>
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleKeishinPdfUpload(f);
-                      }}
-                      disabled={keishinPdfProcessing}
-                    />
-                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
-                      keishinPdfProcessing
-                        ? 'bg-muted text-muted-foreground cursor-wait'
-                        : 'bg-background hover:bg-accent text-foreground cursor-pointer'
-                    }`}>
-                      <Upload className="h-4 w-4" />
-                      {keishinPdfProcessing ? '解析中...' : 'PDFを選択'}
-                    </span>
-                  </label>
+                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                    keishinPdfProcessing
+                      ? 'bg-muted text-muted-foreground cursor-wait'
+                      : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                  }`}>
+                    <Upload className="h-4 w-4" />
+                    {keishinPdfProcessing ? '解析中...' : 'PDFをドロップまたは選択'}
+                  </span>
                 </div>
                 {keishinPdfProcessing && (
                   <div className="w-full px-2">
@@ -1827,39 +1834,43 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             externalStaff={extractedStaff}
           />
 
-          {/* 経審提出書PDF: 未読込ならアップロード欄、読込済みなら反映状況を表示 */}
+          {/* 経審提出書PDF: 未読込ならアップロード欄（ドラッグ&ドロップ対応） */}
           {!keishinPdfLoaded ? (
-            <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+            <Card
+              className={`border-dashed border-2 transition-colors cursor-pointer ${
+                keishinPdfDragging ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+              } ${keishinPdfProcessing ? 'pointer-events-none opacity-60' : ''}`}
+              onDrop={(e) => { e.preventDefault(); setKeishinPdfDragging(false); const f = e.dataTransfer.files[0]; if (f) handleKeishinPdfUpload(f); }}
+              onDragOver={(e) => { e.preventDefault(); setKeishinPdfDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setKeishinPdfDragging(false); }}
+              onClick={() => keishinPdfInputRef.current?.click()}
+            >
               <CardContent className="py-4">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  ref={keishinPdfInputRef}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKeishinPdfUpload(f); e.target.value = ''; }}
+                  disabled={keishinPdfProcessing}
+                />
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm font-medium">経審提出書PDFからW項目を自動入力</span>
                   </div>
                   <p className="text-xs text-muted-foreground text-center">
-                    Step 2 でアップロード済みなら自動反映されます。ここからもアップロードできます。
+                    {keishinPdfDragging ? 'ここにドロップしてアップロード' : 'Step 2 でアップロード済みなら自動反映されます。ここからもアップロードできます。'}
                   </p>
                   <div className="flex items-center gap-2">
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleKeishinPdfUpload(f);
-                        }}
-                        disabled={keishinPdfProcessing}
-                      />
-                      <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
-                        keishinPdfProcessing
-                          ? 'bg-muted text-muted-foreground cursor-wait'
-                          : 'bg-background hover:bg-accent text-foreground cursor-pointer'
-                      }`}>
-                        <Upload className="h-4 w-4" />
-                        {keishinPdfProcessing ? '解析中...' : '提出書PDFを選択'}
-                      </span>
-                    </label>
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                      keishinPdfProcessing
+                        ? 'bg-muted text-muted-foreground cursor-wait'
+                        : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                    }`}>
+                      <Upload className="h-4 w-4" />
+                      {keishinPdfProcessing ? '解析中...' : '提出書PDFをドロップまたは選択'}
+                    </span>
                   </div>
                   {keishinPdfProcessing && (
                     <div className="w-full px-2">
@@ -2011,9 +2022,25 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
               : 'ファイルアップロードまたは手入力してください。Step 1でも前期決算書をアップロードできます。'}
           </p>
 
-          {/* Previous period file upload */}
-          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+          {/* Previous period file upload（ドラッグ&ドロップ対応） */}
+          <Card
+            className={`border-dashed border-2 transition-colors cursor-pointer ${
+              prevFileDragging ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+            } ${prevFileLoading ? 'pointer-events-none opacity-60' : ''}`}
+            onDrop={(e) => { e.preventDefault(); setPrevFileDragging(false); const f = e.dataTransfer.files[0]; if (f) handlePrevFile(f); }}
+            onDragOver={(e) => { e.preventDefault(); setPrevFileDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setPrevFileDragging(false); }}
+            onClick={() => prevFileRef.current?.click()}
+          >
             <CardContent className="py-4">
+              <input
+                ref={prevFileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv,.pdf"
+                className="hidden"
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) handlePrevFile(file); e.target.value = ''; }}
+                disabled={prevFileLoading}
+              />
               <div className="flex flex-col items-center gap-3">
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
@@ -2025,31 +2052,17 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  BS科目から自動マッピングします
+                  {prevFileDragging ? 'ここにドロップしてアップロード' : 'BS科目から自動マッピングします'}
                 </p>
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer">
-                    <input
-                      ref={prevFileRef}
-                      type="file"
-                      accept=".xlsx,.xls,.csv,.pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handlePrevFile(file);
-                        e.target.value = '';
-                      }}
-                      disabled={prevFileLoading}
-                    />
-                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
-                      prevFileLoading
-                        ? 'bg-muted text-muted-foreground cursor-wait'
-                        : 'bg-background hover:bg-accent text-foreground cursor-pointer'
-                    }`}>
-                      <Upload className="h-4 w-4" />
-                      {prevFileLoading ? '解析中...' : prevFileName && !prevFileError ? prevFileName : '決算書を選択'}
-                    </span>
-                  </label>
+                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border ${
+                    prevFileLoading
+                      ? 'bg-muted text-muted-foreground cursor-wait'
+                      : 'bg-background hover:bg-accent text-foreground cursor-pointer'
+                  }`}>
+                    <Upload className="h-4 w-4" />
+                    {prevFileLoading ? '解析中...' : prevFileName && !prevFileError ? prevFileName : 'ファイルをドロップまたは選択'}
+                  </span>
                 </div>
                 {prevFileLoading && (
                   <div className="w-full px-2">
