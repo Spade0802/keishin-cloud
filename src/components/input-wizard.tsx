@@ -1752,63 +1752,23 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      {numField(
-                        '技術職員数値',
-                        ind.techStaffValue,
-                        (v) => handleTechStaffManualEdit(i, v),
-                        '点',
-                        undefined,
-                        autoTechValues[ind.name] !== undefined && !techValueOverrides[i] ? 'auto-filled' : undefined
-                      )}
-                      {/* Show breakdown when auto-calculated */}
-                      {(() => {
-                        const detail = techValueDetails.find((d) => d.name === ind.name);
-                        if (detail && detail.breakdown.length > 0) {
-                          return (
-                            <div className="text-[10px] text-muted-foreground bg-muted/30 rounded px-2 py-1 mt-0.5">
-                              <span className="font-medium">内訳: </span>
-                              {detail.breakdown.map((b) => `${b.staffName}(x${b.multiplier})`).join(' + ')}
-                              {' = '}
-                              {detail.breakdown.map((b) => b.multiplier).join('+')}
-                              {'='}
-                              {detail.value}点
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                      {techValueOverrides[i] && autoTechValues[ind.name] !== undefined && (
-                        <button
-                          type="button"
-                          onClick={() => resetTechStaffOverride(i)}
-                          className="text-[10px] text-primary hover:underline"
-                        >
-                          自動計算値({autoTechValues[ind.name]}点)に戻す
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground self-end pb-2 space-y-0.5">
-                      {(() => {
-                        const avg = Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2);
-                        const curr = num(ind.currCompletion);
-                        const isAvgSelected = avg >= curr;
-                        return (
-                          <>
-                            <div className={isAvgSelected ? 'text-green-600 font-medium' : ''}>
-                              2年平均: {avg.toLocaleString()}千円{isAvgSelected && ' (採用)'}
-                            </div>
-                            <div className={!isAvgSelected ? 'text-green-600 font-medium' : ''}>
-                              当期: {curr.toLocaleString()}千円{!isAvgSelected && ' (採用)'}
-                            </div>
-                            <div className="text-[10px]">
-                              {isAvgSelected ? '※ 2年平均が大きいため採用' : '※ 当期が大きいため採用'}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
+                  {/* 完工高 2年平均/当期の採用判定表示 */}
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {(() => {
+                      const avg = Math.floor((num(ind.prevCompletion) + num(ind.currCompletion)) / 2);
+                      const curr = num(ind.currCompletion);
+                      const isAvgSelected = avg >= curr;
+                      return (
+                        <div className="flex gap-3">
+                          <span className={isAvgSelected ? 'text-green-600 font-medium' : ''}>
+                            2年平均: {avg.toLocaleString()}千円{isAvgSelected && ' (採用)'}
+                          </span>
+                          <span className={!isAvgSelected ? 'text-green-600 font-medium' : ''}>
+                            当期: {curr.toLocaleString()}千円{!isAvgSelected && ' (採用)'}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
