@@ -673,7 +673,7 @@ describe('getGeminiModel – generation config', () => {
       model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
-        temperature: 0.3,
+        temperature: 0,
         maxOutputTokens: 65536,
       },
     });
@@ -691,7 +691,7 @@ describe('getGeminiModel – generation config', () => {
     expect(mockGetGenerativeModel_vertex).toHaveBeenCalledWith({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.3,
+        temperature: 0,
         maxOutputTokens: 65536,
         responseMimeType: 'application/json',
       },

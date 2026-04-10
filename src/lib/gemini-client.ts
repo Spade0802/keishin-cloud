@@ -57,7 +57,7 @@ function getGeminiPaidModel(apiKey: string, modelName: string) {
     model: modelName,
     generationConfig: {
       responseMimeType: 'application/json' as const,
-      temperature: 0.3,
+      temperature: 0,
       maxOutputTokens: 65536,
     },
   });
@@ -73,7 +73,7 @@ function getVertexAIModel(modelName: string) {
   const model = vertexAI.getGenerativeModel({
     model: modelName,
     generationConfig: {
-      temperature: 0.3,
+      temperature: 0,
       maxOutputTokens: 65536,
       responseMimeType: 'application/json',
     },
