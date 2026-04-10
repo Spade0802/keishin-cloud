@@ -630,6 +630,13 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   const [prevPrevPeriodBSData, setPrevPrevPeriodBSData] = useState<ParsedFinancialFields | null>(null);
   // 前期営業CFが自動計算されたかどうか
   const [prevCFAutoCalculated, setPrevCFAutoCalculated] = useState(false);
+  // 営業CF計算の内訳（デバッグ・検証用）
+  const [prevCFBreakdown, setPrevCFBreakdown] = useState<{
+    ordinaryProfit: number; depreciation: number; corporateTax: number;
+    allowanceDelta: number; receivableDelta: number; payableDelta: number;
+    inventoryDelta: number; advanceDelta: number; total: number;
+    prevValues: Record<string, number>; prevPrevValues: Record<string, number>;
+  } | null>(null);
 
   // Result
   type ResultType = {
@@ -971,12 +978,46 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   // 営業CF計算ボタンのハンドラ
   function handleCalculatePrevCF() {
-    const autoCalcCF = tryCalculatePrevOperatingCF(prevData, prevPrevPeriodBSData);
-    if (autoCalcCF !== null) {
-      setPrevData(prev => ({ ...prev, operatingCF: String(autoCalcCF) }));
-      setPrevAutoFilledFields(prev => new Set([...prev, 'operatingCF']));
-      setPrevCFAutoCalculated(true);
-    }
+    if (!prevPeriodPLData || !prevPrevPeriodBSData) return;
+
+    const prevAllowance = parseFloat(prevData.allowanceDoubtful) || 0;
+    const prevReceivable = parseFloat(prevData.notesAndReceivable) || 0;
+    const prevPayable = parseFloat(prevData.constructionPayable) || 0;
+    const prevInventory = parseFloat(prevData.inventoryAndMaterials) || 0;
+    const prevAdvance = parseFloat(prevData.advanceReceived) || 0;
+
+    const prevPrevAllowance = prevPrevPeriodBSData.allowanceDoubtful ?? 0;
+    const prevPrevReceivable = prevPrevPeriodBSData.notesAndReceivable ?? 0;
+    const prevPrevPayable = prevPrevPeriodBSData.constructionPayable ?? 0;
+    const prevPrevInventory = prevPrevPeriodBSData.inventoryAndMaterials ?? 0;
+    const prevPrevAdvance = prevPrevPeriodBSData.advanceReceived ?? 0;
+
+    const allowanceDelta = prevAllowance - prevPrevAllowance;
+    const receivableDelta = prevReceivable - prevPrevReceivable;
+    const payableDelta = prevPayable - prevPrevPayable;
+    const inventoryDelta = prevInventory - prevPrevInventory;
+    const advanceDelta = prevAdvance - prevPrevAdvance;
+
+    const total = (
+      prevPeriodPLData.ordinaryProfit +
+      prevPeriodPLData.depreciation -
+      prevPeriodPLData.corporateTax +
+      allowanceDelta - receivableDelta + payableDelta - inventoryDelta + advanceDelta
+    );
+
+    setPrevCFBreakdown({
+      ordinaryProfit: prevPeriodPLData.ordinaryProfit,
+      depreciation: prevPeriodPLData.depreciation,
+      corporateTax: prevPeriodPLData.corporateTax,
+      allowanceDelta, receivableDelta, payableDelta, inventoryDelta, advanceDelta,
+      total,
+      prevValues: { allowance: prevAllowance, receivable: prevReceivable, payable: prevPayable, inventory: prevInventory, advance: prevAdvance },
+      prevPrevValues: { allowance: prevPrevAllowance, receivable: prevPrevReceivable, payable: prevPrevPayable, inventory: prevPrevInventory, advance: prevPrevAdvance },
+    });
+
+    setPrevData(prev => ({ ...prev, operatingCF: String(total) }));
+    setPrevAutoFilledFields(prev => new Set([...prev, 'operatingCF']));
+    setPrevCFAutoCalculated(true);
   }
 
   // 営業CF計算が可能かどうか（前期PL＋前々期BSが揃っている）
@@ -1592,6 +1633,28 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
                       ? '前々期の決算書をアップロードすると計算ボタンが表示されます'
                       : '手入力してください'}
                   </p>
+                )}
+                {prevCFBreakdown && prevCFAutoCalculated && (
+                  <details className="mt-1">
+                    <summary className="text-[10px] text-blue-600 cursor-pointer hover:underline">計算内訳を表示</summary>
+                    <div className="mt-1 p-2 bg-slate-50 rounded text-[10px] space-y-0.5 font-mono">
+                      <div>経常利益: <span className="font-bold">{prevCFBreakdown.ordinaryProfit.toLocaleString()}</span></div>
+                      <div>+ 減価償却: <span className="font-bold">{prevCFBreakdown.depreciation.toLocaleString()}</span></div>
+                      <div>- 法人税等: <span className="font-bold">{prevCFBreakdown.corporateTax.toLocaleString()}</span></div>
+                      <div>+ 貸倒引当金増減: <span className="font-bold">{prevCFBreakdown.allowanceDelta.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-1">({prevCFBreakdown.prevValues.allowance.toLocaleString()} - {prevCFBreakdown.prevPrevValues.allowance.toLocaleString()})</span></div>
+                      <div>- 売掛債権増減: <span className="font-bold">{prevCFBreakdown.receivableDelta.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-1">({prevCFBreakdown.prevValues.receivable.toLocaleString()} - {prevCFBreakdown.prevPrevValues.receivable.toLocaleString()})</span></div>
+                      <div>+ 仕入債務増減: <span className="font-bold">{prevCFBreakdown.payableDelta.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-1">({prevCFBreakdown.prevValues.payable.toLocaleString()} - {prevCFBreakdown.prevPrevValues.payable.toLocaleString()})</span></div>
+                      <div>- 棚卸資産増減: <span className="font-bold">{prevCFBreakdown.inventoryDelta.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-1">({prevCFBreakdown.prevValues.inventory.toLocaleString()} - {prevCFBreakdown.prevPrevValues.inventory.toLocaleString()})</span></div>
+                      <div>+ 受入金増減: <span className="font-bold">{prevCFBreakdown.advanceDelta.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-1">({prevCFBreakdown.prevValues.advance.toLocaleString()} - {prevCFBreakdown.prevPrevValues.advance.toLocaleString()})</span></div>
+                      <div className="border-t pt-0.5 mt-0.5 font-bold">= 営業CF: {prevCFBreakdown.total.toLocaleString()} 千円</div>
+                      <p className="text-gray-500 mt-1 font-sans">※ 経審の簡易間接法による計算。正式なCF計算書とは異なる場合があります。</p>
+                    </div>
+                  </details>
                 )}
               </div>
               {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
