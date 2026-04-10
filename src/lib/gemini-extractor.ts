@@ -1371,6 +1371,17 @@ export async function extractKeishinDataWithGemini(
       : '';
     const parsed = parseJsonResponse<ComprehensiveKeishinResult>(comprehensiveText);
 
+    // デバッグ: パース結果の詳細ログ
+    if (parsed) {
+      const wKeys = parsed.wItems ? Object.keys(parsed.wItems) : [];
+      const wNonZero = parsed.wItems ? Object.entries(parsed.wItems).filter(([, v]) => v !== 0 && v !== false && v !== undefined && v !== null) : [];
+      logger.info(`[comprehensive] Parsed OK. industries=${parsed.industries?.length || 0}, wItems keys=${wKeys.length}, wItems non-zero=${wNonZero.length}: ${wNonZero.map(([k, v]) => `${k}=${v}`).join(', ')}`);
+      if (parsed.wItems) {
+        logger.info(`[comprehensive] W5/W8: audit=${parsed.wItems.auditStatus}, cert=${parsed.wItems.certifiedAccountants}, 1st=${parsed.wItems.firstClassAccountants}, 2nd=${parsed.wItems.secondClassAccountants}, iso9=${parsed.wItems.iso9001}, iso14=${parsed.wItems.iso14001}, eco=${parsed.wItems.ecoAction21}`);
+      }
+    } else {
+      logger.error(`[comprehensive] JSON parse FAILED. Text length=${comprehensiveText.length}, first 500 chars: ${comprehensiveText.slice(0, 500)}`);
+    }
     logger.debug('Comprehensive:', JSON.stringify(parsed).slice(0, 500));
 
     // ── マージ ──
@@ -1407,6 +1418,61 @@ export async function extractKeishinDataWithGemini(
       }
       if (parsedW.businessYears && parsedW.businessYears > 0) {
         merged.businessYears = parsedW.businessYears;
+      }
+    }
+
+    // ── W5/W8 セーフティネット: wItemsが全てデフォルト値なら別紙三を再抽出 ──
+    const wHasMeaningfulData = merged.wItems && Object.entries(merged.wItems).some(
+      ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && v > 0)
+    );
+    if (!wHasMeaningfulData) {
+      logger.warn('[keishin] W items all default. Attempting W-only re-extraction...');
+      try {
+        const wRetryPrompt = `このPDFの「その他の審査項目（社会性等）」セクション（別紙三）から、以下のW項目のみを抽出してJSON形式で返してください。
+
+★重要: 別紙三の全ページを注意深く読み取ってください。
+
+{
+  "auditStatus": 0,
+  "certifiedAccountants": 0,
+  "firstClassAccountants": 0,
+  "secondClassAccountants": 0,
+  "iso9001": false,
+  "iso14001": false,
+  "ecoAction21": false,
+  "employmentInsurance": false,
+  "healthInsurance": false,
+  "pensionInsurance": false,
+  "constructionRetirementMutualAid": false,
+  "retirementSystem": false,
+  "rdExpense2YearAvg": 0,
+  "constructionMachineCount": 0,
+  "businessYears": 0
+}
+
+auditStatus: 0=なし, 1=社内監査, 2=会計参与, 3=経理士監査, 4=会計監査人設置
+boolean: 有/○/チェック→true、無/空欄→false
+数値: 人数や金額をそのまま数値で返す`;
+
+        const wResult = await model.generateContent({
+          contents: [{ role: 'user', parts: [
+            { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } },
+            { text: wRetryPrompt },
+          ] }],
+        });
+        const wText = wResult.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        const wParsed = parseJsonResponse<Partial<SocialItems>>(wText);
+        if (wParsed) {
+          const wNonZero = Object.entries(wParsed).filter(([, v]) => v !== 0 && v !== false && v !== undefined && v !== null);
+          logger.info(`[keishin] W-only re-extraction: ${wNonZero.length} meaningful values: ${wNonZero.map(([k, v]) => `${k}=${v}`).join(', ')}`);
+          if (wNonZero.length > 0) {
+            merged.wItems = { ...merged.wItems, ...wParsed };
+          }
+        } else {
+          logger.warn('[keishin] W-only re-extraction: JSON parse failed');
+        }
+      } catch (e) {
+        logger.warn('[keishin] W-only re-extraction failed:', e);
       }
     }
 
