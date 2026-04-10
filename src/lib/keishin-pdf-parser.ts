@@ -1047,6 +1047,16 @@ function parseWItems(text: string, result: KeishinPdfResult): void {
     result.mappings.push({ source: '別紙三', target: 'W/監査受審状況', value: auditStatus });
   }
 
+  // W5: 公認会計士等の数、建設業経理士1級・2級
+  const cpaMatch = text.match(/公認会計士[等]?[^\d]*(\d+)\s*人/);
+  if (cpaMatch) { w.certifiedAccountants = parseInt(cpaMatch[1]); result.mappings.push({ source: '別紙三', target: 'W/公認会計士等', value: parseInt(cpaMatch[1]) }); }
+
+  const firstClassMatch = text.match(/(?:建設業)?経理[士事務士]*\s*1\s*級[^\d]*(\d+)\s*人/) ?? text.match(/1\s*級[^\d]*経理[士事務士]*[^\d]*(\d+)\s*人/);
+  if (firstClassMatch) { w.firstClassAccountants = parseInt(firstClassMatch[1]); result.mappings.push({ source: '別紙三', target: 'W/経理士1級', value: parseInt(firstClassMatch[1]) }); }
+
+  const secondClassMatch = text.match(/(?:建設業)?経理[士事務士]*\s*2\s*級[^\d]*(\d+)\s*人/) ?? text.match(/2\s*級[^\d]*経理[士事務士]*[^\d]*(\d+)\s*人/);
+  if (secondClassMatch) { w.secondClassAccountants = parseInt(secondClassMatch[1]); result.mappings.push({ source: '別紙三', target: 'W/経理士2級', value: parseInt(secondClassMatch[1]) }); }
+
   // W6: 研究開発
   const rdM = text.match(/研究開発費[^\d]*([\d,]+)\s*千円/);
   if (rdM) { w.rdExpense2YearAvg = parseNum(rdM[1]); result.mappings.push({ source: '別紙三', target: 'W/研究開発費', value: parseNum(rdM[1]) }); }
