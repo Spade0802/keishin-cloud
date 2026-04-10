@@ -866,9 +866,12 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
   function tryCalculatePrevOperatingCF(
     currentPrevData: PrevPeriodData,
     prevPrevBS: ParsedFinancialFields | null,
+    plDataOverride?: { ordinaryProfit: number; depreciation: number; corporateTax: number } | null,
   ): number | null {
     // 前期PL（前期決算書から）と前々期BS（前々期決算書から）の両方が必要
-    if (!prevPeriodPLData || !prevPrevBS) return null;
+    // plDataOverride が渡された場合はそちらを優先（setState反映前の最新値を使うため）
+    const plData = plDataOverride !== undefined ? plDataOverride : prevPeriodPLData;
+    if (!plData || !prevPrevBS) return null;
 
     // 前期BS values（前期決算書 → prevData に格納済み）
     const prevAllowance = parseFloat(currentPrevData.allowanceDoubtful) || 0;
@@ -887,9 +890,9 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     // 営業CF = 経常利益 + 減価償却実施額 - 法人税等
     //        + 貸倒引当金増減 - 売掛債権増減 + 仕入債務増減 - 棚卸資産増減 + 受入金増減
     return (
-      prevPeriodPLData.ordinaryProfit +
-      prevPeriodPLData.depreciation -
-      prevPeriodPLData.corporateTax +
+      plData.ordinaryProfit +
+      plData.depreciation -
+      plData.corporateTax +
       (prevAllowance - prevPrevAllowance) -
       (prevReceivable - prevPrevReceivable) +
       (prevPayable - prevPrevPayable) -
@@ -940,7 +943,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setPrevPeriodPLData(plData);
 
     // 前々期BSデータがあれば営業CFを自動計算
-    const autoCalcCF = tryCalculatePrevOperatingCF(updated, prevPrevPeriodBSData);
+    // plDataをsetState前の最新値として直接渡す（React stateは非同期更新のため）
+    const autoCalcCF = tryCalculatePrevOperatingCF(updated, prevPrevPeriodBSData, plData);
     if (autoCalcCF !== null) {
       updated.operatingCF = String(autoCalcCF);
       filled.add('operatingCF');
@@ -986,7 +990,7 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
     setPrevPrevPeriodFileLoaded(false);
     // 前期営業CFの自動計算結果をクリア
     if (prevCFAutoCalculated) {
-      setPrevData(prev => ({ ...prev, operatingCF: '0' }));
+      setPrevData(prev => ({ ...prev, operatingCF: '' }));
       setPrevAutoFilledFields(prev => {
         const next = new Set(prev);
         next.delete('operatingCF');

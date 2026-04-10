@@ -1415,7 +1415,27 @@ export async function extractKeishinDataWithGemini(
           }
         }
         if (verified.industries?.length > 0) {
-          merged.industries = verified.industries;
+          // 検証結果で業種を完全上書きせず、マージする
+          // 検証結果にある業種は値を更新し、検証結果に無い業種は元データを保持する
+          const verifiedByCode = new Map(verified.industries.map(ind => [ind.code?.padStart(2, '0'), ind]));
+          const mergedByCode = new Map(merged.industries.map(ind => [ind.code?.padStart(2, '0'), ind]));
+
+          // 検証結果の値で既存業種を更新
+          for (const [code, vInd] of verifiedByCode) {
+            if (mergedByCode.has(code)) {
+              // 既存業種を検証結果で更新
+              mergedByCode.set(code, vInd);
+            } else {
+              // 検証結果にのみある業種を追加
+              mergedByCode.set(code, vInd);
+            }
+          }
+
+          const beforeCount = merged.industries.length;
+          merged.industries = Array.from(mergedByCode.values());
+          if (merged.industries.length !== beforeCount) {
+            logger.info(`[verification merge] Industries: ${beforeCount} → ${merged.industries.length} (verified had ${verified.industries.length})`);
+          }
         }
 
         validateAndCorrectKeishin(merged);
@@ -1522,21 +1542,18 @@ function validateAndCorrectKeishin(data: KeishinGeminiResult): void {
     return true;
   });
 
-  // 全値0の業種を除外（PDFに行がないのにGeminiが創作した可能性が高い）
-  const beforeCount = data.industries.length;
-  data.industries = data.industries.filter((ind) => {
-    const allZero =
-      ind.prevCompletion === 0 &&
-      ind.currCompletion === 0 &&
-      ind.prevPrimeContract === 0 &&
-      ind.currPrimeContract === 0;
-    if (allZero) {
-      logger.warn(`Removing all-zero industry: ${ind.code} ${ind.name}`);
-    }
-    return !allZero;
-  });
-  if (beforeCount !== data.industries.length) {
-    logger.info(`[validateAndCorrectKeishin] Filtered ${beforeCount - data.industries.length} all-zero industries (${beforeCount} → ${data.industries.length})`);
+  // 全値0の業種もPDFに行が存在すれば保持する（Geminiのプロンプトと一致させる）
+  // 以前は全値0を除外していたが、実際にPDFに存在する業種まで消してしまうため廃止
+  if (data.industries.some((ind) =>
+    ind.prevCompletion === 0 && ind.currCompletion === 0 &&
+    ind.prevPrimeContract === 0 && ind.currPrimeContract === 0
+  )) {
+    logger.info(`[validateAndCorrectKeishin] All-zero industries preserved (not filtered): ${
+      data.industries.filter((ind) =>
+        ind.prevCompletion === 0 && ind.currCompletion === 0 &&
+        ind.prevPrimeContract === 0 && ind.currPrimeContract === 0
+      ).map((ind) => `${ind.code} ${ind.name}`).join(', ')
+    }`);
   }
 }
 

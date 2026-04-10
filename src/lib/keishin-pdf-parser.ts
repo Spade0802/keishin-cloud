@@ -1172,9 +1172,25 @@ export async function parseKeishinPDF(buffer: Buffer): Promise<KeishinPdfResult>
         if (gd.ebitda) result.ebitda = gd.ebitda;
         if (gd.techStaffCount) result.techStaffCount = gd.techStaffCount;
         if (gd.businessYears) result.businessYears = gd.businessYears;
-        // 業種
+        // 業種（Gemini結果とフォールバックパーサー結果をマージ）
         if (gd.industries && gd.industries.length > 0) {
-          result.industries = gd.industries;
+          if (result.industries && result.industries.length > 0) {
+            // 両方にデータがある場合はマージ（Gemini優先、フォールバックで補完）
+            type IndustryEntry = typeof result.industries[number];
+            const geminiByCode = new Map<string, IndustryEntry>(
+              gd.industries.map((ind: IndustryEntry) => [ind.code?.padStart(2, '0'), ind])
+            );
+            for (const fallbackInd of result.industries) {
+              const code = fallbackInd.code?.padStart(2, '0');
+              if (code && !geminiByCode.has(code)) {
+                // Geminiが取りこぼした業種をフォールバックから補完
+                geminiByCode.set(code, fallbackInd);
+              }
+            }
+            result.industries = Array.from(geminiByCode.values());
+          } else {
+            result.industries = gd.industries;
+          }
         }
         // W項目
         if (gd.wItems) {
