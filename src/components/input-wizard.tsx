@@ -942,16 +942,8 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
       : null;
     setPrevPeriodPLData(plData);
 
-    // 前々期BSデータがあれば営業CFを自動計算
-    // plDataをsetState前の最新値として直接渡す（React stateは非同期更新のため）
-    const autoCalcCF = tryCalculatePrevOperatingCF(updated, prevPrevPeriodBSData, plData);
-    if (autoCalcCF !== null) {
-      updated.operatingCF = String(autoCalcCF);
-      filled.add('operatingCF');
-      setPrevCFAutoCalculated(true);
-    }
-    // 前々期がまだ未アップロードの場合は空のままにする（'0'にしない）
-    // ユーザーには「計算待ち」状態として表示される
+    // 営業CFはボタン押下で計算する方式のため、ここでは自動計算しない
+    // 前々期がまだ未アップロードの場合は空のままにする
 
     setPrevData(updated);
     setPrevAutoFilledFields(filled);
@@ -971,19 +963,24 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
 
   // 前々期決算書アップロード（Step 1）のハンドラ
   function handlePrevPrevFileParsed(data: ParsedFinancialFields) {
-    // 前々期BSデータを保存（営業CF自動計算用）
+    // 前々期BSデータを保存（営業CF計算ボタン用）
     setPrevPrevPeriodBSData(data);
     setPrevPrevPeriodFileLoaded(true);
+    // 営業CFはボタン押下で計算する方式のため、ここでは自動計算しない
+  }
 
-    // 前々期データで営業CFを自動計算（前期PLがあれば優先、なければ前々期PLで代用）
-    const autoCalcCF = tryCalculatePrevOperatingCF(prevData, data);
+  // 営業CF計算ボタンのハンドラ
+  function handleCalculatePrevCF() {
+    const autoCalcCF = tryCalculatePrevOperatingCF(prevData, prevPrevPeriodBSData);
     if (autoCalcCF !== null) {
-      const updated = { ...prevData, operatingCF: String(autoCalcCF) };
-      setPrevData(updated);
+      setPrevData(prev => ({ ...prev, operatingCF: String(autoCalcCF) }));
       setPrevAutoFilledFields(prev => new Set([...prev, 'operatingCF']));
       setPrevCFAutoCalculated(true);
     }
   }
+
+  // 営業CF計算が可能かどうか（前期PL＋前々期BSが揃っている）
+  const canCalculatePrevCF = !!prevPeriodPLData && !!prevPrevPeriodBSData && !prevCFAutoCalculated;
 
   function handlePrevPrevFileClear() {
     setPrevPrevPeriodBSData(null);
@@ -1575,7 +1572,28 @@ export function InputWizard({ initialInputData, initialResultData, simulationId:
             </CardHeader>
             <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {numField('前期 資産合計（総資本）', prevData.totalCapital, (v) => setPrevData({ ...prevData, totalCapital: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('totalCapital') ? 'auto-filled' : 'needs-input') : undefined)}
-              {numField('前期 営業CF', prevData.operatingCF, (v) => { setPrevData({ ...prevData, operatingCF: v }); if (prevCFAutoCalculated) setPrevCFAutoCalculated(false); }, '千円', prevCFAutoCalculated ? '前期＋前々期決算書から自動計算済み（手動変更可）' : '前期＋前々期の決算書が揃うと自動計算', prevPeriodFileLoaded ? (prevCFAutoCalculated ? 'auto-filled' : (!prevPrevPeriodFileLoaded ? 'pending' : 'needs-input')) : undefined)}
+              <div className="space-y-1.5">
+                {numField('前期 営業CF', prevData.operatingCF, (v) => { setPrevData({ ...prevData, operatingCF: v }); if (prevCFAutoCalculated) setPrevCFAutoCalculated(false); }, '千円', prevCFAutoCalculated ? '自動計算済み（手動変更可）' : undefined, prevPeriodFileLoaded ? (prevCFAutoCalculated ? 'auto-filled' : 'needs-input') : undefined)}
+                {canCalculatePrevCF && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                    onClick={handleCalculatePrevCF}
+                  >
+                    <Calculator className="mr-1.5 h-3.5 w-3.5" />
+                    決算書から営業CFを自動計算
+                  </Button>
+                )}
+                {!prevCFAutoCalculated && !canCalculatePrevCF && prevPeriodFileLoaded && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {!prevPrevPeriodFileLoaded
+                      ? '前々期の決算書をアップロードすると計算ボタンが表示されます'
+                      : '手入力してください'}
+                  </p>
+                )}
+              </div>
               {numField('前期 貸倒引当金', prevData.allowanceDoubtful, (v) => setPrevData({ ...prevData, allowanceDoubtful: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('allowanceDoubtful') ? 'auto-filled' : 'needs-input') : undefined)}
               {numField('前期 受取手形+完成工事未収入金', prevData.notesAndReceivable, (v) => setPrevData({ ...prevData, notesAndReceivable: v }), '千円', undefined, prevPeriodFileLoaded ? (prevAutoFilledFields.has('notesAndReceivable') ? 'auto-filled' : 'needs-input') : undefined)}
               {numField('前期 工事未払金', prevData.constructionPayable, (v) => setPrevData({ ...prevData, constructionPayable: v }), '千円', '未払経費を含めない', prevPeriodFileLoaded ? (prevAutoFilledFields.has('constructionPayable') ? 'auto-filled' : 'needs-input') : undefined)}
