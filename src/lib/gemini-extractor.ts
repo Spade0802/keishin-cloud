@@ -171,6 +171,15 @@ const FINANCIAL_PROMPT = `あなたは日本の建設業の決算書（貸借対
       "fixedLiabilities": 0,
       "totalLiabilities": 0,
       "totalEquity": 0
+    },
+    "keishinFields": {
+      "allowanceDoubtful": 0,
+      "notesReceivable": 0,
+      "accountsReceivableConstruction": 0,
+      "constructionPayable": 0,
+      "wipConstruction": 0,
+      "materialInventory": 0,
+      "advanceReceived": 0
     }
   },
   "pl": {
@@ -232,6 +241,25 @@ const FINANCIAL_PROMPT = `あなたは日本の建設業の決算書（貸借対
 - **netIncome**: 「当期純利益」「当期利益」。PLの最終行。
 
 ### 貸借対照表（BS）の科目
+
+#### ★ keishinFields（経審用の重要7項目 - 必ず正確に抽出）
+以下の7項目は経営事項審査のY点計算に使う最重要フィールドです。**科目の取り違えは絶対に避けてください。**
+- **allowanceDoubtful**: 「貸倒引当金」（流動資産のマイナス項目）。絶対値で返す。
+- **notesReceivable**: 「受取手形」（流動資産）。手形による債権。
+- **accountsReceivableConstruction**: 「完成工事未収入金」（流動資産）。工事完了後の未回収金。一般企業では「売掛金」。**注意: 「未成工事支出金」とは全く別の科目です。**
+- **constructionPayable**: 「工事未払金」（流動負債）。下請・資材の未払い。一般企業では「買掛金」。
+- **wipConstruction**: 「未成工事支出金」（流動資産）。施工中の仕掛工事原価。一般企業では「仕掛品」。**注意: 「完成工事未収入金」とは全く別の科目です。**
+- **materialInventory**: 「材料貯蔵品」（流動資産）。
+- **advanceReceived**: 「未成工事受入金」（流動負債）。施主からの前受金。
+
+#### 科目の混同防止チェックリスト
+| 科目 | 場所 | よくある間違い |
+|------|------|------|
+| 完成工事未収入金 | 流動資産 | ❌ 未成工事支出金と間違えない |
+| 未成工事支出金 | 流動資産 | ❌ 完成工事未収入金と間違えない |
+| 工事未払金 | 流動負債 | ❌ 未払金・未払費用と間違えない |
+| 未成工事受入金 | 流動負債 | ❌ 未成工事支出金と間違えない |
+
 - **currentAssets**: 「流動資産」セクション。現金預金、受取手形、完成工事未収入金（売掛金）、未成工事支出金（仕掛品）等を含む。
 - **tangibleFixed**: 「有形固定資産」セクション。建物、構築物、機械装置、車両運搬具、工具器具備品、土地等。
 - **intangibleFixed**: 「無形固定資産」セクション。ソフトウェア、特許権、電話加入権等。項目がない会社もある。
@@ -397,6 +425,15 @@ const EXCEL_FINANCIAL_PROMPT = `あなたは日本の建設業の決算書（貸
       "fixedLiabilities": 0,
       "totalLiabilities": 0,
       "totalEquity": 0
+    },
+    "keishinFields": {
+      "allowanceDoubtful": 0,
+      "notesReceivable": 0,
+      "accountsReceivableConstruction": 0,
+      "constructionPayable": 0,
+      "wipConstruction": 0,
+      "materialInventory": 0,
+      "advanceReceived": 0
     }
   },
   "pl": {

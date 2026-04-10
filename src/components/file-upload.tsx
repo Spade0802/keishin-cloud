@@ -181,36 +181,79 @@ export function FileUpload({ onDataParsed, onClear, dropLabel, dropDescription }
         }
 
         // BS個別科目から5項目を自動導出（千円）
+        // Geminiの出力は科目名がフリーテキストなので、表記揺れに対応するヘルパー
         if (data.bs) {
-          // 貸倒引当金（絶対値）
-          const abd = data.bs.currentAssets?.['貸倒引当金'];
-          if (abd !== undefined) formValues.allowanceDoubtful = Math.abs(abd);
+          const findInSection = (section: Record<string, number> | undefined, ...keys: string[]): number => {
+            if (!section) return 0;
+            // 完全一致
+            for (const key of keys) {
+              if (section[key] !== undefined) return section[key];
+            }
+            // Geminiが空白やカッコを含むキーを返す場合の正規化マッチ
+            const normalize = (s: string) => s.replace(/[\s　・（）()]/g, '');
+            for (const key of keys) {
+              const nKey = normalize(key);
+              for (const [sectionKey, val] of Object.entries(section)) {
+                if (normalize(sectionKey) === nKey) return val;
+              }
+            }
+            return 0;
+          };
 
-          // 受取手形 + 完成工事未収入金（一般企業の「売掛金」も考慮）
-          const notes = data.bs.currentAssets?.['受取手形'] || 0;
-          const acctRec = data.bs.currentAssets?.['完成工事未収入金']
-            || data.bs.currentAssets?.['売掛金']
-            || 0;
-          if (notes || acctRec) formValues.notesAndReceivable = notes + acctRec;
+          // keishinFields（Geminiが明示的に抽出した経審用フィールド）を優先使用
+          const kf = (data.bs as Record<string, unknown>).keishinFields as {
+            allowanceDoubtful?: number; notesReceivable?: number;
+            accountsReceivableConstruction?: number; constructionPayable?: number;
+            wipConstruction?: number; materialInventory?: number; advanceReceived?: number;
+          } | undefined;
 
-          // 工事未払金（一般企業の「買掛金」も考慮。未払経費は含めない）
-          const cp = data.bs.currentLiabilities?.['工事未払金']
-            || data.bs.currentLiabilities?.['買掛金']
-            || 0;
-          if (cp) formValues.constructionPayable = cp;
+          if (kf && Object.values(kf).some(v => v !== 0 && v !== undefined)) {
+            // keishinFieldsがある場合はそちらを使う（科目取り違えリスクが低い）
+            if (kf.allowanceDoubtful) formValues.allowanceDoubtful = Math.abs(kf.allowanceDoubtful);
+            const notes = kf.notesReceivable || 0;
+            const acctRec = kf.accountsReceivableConstruction || 0;
+            if (notes || acctRec) formValues.notesAndReceivable = notes + acctRec;
+            if (kf.constructionPayable) formValues.constructionPayable = kf.constructionPayable;
+            const wip = kf.wipConstruction || 0;
+            const mat = kf.materialInventory || 0;
+            if (wip || mat) formValues.inventoryAndMaterials = wip + mat;
+            if (kf.advanceReceived) formValues.advanceReceived = kf.advanceReceived;
+            console.log('[BS Field Mapping] Using keishinFields:', kf);
+          } else {
+            // keishinFieldsがない場合はcurrentAssets/currentLiabilitiesからフォールバック
+            // 貸倒引当金（絶対値）
+            const abd = findInSection(data.bs.currentAssets, '貸倒引当金');
+            if (abd !== 0) formValues.allowanceDoubtful = Math.abs(abd);
 
-          // 未成工事支出金（一般企業の「仕掛品」も考慮） + 材料貯蔵品
-          const wip = data.bs.currentAssets?.['未成工事支出金']
-            || data.bs.currentAssets?.['仕掛品']
-            || 0;
-          const mat = data.bs.currentAssets?.['材料貯蔵品'] || 0;
-          if (wip || mat) formValues.inventoryAndMaterials = wip + mat;
+            // 受取手形 + 完成工事未収入金（一般企業の「売掛金」も考慮）
+            const notes = findInSection(data.bs.currentAssets, '受取手形');
+            const acctRec = findInSection(data.bs.currentAssets, '完成工事未収入金', '売掛金');
+            if (notes || acctRec) formValues.notesAndReceivable = notes + acctRec;
 
-          // 未成工事受入金（一般企業の「前受金」も考慮）
-          const adv = data.bs.currentLiabilities?.['未成工事受入金']
-            || data.bs.currentLiabilities?.['前受金']
-            || 0;
-          if (adv) formValues.advanceReceived = adv;
+            // 工事未払金（一般企業の「買掛金」も考慮。未払経費は含めない）
+            const cp = findInSection(data.bs.currentLiabilities, '工事未払金', '買掛金');
+            if (cp) formValues.constructionPayable = cp;
+
+            // 未成工事支出金（一般企業の「仕掛品」も考慮） + 材料貯蔵品
+            const wip = findInSection(data.bs.currentAssets, '未成工事支出金', '仕掛品');
+            const mat = findInSection(data.bs.currentAssets, '材料貯蔵品');
+            if (wip || mat) formValues.inventoryAndMaterials = wip + mat;
+
+            // 未成工事受入金（一般企業の「前受金」も考慮）
+            const adv = findInSection(data.bs.currentLiabilities, '未成工事受入金', '前受金');
+            if (adv) formValues.advanceReceived = adv;
+          }
+
+          // デバッグログ: 抽出された値を確認
+          console.log('[BS Field Mapping] Raw currentAssets:', JSON.stringify(data.bs.currentAssets));
+          console.log('[BS Field Mapping] Raw currentLiabilities:', JSON.stringify(data.bs.currentLiabilities));
+          console.log('[BS Field Mapping] Mapped values:', {
+            allowanceDoubtful: formValues.allowanceDoubtful,
+            notesAndReceivable: formValues.notesAndReceivable,
+            constructionPayable: formValues.constructionPayable,
+            inventoryAndMaterials: formValues.inventoryAndMaterials,
+            advanceReceived: formValues.advanceReceived,
+          });
         }
 
         // 構造化BS/PLデータを構築
