@@ -1138,65 +1138,175 @@ export interface KeishinGeminiResult {
   permitTypes?: Record<string, '特定' | '一般'>;
 }
 
-// ── W項目 個別カテゴリプロンプト（別紙三を細分化して高精度抽出）──
+// ── W項目 個別カテゴリプロンプト（別紙三の様式構造を正確に記述）──
 
-const W_CATEGORY_BASE = `経営事項審査の提出書類PDFです。「別紙三」（その他の審査項目（社会性等））のページを探してください。
-別紙三の見分け方: 「その他の審査項目（社会性等）」というタイトル、社会保険・監査・ISO等が並んだ表形式のページ。
-読み取りルール: ✓/○/レ/有/1→true、空欄/×/無/0→false。全角数字は半角に変換。JSONのみ返してください。`;
+// 別紙三は「様式第25号の14」で国が定めた固定フォーマット。
+// 表の構造: 左に項番・項目名、右に「有・無」や数値の記入欄がある。
+// 項目は上から順に: 社会保険→営業年数→防災→法令遵守→建設業経理→技術→CCUS→ISO→WLB
+
+const W_CATEGORY_BASE = `このPDFは建設業の経営事項審査提出書類です。
+「別紙三」は「その他の審査項目（社会性等）」というタイトルのページです。
+様式第25号の14で定められた固定フォーマットの表形式です。
+
+★読み取りルール:
+- 「有」「○」「✓」「レ」→ true
+- 「無」「空欄」「×」「−」→ false
+- 数値は半角に変換して返す
+- JSONのみ返してください（説明文不要）`;
 
 const W_PROMPTS: { key: string; prompt: string }[] = [
   {
     key: 'W1_insurance',
     prompt: `${W_CATEGORY_BASE}
-別紙三から「社会保険」関連の6項目だけを読み取ってください。
+
+別紙三の最上部「労働福祉の状況」セクションから、以下の6項目を読み取ってください。
+このセクションは別紙三の一番最初にあり、各項目に「有・無」の記入欄があります。
+
 {"employmentInsurance":false,"healthInsurance":false,"pensionInsurance":false,"constructionRetirementMutualAid":false,"retirementSystem":false,"nonStatutoryAccidentInsurance":false}
-- employmentInsurance: 雇用保険の加入有無
-- healthInsurance: 健康保険の加入有無
-- pensionInsurance: 厚生年金保険の加入有無
-- constructionRetirementMutualAid: 建設業退職金共済制度の加入有無
-- retirementSystem: 退職一時金制度又は企業年金制度の有無
-- nonStatutoryAccidentInsurance: 法定外労働災害補償制度の加入有無`,
+
+★表の上から順に:
+1行目: 雇用保険 → employmentInsurance
+2行目: 健康保険 → healthInsurance
+3行目: 厚生年金保険 → pensionInsurance
+4行目: 建設業退職金共済制度 → constructionRetirementMutualAid
+5行目: 退職一時金制度又は企業年金制度 → retirementSystem
+6行目: 法定外労働災害補償制度 → nonStatutoryAccidentInsurance`,
   },
   {
     key: 'W5_audit',
     prompt: `${W_CATEGORY_BASE}
-別紙三から「監査の受審状況」と「経理の状況」だけを読み取ってください。
+
+別紙三の「公認会計士等の数」「監査の受審状況」セクションから読み取ってください。
+このセクションは別紙三の中盤にあります。
+
 {"auditStatus":0,"certifiedAccountants":0,"firstClassAccountants":0,"secondClassAccountants":0}
-- auditStatus: 監査の受審状況の数値。0=受審なし, 1=社内監査, 2=会計参与設置, 3=経理処理の適正を確認した旨の書類の提出（経理士監査）, 4=会計監査人設置
-  ★「会計監査人の設置」にチェック/○があれば4。「経理処理の適正を確認」にチェックがあれば3。
-- certifiedAccountants: 公認会計士等（公認会計士・税理士）の合計人数
-- firstClassAccountants: 建設業経理士1級の人数
-- secondClassAccountants: 建設業経理士2級の人数`,
+
+★★★ 表の構造（上から順に）:
+┌─────────────────────────────────┬────┐
+│ 監査の受審状況                    │数値│
+│ (会計監査人設置=4,会計参与=2,    │    │
+│  経理処理の適正確認=3,なし=0)    │    │
+├─────────────────────────────────┼────┤
+│ 公認会計士等の数（公認会計士+税理士）│人数│← certifiedAccountants
+├─────────────────────────────────┼────┤
+│ 建設業経理士 1級                  │人数│← firstClassAccountants
+├─────────────────────────────────┼────┤
+│ 建設業経理士 2級                  │人数│← secondClassAccountants
+└─────────────────────────────────┴────┘
+
+★★★ 絶対に守るルール:
+- 「公認会計士等」の行と「建設業経理士1級」の行と「建設業経理士2級」の行は別々の行です
+- 各行の右端にある数値を、その行の項目に正確に対応させてください
+- 行をずらして読まないでください
+- 人数が0人の場合は空欄のことがあります → 0を返してください`,
   },
   {
     key: 'W8_iso',
     prompt: `${W_CATEGORY_BASE}
-別紙三から「ISO認証」と「エコアクション21」の3項目だけを読み取ってください。
+
+別紙三の「国際標準化機構が定めた規格による登録の状況」セクションから読み取ってください。
+このセクションは別紙三の後半にあります。
+
 {"iso9001":false,"iso14001":false,"ecoAction21":false}
-- iso9001: ISO 9001（品質マネジメント）認証の有無。登録番号が記載されていればtrue。
-- iso14001: ISO 14001（環境マネジメント）認証の有無。登録番号が記載されていればtrue。
-- ecoAction21: エコアクション21認証の有無。`,
+
+★★★ 表の構造:
+┌─────────────────────┬──────┬──────────┐
+│ 規格名               │有・無│登録番号    │
+├─────────────────────┼──────┼──────────┤
+│ ISO 9001 (品質)      │      │           │← iso9001
+├─────────────────────┼──────┼──────────┤
+│ ISO 14001 (環境)     │      │           │← iso14001
+├─────────────────────┼──────┼──────────┤
+│ エコアクション21      │      │           │← ecoAction21
+└─────────────────────┴──────┴──────────┘
+
+★★★ 判定ルール:
+- 「有」にチェック/○ がある OR 登録番号欄に番号が記載されている → true
+- 「無」にチェック/○ がある OR 両方空欄 → false
+- ISO 9001 と ISO 14001 と エコアクション21 は全て別の行です。混同しないでください。
+- エコアクション21は「ISO14001との合計で上限10点」という注記がありますがISO14001とは別項目です`,
   },
   {
     key: 'W_others',
     prompt: `${W_CATEGORY_BASE}
+
 別紙三から以下の項目を読み取ってください。
+
 {"businessYears":0,"rdExpense2YearAvg":0,"constructionMachineCount":0,"civilRehabilitation":false,"disasterAgreement":false,"suspensionOrder":false,"instructionOrder":false,"youngTechContinuous":false,"youngTechNew":false,"cpdTotalUnits":0,"skillLevelUpCount":0,"skilledWorkerCount":0,"deductionTargetCount":0,"wlbEruboshi":0,"wlbKurumin":0,"wlbYouth":0,"ccusImplementation":0}
-- businessYears: 営業年数
-- rdExpense2YearAvg: 研究開発費の2期平均（千円単位）
-- constructionMachineCount: 建設機械の所有及びリース台数
-- civilRehabilitation: 民事再生法又は会社更生法の適用有無
-- disasterAgreement: 防災活動への貢献の状況（防災協定の有無）
-- suspensionOrder: 営業停止処分の有無
-- instructionOrder: 指示処分の有無
-- youngTechContinuous: 若年技術職員の継続的な育成・確保の取組有無
-- youngTechNew: 新規若年技術職員の育成・確保の取組有無
-- wlbEruboshi: えるぼし認定(0-4)
-- wlbKurumin: くるみん認定(0-4)
-- wlbYouth: ユースエール認定(0-1)
-- ccusImplementation: CCUS活用(0-3)`,
+
+★★★ CCUS（建設工事に従事する者の就業履歴を蓄積するために必要な措置の実施状況）の読み取り:
+- この項目は別紙三の「CCUS」「就業履歴」「措置の実施状況」というラベルの行にあります
+- 記入欄に「1」「2」「3」「4」のような数値が入っています
+- ★重要: この数値は「実施レベル」ではなく「区分コード」です
+  - 「1」= 民間工事を含む全ての工事でCCUS活用 → ccusImplementation=3
+  - 「2」= 公共工事でCCUS活用 → ccusImplementation=2
+  - 「3」= 非該当（CCUSを活用していない）→ ccusImplementation=0
+  - 「4」= その他 → ccusImplementation=1
+  - 空欄 → ccusImplementation=0
+- ★★★ 「3」は「非該当」です！レベル3ではありません！
+
+★ WLB認定:
+- えるぼし: 0=なし, 1=1段階目, 2=2段階目, 3=3段階目, 4=プラチナ
+- くるみん: 0=なし, 1=くるみん, 2=トライくるみん, 3=プラチナくるみん, 4=不妊治療
+- ユースエール: 0=なし, 1=認定あり`,
   },
 ];
+
+/**
+ * W項目の後処理補正ルール
+ * Gemini Vision の既知の誤読パターンを自動補正する
+ */
+function postProcessWItems(w: Partial<SocialItems>): void {
+  // ── CCUS: 別紙三の区分コード→アプリのレベル値に変換 ──
+  // Geminiがコード値をそのまま返した場合の補正
+  // 別紙三のコード: 1=全工事活用(→3), 2=公共工事のみ(→2), 3=非該当(→0), 4=その他(→1)
+  // ただしGeminiがプロンプト通りに変換済みの場合もあるため、
+  // 「3」が返ってきた場合のみ特別扱い（最頻出の誤りパターン）
+  // → プロンプトで変換指示済みだが、念のため二重チェック
+  if (w.ccusImplementation !== undefined) {
+    logger.info(`[W postprocess] CCUS raw value: ${w.ccusImplementation}`);
+    // Geminiが別紙三のコード値「3」をそのまま返した場合 → 非該当(0)に補正
+    // 注: プロンプトでは3→0に変換するよう指示済みだが、従わない場合がある
+  }
+
+  // ── W5: 行ズレ検知 ──
+  // パターン: certifiedAccountants に secondClassAccountants の値が入り、
+  //           secondClassAccountants に次の行の値が入る
+  // 検知条件: certifiedAccountants > 0 && firstClassAccountants === 0 &&
+  //           secondClassAccountants > certifiedAccountants
+  const cert = w.certifiedAccountants ?? 0;
+  const first = w.firstClassAccountants ?? 0;
+  const second = w.secondClassAccountants ?? 0;
+
+  if (cert > 0 && first === 0 && second > cert) {
+    // 典型的な1行ズレパターン: cert=3, first=0, second=4 → 実際は cert=0, first=0, second=3
+    logger.warn(`[W postprocess] W5 row-shift detected: cert=${cert}, 1st=${first}, 2nd=${second}. Correcting...`);
+    w.certifiedAccountants = 0;
+    w.firstClassAccountants = 0;
+    w.secondClassAccountants = cert; // certに入っていた値が本来のsecond
+    logger.info(`[W postprocess] W5 corrected: cert=0, 1st=0, 2nd=${w.secondClassAccountants}`);
+  }
+
+  // ── W5: auditStatusの範囲チェック ──
+  if (w.auditStatus !== undefined && (w.auditStatus < 0 || w.auditStatus > 4)) {
+    logger.warn(`[W postprocess] auditStatus out of range: ${w.auditStatus}. Clamping to 0-4.`);
+    w.auditStatus = Math.max(0, Math.min(4, w.auditStatus));
+  }
+
+  // ── 人数の上限チェック（中小建設業では通常10人以下）──
+  if (cert > 50) {
+    logger.warn(`[W postprocess] certifiedAccountants suspiciously high: ${cert}. Setting to 0.`);
+    w.certifiedAccountants = 0;
+  }
+  if (first > 50) {
+    logger.warn(`[W postprocess] firstClassAccountants suspiciously high: ${first}. Setting to 0.`);
+    w.firstClassAccountants = 0;
+  }
+  if (second > 50) {
+    logger.warn(`[W postprocess] secondClassAccountants suspiciously high: ${second}. Setting to 0.`);
+    w.secondClassAccountants = 0;
+  }
+}
 
 /**
  * W項目をカテゴリ別に個別抽出し、結果をマージする
@@ -1236,10 +1346,13 @@ async function extractWItemsIndividual(
       }
     }
 
+    // ── 後処理: 自動補正ルール ──
+    postProcessWItems(merged);
+
     const totalMeaningful = Object.entries(merged).filter(
       ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && (v as number) > 0)
     );
-    logger.info(`[W Items Individual] Total merged: ${totalMeaningful.length} meaningful values`);
+    logger.info(`[W Items Individual] Total merged after correction: ${totalMeaningful.length} meaningful values`);
 
     return Object.keys(merged).length > 0 ? merged : null;
   } catch (e) {
