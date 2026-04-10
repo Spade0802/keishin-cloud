@@ -172,7 +172,7 @@ describe('validateIndustryData', () => {
     expect(issue!.severity).toBe('warning');
   });
 
-  it('produces warning when currPrimeContract > currCompletion', () => {
+  it('auto-corrects currCompletion when currPrimeContract > currCompletion', () => {
     const data = baseData({
       industries: [
         { name: '建築一式工事', code: '02', prevCompletion: 100000, currCompletion: 100000, prevPrimeContract: 80000, currPrimeContract: 120000 },
@@ -180,11 +180,12 @@ describe('validateIndustryData', () => {
     });
     const result = validateExtractedData(data);
     const issue = result.issues.find((i) =>
-      i.field.includes('currPrimeContract'),
+      i.field.includes('currCompletion'),
     );
     expect(issue).toBeDefined();
-    expect(issue!.severity).toBe('warning');
-    expect(issue!.suggestedValue).toBe(100000);
+    expect(issue!.severity).toBe('info');
+    // 完工高が元請完工高に自動補正される
+    expect(data.industries[0].currCompletion).toBe(120000);
   });
 
   it('produces info when currCompletion is 0 but prevCompletion > 0', () => {

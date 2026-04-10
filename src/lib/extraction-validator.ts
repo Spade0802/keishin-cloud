@@ -186,16 +186,30 @@ function validateIndustryData(
       });
     }
 
-    // 元請完工高 > 完工高のチェック
+    // 元請完工高 > 完工高のチェック → 自動補正
     if (ind.currPrimeContract > ind.currCompletion && ind.currCompletion > 0) {
+      // 元請が完工を超える場合、完工高のOCR読み取りミス（桁落ち）の可能性が高い
+      // 元請完工高を完工高として採用する
       issues.push({
-        field: `industry.${ind.code}.currPrimeContract`,
-        label: `${ind.name} 当期元請完工高`,
-        severity: 'warning',
-        message: `${ind.name}の元請完工高(${ind.currPrimeContract.toLocaleString()})が完工高(${ind.currCompletion.toLocaleString()})を超えています。`,
-        originalValue: ind.currPrimeContract,
-        suggestedValue: ind.currCompletion,
+        field: `industry.${ind.code}.currCompletion`,
+        label: `${ind.name} 当期完工高`,
+        severity: 'info',
+        message: `${ind.name}の完工高を元請完工高(${ind.currPrimeContract.toLocaleString()})に自動補正しました（元の値: ${ind.currCompletion.toLocaleString()}）。`,
+        originalValue: ind.currCompletion,
+        suggestedValue: ind.currPrimeContract,
       });
+      ind.currCompletion = ind.currPrimeContract;
+    }
+    if (ind.prevPrimeContract > ind.prevCompletion && ind.prevCompletion > 0) {
+      issues.push({
+        field: `industry.${ind.code}.prevCompletion`,
+        label: `${ind.name} 前期完工高`,
+        severity: 'info',
+        message: `${ind.name}の前期完工高を元請完工高(${ind.prevPrimeContract.toLocaleString()})に自動補正しました（元の値: ${ind.prevCompletion.toLocaleString()}）。`,
+        originalValue: ind.prevCompletion,
+        suggestedValue: ind.prevPrimeContract,
+      });
+      ind.prevCompletion = ind.prevPrimeContract;
     }
   }
 
