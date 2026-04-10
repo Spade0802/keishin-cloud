@@ -1138,6 +1138,106 @@ export interface KeishinGeminiResult {
   permitTypes?: Record<string, '特定' | '一般'>;
 }
 
+// ── W項目専用プロンプト（別紙三に特化）──
+const PROMPT_W_ITEMS_ONLY = `あなたは日本の建設業の経営事項審査（経審）の「その他の審査項目（社会性等）」を読み取る専門家です。
+
+このPDFは経営事項審査の提出書類です。**別紙三**（その他の審査項目（社会性等））のページを探して、以下の項目を読み取ってください。
+
+★ 別紙三の見分け方:
+- 「その他の審査項目（社会性等）」というタイトルが書かれたページ
+- 「別紙三」と書かれたページ
+- 社会保険、監査の受審状況、ISO等の項目が並んだ表形式のページ
+
+★ 読み取りルール:
+- チェックマーク（✓、○、レ）、「有」、「1」→ true
+- 空欄、「×」、「無」、「0」→ false
+- 数値はそのまま数値で返す
+- 全角数字は半角に変換
+
+## 出力JSON
+{
+  "employmentInsurance": false,
+  "healthInsurance": false,
+  "pensionInsurance": false,
+  "constructionRetirementMutualAid": false,
+  "retirementSystem": false,
+  "nonStatutoryAccidentInsurance": false,
+  "auditStatus": 0,
+  "certifiedAccountants": 0,
+  "firstClassAccountants": 0,
+  "secondClassAccountants": 0,
+  "rdExpense2YearAvg": 0,
+  "constructionMachineCount": 0,
+  "iso9001": false,
+  "iso14001": false,
+  "ecoAction21": false,
+  "youngTechContinuous": false,
+  "youngTechNew": false,
+  "cpdTotalUnits": 0,
+  "skillLevelUpCount": 0,
+  "skilledWorkerCount": 0,
+  "wlbEruboshi": 0,
+  "wlbKurumin": 0,
+  "wlbYouth": 0,
+  "ccusImplementation": 0,
+  "businessYears": 0,
+  "civilRehabilitation": false,
+  "disasterAgreement": false,
+  "suspensionOrder": false,
+  "instructionOrder": false
+}
+
+★★★ フィールド説明:
+- auditStatus: 監査の受審状況。0=なし, 1=社内監査, 2=会計参与設置, 3=経理士監査, 4=会計監査人設置
+- certifiedAccountants: 公認会計士等の人数（公認会計士＋税理士の合計）
+- firstClassAccountants: 建設業経理士1級の人数
+- secondClassAccountants: 建設業経理士2級の人数
+- iso9001: ISO 9001 認証の有無。登録番号が記載されていればtrue
+- iso14001: ISO 14001 認証の有無
+- ecoAction21: エコアクション21 認証の有無
+- businessYears: 営業年数
+- rdExpense2YearAvg: 研究開発費の2期平均（千円単位）
+- constructionMachineCount: 建設機械の所有・リース台数
+
+★★★ 科目の混同注意:
+- 「会計監査人」は auditStatus=4（一番上のランク、+20点）
+- 「経理処理の適正を確認した旨の書類」は auditStatus=3
+- 社会保険の有無と監査受審状況は別セクション
+
+PDFの別紙三ページを全て読み取り、上記JSONを返してください。`;
+
+/**
+ * W項目を別紙三から専用プロンプトで抽出する
+ */
+async function extractWItemsDedicated(
+  model: UnifiedModel,
+  pdfPart: { inlineData: { mimeType: string; data: string } },
+): Promise<Partial<SocialItems> | null> {
+  try {
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_W_ITEMS_ONLY }] }],
+    });
+    const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const parsed = parseJsonResponse<Partial<SocialItems>>(text);
+
+    if (!parsed) {
+      logger.warn('[W Items Dedicated] JSON parse failed');
+      return null;
+    }
+
+    // 有意なデータがあるか確認
+    const meaningful = Object.entries(parsed).filter(
+      ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && v > 0)
+    );
+    logger.info(`[W Items Dedicated] Extracted ${meaningful.length} meaningful values: ${meaningful.map(([k, v]) => `${k}=${v}`).join(', ')}`);
+
+    return parsed;
+  } catch (e) {
+    logger.warn('[W Items Dedicated] extraction failed:', e);
+    return null;
+  }
+}
+
 /**
  * 技術職員名簿を抽出する（最適化版）
  *
@@ -1354,15 +1454,16 @@ export async function extractKeishinDataWithGemini(
       },
     };
 
-    // ── 2パス並列実行（統合プロンプト + 技術職員名簿）──
-    const [comprehensiveResult, techStaffResult] = await Promise.allSettled([
+    // ── 3パス並列実行（統合プロンプト + 技術職員名簿 + W項目専用）──
+    const [comprehensiveResult, techStaffResult, wItemsDedicatedResult] = await Promise.allSettled([
       model.generateContent({ contents: [{ role: 'user', parts: [pdfPart, { text: PROMPT_KEISHIN_COMPREHENSIVE }] }] }),
       extractTechStaffWithPageSplit(model, buffer, pdfPart),
+      extractWItemsDedicated(model, pdfPart),
     ]);
 
     logger.info(
       'Keishin optimized extraction:',
-      `comprehensive=${comprehensiveResult.status}, techStaff=${techStaffResult.status}`
+      `comprehensive=${comprehensiveResult.status}, techStaff=${techStaffResult.status}, wItemsDedicated=${wItemsDedicatedResult.status}`
     );
 
     // ── 統合結果をパース ──
@@ -1421,59 +1522,36 @@ export async function extractKeishinDataWithGemini(
       }
     }
 
-    // ── W5/W8 セーフティネット: wItemsが全てデフォルト値なら別紙三を再抽出 ──
-    const wHasMeaningfulData = merged.wItems && Object.entries(merged.wItems).some(
-      ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && v > 0)
-    );
-    if (!wHasMeaningfulData) {
-      logger.warn('[keishin] W items all default. Attempting W-only re-extraction...');
-      try {
-        const wRetryPrompt = `このPDFの「その他の審査項目（社会性等）」セクション（別紙三）から、以下のW項目のみを抽出してJSON形式で返してください。
+    // ── W項目専用抽出結果（3パス目）をマージ ──
+    // 統合プロンプトのW項目と専用抽出結果を比較し、専用抽出を優先
+    const dedicatedW = wItemsDedicatedResult.status === 'fulfilled' ? wItemsDedicatedResult.value : null;
+    if (dedicatedW) {
+      const dedicatedMeaningful = Object.entries(dedicatedW).filter(
+        ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && v > 0)
+      );
+      const comprehensiveMeaningful = merged.wItems ? Object.entries(merged.wItems).filter(
+        ([, v]) => (typeof v === 'boolean' && v === true) || (typeof v === 'number' && v > 0)
+      ) : [];
 
-★重要: 別紙三の全ページを注意深く読み取ってください。
+      logger.info(`[keishin] W items merge: comprehensive=${comprehensiveMeaningful.length} meaningful, dedicated=${dedicatedMeaningful.length} meaningful`);
 
-{
-  "auditStatus": 0,
-  "certifiedAccountants": 0,
-  "firstClassAccountants": 0,
-  "secondClassAccountants": 0,
-  "iso9001": false,
-  "iso14001": false,
-  "ecoAction21": false,
-  "employmentInsurance": false,
-  "healthInsurance": false,
-  "pensionInsurance": false,
-  "constructionRetirementMutualAid": false,
-  "retirementSystem": false,
-  "rdExpense2YearAvg": 0,
-  "constructionMachineCount": 0,
-  "businessYears": 0
-}
-
-auditStatus: 0=なし, 1=社内監査, 2=会計参与, 3=経理士監査, 4=会計監査人設置
-boolean: 有/○/チェック→true、無/空欄→false
-数値: 人数や金額をそのまま数値で返す`;
-
-        const wResult = await model.generateContent({
-          contents: [{ role: 'user', parts: [
-            { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } },
-            { text: wRetryPrompt },
-          ] }],
-        });
-        const wText = wResult.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        const wParsed = parseJsonResponse<Partial<SocialItems>>(wText);
-        if (wParsed) {
-          const wNonZero = Object.entries(wParsed).filter(([, v]) => v !== 0 && v !== false && v !== undefined && v !== null);
-          logger.info(`[keishin] W-only re-extraction: ${wNonZero.length} meaningful values: ${wNonZero.map(([k, v]) => `${k}=${v}`).join(', ')}`);
-          if (wNonZero.length > 0) {
-            merged.wItems = { ...merged.wItems, ...wParsed };
+      if (dedicatedMeaningful.length >= comprehensiveMeaningful.length) {
+        // 専用抽出の方が多くの有意データを持っている → 専用抽出を優先
+        logger.info(`[keishin] Using W items from dedicated extraction (${dedicatedMeaningful.length} values): ${dedicatedMeaningful.map(([k, v]) => `${k}=${v}`).join(', ')}`);
+        merged.wItems = { ...merged.wItems, ...dedicatedW };
+      } else {
+        // 統合プロンプトの方が多い → 統合プロンプトをベースに、専用抽出で補完
+        for (const [key, value] of Object.entries(dedicatedW)) {
+          const existing = (merged.wItems as Record<string, unknown>)[key];
+          const existingIsDefault = existing === 0 || existing === false || existing === undefined || existing === null;
+          const newIsMeaningful = (typeof value === 'boolean' && value === true) || (typeof value === 'number' && value > 0);
+          if (existingIsDefault && newIsMeaningful) {
+            (merged.wItems as Record<string, unknown>)[key] = value;
           }
-        } else {
-          logger.warn('[keishin] W-only re-extraction: JSON parse failed');
         }
-      } catch (e) {
-        logger.warn('[keishin] W-only re-extraction failed:', e);
       }
+    } else {
+      logger.warn('[keishin] W items dedicated extraction returned null');
     }
 
     // ── 技術職員数値の統合 ──
